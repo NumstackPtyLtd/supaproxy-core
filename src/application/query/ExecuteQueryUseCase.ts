@@ -9,6 +9,7 @@ import type { ManageConversationUseCase } from '../conversation/ManageConversati
 import { runGuardrailChain } from '../ports/guardrailChain.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ConfigurationError } from '../../domain/shared/errors.js'
+import { IS_PRODUCTION } from '../../config.js'
 import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
@@ -143,12 +144,7 @@ export class ExecuteQueryUseCase {
 
     try {
       if (tools.length === 0) {
-        return this.buildResult({
-          answer: 'No tools available. Check that the workspace connections are configured and reachable.',
-          durationMs: Date.now() - startTime,
-          conversationId,
-          sessionId,
-        })
+        log.info({ workspace: workspaceId }, 'No tools discovered, running as direct LLM conversation')
       }
 
       if (!workspace.model) {
@@ -262,11 +258,13 @@ export class ExecuteQueryUseCase {
 
     try {
       for (let round = 0; round < config.maxToolRounds; round++) {
+        const toolSpecs = config.tools.map(t => t.spec)
         const response = await provider.createMessage({
           model: config.model,
           maxTokens: 4096,
           system: config.systemPrompt,
-          tools: config.tools.map(t => t.spec),
+          apiKey: config.apiKey,
+          tools: toolSpecs,
           messages,
         })
 
@@ -317,9 +315,12 @@ export class ExecuteQueryUseCase {
         result.answer = 'Ran out of tool-call rounds. Please simplify your question.'
       }
     } catch (err) {
-      result.error = (err as Error).message
-      result.answer = "I'm sorry, I wasn't able to process your request. Please try again or rephrase your question."
-      log.error({ error: result.error }, 'Agent loop failed')
+      const message = (err as Error).message
+      result.error = message
+      result.answer = IS_PRODUCTION
+        ? "Something went wrong. Please try again or contact your administrator."
+        : `Something went wrong: ${message}`
+      log.error({ error: message }, 'Agent loop failed')
     }
 
     return result
