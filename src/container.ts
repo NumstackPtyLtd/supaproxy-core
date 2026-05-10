@@ -17,7 +17,9 @@ import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegra
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
 import type { TenantService } from './application/ports/TenantService.js'
-import { registry as consumerRegistry, type ConsumerContext, type IncomingMessage, type Workspace } from '@supaproxy/consumers'
+import { registry as consumerRegistry, slackPlugin, type ConsumerContext, type IncomingMessage, type Workspace } from '@supaproxy/consumers'
+
+consumerRegistry.register(slackPlugin)
 import pino from 'pino'
 
 const log = pino({ name: 'container' })
