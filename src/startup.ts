@@ -24,7 +24,6 @@ export async function startConsumers(container: Container): Promise<void> {
       let hasAll = true
 
       for (const field of plugin.configSchema.fields) {
-        if (field.type !== 'password') continue
         const key = `${plugin.type}_${field.name}`
         const value = await container.orgRepo.getSettingValue(key)
         if (value) {
@@ -40,9 +39,21 @@ export async function startConsumers(container: Container): Promise<void> {
         continue
       }
 
+      const getWorkspace = async (channelId: string): Promise<Workspace | null> => {
+        const consumers = await container.workspaceRepo.findConsumersByType(plugin.type)
+        for (const row of consumers) {
+          const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config
+          if ((cfg.channels || []).includes(channelId)) return { id: row.workspace_id, name: '' }
+        }
+        return null
+      }
+
       await plugin.start({
         onMessage: async (msg: IncomingMessage) => {
-          const result = await container.executeQueryUseCase.execute(msg.channel, msg.query, {
+          const ws = await getWorkspace(msg.channel)
+          const workspaceId = ws?.id || msg.channel
+
+          const result = await container.executeQueryUseCase.execute(workspaceId, msg.query, {
             consumerType: msg.consumerType,
             channel: msg.channel,
             userId: msg.userId,
@@ -53,14 +64,7 @@ export async function startConsumers(container: Container): Promise<void> {
         },
         onError: (err: Error) => log.error({ type: plugin.type, error: err.message }, 'Consumer error'),
         logger: log,
-        getWorkspaceForChannel: async (channelId: string): Promise<Workspace | null> => {
-          const consumers = await container.workspaceRepo.findConsumersByType(plugin.type)
-          for (const row of consumers) {
-            const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config
-            if ((cfg.channels || []).includes(channelId)) return { id: row.workspace_id, name: '' }
-          }
-          return null
-        },
+        getWorkspaceForChannel: getWorkspace,
       }, credentials)
 
       if (plugin.sendMessage) {

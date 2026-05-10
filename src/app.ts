@@ -11,6 +11,7 @@ import { getCookie } from 'hono/cookie'
 import pino from 'pino'
 import type { Container } from './container.js'
 import { CORS_ORIGINS } from './config.js'
+import { handleWebhook, verifyWebhook } from '@supaproxy/consumers'
 import docs from './openapi.js'
 
 const log = pino({ name: 'supaproxy' })
@@ -69,6 +70,26 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   app.route('/', container.conversationRoutes)
   app.route('/', container.connectorRoutes)
   app.route('/', container.queryRoutes)
+
+  // WhatsApp webhook (no auth — Meta needs direct access)
+  app.get('/api/webhooks/whatsapp', async (c) => {
+    const mode = c.req.query('hub.mode') || ''
+    const token = c.req.query('hub.verify_token') || ''
+    const challenge = c.req.query('hub.challenge') || ''
+
+    const settings = await container.orgRepo.getSettingValues(['whatsapp_verify_token'])
+    const verifyToken = settings['whatsapp_verify_token'] || ''
+
+    const result = verifyWebhook(mode, token, challenge, verifyToken)
+    if (result) return c.text(result)
+    return c.text('Forbidden', 403)
+  })
+
+  app.post('/api/webhooks/whatsapp', async (c) => {
+    const body = await c.req.json()
+    handleWebhook(body)
+    return c.json({ status: 'ok' })
+  })
 
   // API docs
   app.route('/', docs)
