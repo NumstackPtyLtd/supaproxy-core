@@ -24,7 +24,6 @@ export async function startConsumers(container: Container): Promise<void> {
       let hasAll = true
 
       for (const field of plugin.configSchema.fields) {
-        if (field.type !== 'password') continue
         const key = `${plugin.type}_${field.name}`
         const value = await container.orgRepo.getSettingValue(key)
         if (value) {
