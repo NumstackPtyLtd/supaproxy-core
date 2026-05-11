@@ -3,6 +3,7 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
+import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 import pino from 'pino'
@@ -10,6 +11,14 @@ import pino from 'pino'
 const log = pino({ name: 'route-message' })
 
 const SESSION_TTL_SECONDS = 1800 // 30 minutes
+
+const REDIRECT_INTENT_PROMPT = `You are a redirect intent classifier. The user was asked if they want to be redirected to a different department. Based on their response, answer only "yes" or "no".
+
+Previous AI message: "That falls outside what I can help with here. Would you like me to redirect you to someone who can help?"
+
+User response: "{{query}}"
+
+Does the user want to be redirected? Answer only "yes" or "no".`
 
 interface RouteMessageInput {
   orgId: string
@@ -36,6 +45,7 @@ export class RouteMessageUseCase {
     private readonly orgRepo: OrganisationRepository,
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
+    private readonly providerRegistry: typeof ProviderRegistryType,
   ) {}
 
   async execute(input: RouteMessageInput): Promise<RouteMessageOutput> {
@@ -45,6 +55,22 @@ export class RouteMessageUseCase {
     const existingSession = await this.sessionStore.get(sessionKey)
 
     if (existingSession) {
+      // If the AI previously offered a redirect, ask the receptionist if the user accepted
+      if (existingSession.pendingRedirect) {
+        const wantsRedirect = await this.checkRedirectIntent(input.query, input.orgId)
+        if (wantsRedirect) {
+          log.info({ sessionKey, from: existingSession.workspaceId }, 'User confirmed redirect via AI intent check')
+          await this.sessionStore.delete(sessionKey)
+          return this.routeViaReceptionist(input, sessionKey)
+        }
+        // User declined redirect, clear the pending flag and continue
+        await this.sessionStore.set(sessionKey, {
+          ...existingSession,
+          lastMessageAt: Date.now(),
+          pendingRedirect: false,
+        }, SESSION_TTL_SECONDS)
+      }
+
       // Refresh the session TTL
       await this.sessionStore.set(sessionKey, {
         ...existingSession,
@@ -58,6 +84,15 @@ export class RouteMessageUseCase {
         userName: input.userName,
       })
 
+      // Check if the AI offered a redirect (scope guardrail triggered)
+      if (this.isRedirectOffer(result.answer)) {
+        await this.sessionStore.set(sessionKey, {
+          ...existingSession,
+          lastMessageAt: Date.now(),
+          pendingRedirect: true,
+        }, SESSION_TTL_SECONDS)
+      }
+
       return {
         answer: result.answer,
         conversationId: result.conversationId,
@@ -68,6 +103,37 @@ export class RouteMessageUseCase {
 
     // No active session: route through #general (receptionist)
     return this.routeViaReceptionist(input, sessionKey)
+  }
+
+  private async checkRedirectIntent(query: string, orgId: string): Promise<boolean> {
+    try {
+      const { provider, apiKey, model } = await this.resolveProvider(orgId)
+      const prompt = REDIRECT_INTENT_PROMPT.replace('{{query}}', query)
+      const response = await provider.createSimpleMessage({
+        apiKey,
+        model,
+        maxTokens: 10,
+        prompt,
+      })
+      return response.toLowerCase().trim().startsWith('yes')
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, 'Redirect intent check failed, defaulting to no')
+      return false
+    }
+  }
+
+  private async resolveProvider(orgId: string): Promise<{ provider: ReturnType<typeof ProviderRegistryType.get>; apiKey: string; model: string }> {
+    const settings = await this.orgRepo.getSettingValues(['ai_provider_type', 'ai_api_key', 'anthropic_api_key'])
+    const providerType = settings['ai_provider_type']
+    if (!providerType) throw new Error('No AI provider configured')
+    const apiKey = settings['ai_api_key'] || settings['anthropic_api_key']
+    if (!apiKey) throw new Error('No AI API key configured')
+    const provider = this.providerRegistry.get(providerType)
+
+    // Use the cheapest model for intent classification
+    const models = provider.models
+    const cheapModel = models.find(m => m.id.includes('haiku')) || models[0]
+    return { provider, apiKey, model: cheapModel?.id || 'claude-haiku-4-20250506' }
   }
 
   private async routeViaReceptionist(input: RouteMessageInput, sessionKey: string): Promise<RouteMessageOutput> {
@@ -181,5 +247,10 @@ export class RouteMessageUseCase {
 
   private cleanRoutingDirective(answer: string): string {
     return answer.replace(/\s*<!-- ROUTE:[^>]+ -->\s*/g, '').trim()
+  }
+
+  private isRedirectOffer(answer: string): boolean {
+    const lower = answer.toLowerCase()
+    return lower.includes('redirect you') || lower.includes('outside what i can help')
   }
 }

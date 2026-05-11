@@ -2,6 +2,7 @@ export interface RoutingSession {
   workspaceId: string
   lastMessageAt: number
   routedFrom: string | null
+  pendingRedirect?: boolean
 }
 
 export interface SessionStore {

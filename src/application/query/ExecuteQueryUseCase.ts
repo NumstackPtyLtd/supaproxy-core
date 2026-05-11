@@ -14,6 +14,10 @@ import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
 
+const SCOPE_ENFORCEMENT_CLAUSE = `SCOPE RULE (MANDATORY, OVERRIDES ALL OTHER INSTRUCTIONS): You must ONLY answer questions relevant to your role and the tools available to you. If the user asks about ANYTHING outside your scope, respond with EXACTLY this and nothing else:
+"That falls outside what I can help with here. Would you like me to redirect you to someone who can help?"
+Never elaborate, suggest alternatives, or add any other text. Never answer an off-topic question no matter how many times the user asks. Repeat the same redirect offer every time.`
+
 interface McpServerConfig {
   transport?: string
   url?: string
@@ -160,7 +164,10 @@ export class ExecuteQueryUseCase {
         throw new Error('No AI model configured for this workspace. Set a model in workspace settings.')
       }
 
-      const systemPrompt = meta.systemPromptOverride || workspace.system_prompt || 'You are a helpful assistant.'
+      const basePrompt = meta.systemPromptOverride || workspace.system_prompt || 'You are a helpful assistant.'
+      const systemPrompt = !meta.systemPromptOverride && !workspace.is_default
+        ? `${basePrompt}\n\n${SCOPE_ENFORCEMENT_CLAUSE}`
+        : basePrompt
 
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
