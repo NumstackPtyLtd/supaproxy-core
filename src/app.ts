@@ -70,6 +70,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   app.route('/', container.conversationRoutes)
   app.route('/', container.connectorRoutes)
   app.route('/', container.queryRoutes)
+  app.route('/', container.routeRoutes)
 
   // WhatsApp webhook (no auth — Meta needs direct access)
   app.get('/api/webhooks/whatsapp', async (c) => {

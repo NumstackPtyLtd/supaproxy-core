@@ -85,6 +85,7 @@ import { createConversationRoutes } from './presentation/routes/conversations.js
 import { createConnectorRoutes } from './presentation/routes/connectors.js'
 import { createQueryRoutes } from './presentation/routes/query.js'
 import { createQueueRoutes } from './presentation/routes/queues.js'
+import { createRouteRoutes } from './presentation/routes/route.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
   // Tenant service — defaults to NoOp (single-tenant) for open-source.
@@ -238,6 +239,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
   const queueRoutes = createQueueRoutes({ manageQueuesUseCase, queueService, requireAuth })
+  const routeRoutes = createRouteRoutes({ routeMessageUseCase, requireAuth })
 
   const container = {
     // Infrastructure
@@ -257,7 +259,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
     executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes,
   }
 
   return container

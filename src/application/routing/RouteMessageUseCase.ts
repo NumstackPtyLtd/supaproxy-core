@@ -57,26 +57,16 @@ export class RouteMessageUseCase {
     if (existingSession) {
       // If the AI previously offered a redirect, ask the receptionist if the user accepted
       if (existingSession.pendingRedirect) {
+        log.info({ sessionKey, query: input.query }, 'Pending redirect, checking intent via AI')
         const wantsRedirect = await this.checkRedirectIntent(input.query, input.orgId)
+        log.info({ sessionKey, wantsRedirect }, 'Redirect intent result')
         if (wantsRedirect) {
-          log.info({ sessionKey, from: existingSession.workspaceId }, 'User confirmed redirect via AI intent check')
           await this.sessionStore.delete(sessionKey)
           return this.routeViaReceptionist(input, sessionKey)
         }
-        // User declined redirect, clear the pending flag and continue
-        await this.sessionStore.set(sessionKey, {
-          ...existingSession,
-          lastMessageAt: Date.now(),
-          pendingRedirect: false,
-        }, SESSION_TTL_SECONDS)
       }
 
-      // Refresh the session TTL
-      await this.sessionStore.set(sessionKey, {
-        ...existingSession,
-        lastMessageAt: Date.now(),
-      }, SESSION_TTL_SECONDS)
-
+      // Execute in the current workspace
       const result = await this.executeQueryUseCase.execute(existingSession.workspaceId, input.query, {
         consumerType: input.consumerType,
         channel: input.entryPoint,
@@ -84,14 +74,14 @@ export class RouteMessageUseCase {
         userName: input.userName,
       })
 
-      // Check if the AI offered a redirect (scope guardrail triggered)
-      if (this.isRedirectOffer(result.answer)) {
-        await this.sessionStore.set(sessionKey, {
-          ...existingSession,
-          lastMessageAt: Date.now(),
-          pendingRedirect: true,
-        }, SESSION_TTL_SECONDS)
-      }
+      // Update session: set pendingRedirect if scope guardrail triggered, clear otherwise
+      const redirectOffered = this.isRedirectOffer(result.answer)
+      await this.sessionStore.set(sessionKey, {
+        workspaceId: existingSession.workspaceId,
+        lastMessageAt: Date.now(),
+        routedFrom: existingSession.routedFrom,
+        pendingRedirect: redirectOffered,
+      }, SESSION_TTL_SECONDS)
 
       return {
         answer: result.answer,
@@ -130,10 +120,10 @@ export class RouteMessageUseCase {
     if (!apiKey) throw new Error('No AI API key configured')
     const provider = this.providerRegistry.get(providerType)
 
-    // Use the cheapest model for intent classification
-    const models = provider.models
-    const cheapModel = models.find(m => m.id.includes('haiku')) || models[0]
-    return { provider, apiKey, model: cheapModel?.id || 'claude-haiku-4-20250506' }
+    // Use the default workspace's model for intent classification
+    const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
+    const model = defaultWs?.model || 'claude-sonnet-4-20250514'
+    return { provider, apiKey, model }
   }
 
   private async routeViaReceptionist(input: RouteMessageInput, sessionKey: string): Promise<RouteMessageOutput> {
