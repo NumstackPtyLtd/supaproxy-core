@@ -3,7 +3,6 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
-import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 import pino from 'pino'
@@ -12,13 +11,7 @@ const log = pino({ name: 'route-message' })
 
 const SESSION_TTL_SECONDS = 1800 // 30 minutes
 
-const REDIRECT_INTENT_PROMPT = `You are a redirect intent classifier. The user was asked if they want to be redirected to a different department. Based on their response, answer only "yes" or "no".
-
-Previous AI message: "That falls outside what I can help with here. Would you like me to redirect you to someone who can help?"
-
-User response: "{{query}}"
-
-Does the user want to be redirected? Answer only "yes" or "no".`
+const REDIRECT_INTENT_PROMPT = `The user was asked: "Would you like me to redirect you to someone who can help?" They responded: "{{query}}" — do they want to be redirected?`
 
 interface RouteMessageInput {
   orgId: string
@@ -45,7 +38,6 @@ export class RouteMessageUseCase {
     private readonly orgRepo: OrganisationRepository,
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
-    private readonly providerRegistry: typeof ProviderRegistryType,
   ) {}
 
   async execute(input: RouteMessageInput): Promise<RouteMessageOutput> {
@@ -97,33 +89,20 @@ export class RouteMessageUseCase {
 
   private async checkRedirectIntent(query: string, orgId: string): Promise<boolean> {
     try {
-      const { provider, apiKey, model } = await this.resolveProvider(orgId)
+      const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
+      if (!defaultWs) return false
+
       const prompt = REDIRECT_INTENT_PROMPT.replace('{{query}}', query)
-      const response = await provider.createSimpleMessage({
-        apiKey,
-        model,
-        maxTokens: 10,
-        prompt,
+      const result = await this.executeQueryUseCase.execute(defaultWs.id, prompt, {
+        consumerType: 'system',
+        systemPromptOverride: 'You are a redirect intent classifier. Answer only "yes" or "no".',
+        skipTools: true,
       })
-      return response.toLowerCase().trim().startsWith('yes')
+      return result.answer.toLowerCase().trim().startsWith('yes')
     } catch (err) {
       log.warn({ error: (err as Error).message }, 'Redirect intent check failed, defaulting to no')
       return false
     }
-  }
-
-  private async resolveProvider(orgId: string): Promise<{ provider: ReturnType<typeof ProviderRegistryType.get>; apiKey: string; model: string }> {
-    const settings = await this.orgRepo.getSettingValues(['ai_provider_type', 'ai_api_key', 'anthropic_api_key'])
-    const providerType = settings['ai_provider_type']
-    if (!providerType) throw new Error('No AI provider configured')
-    const apiKey = settings['ai_api_key'] || settings['anthropic_api_key']
-    if (!apiKey) throw new Error('No AI API key configured')
-    const provider = this.providerRegistry.get(providerType)
-
-    // Use the default workspace's model for intent classification
-    const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
-    const model = defaultWs?.model || 'claude-sonnet-4-20250514'
-    return { provider, apiKey, model }
   }
 
   private async routeViaReceptionist(input: RouteMessageInput, sessionKey: string): Promise<RouteMessageOutput> {

@@ -3,7 +3,6 @@ import { mockOrgRepo, mockWorkspaceRepo, stubWorkspace } from '../../__tests__/m
 import { RouteMessageUseCase } from './RouteMessageUseCase.js'
 import type { SessionStore } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
-import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 
 function mockSessionStore(): SessionStore {
   return {
@@ -44,7 +43,6 @@ describe('RouteMessageUseCase', () => {
   let workspaceRepo: ReturnType<typeof mockWorkspaceRepo>
   let sessionStore: ReturnType<typeof mockSessionStore>
   let executeQuery: ReturnType<typeof mockExecuteQuery>
-  let providerRegistry: typeof ProviderRegistryType
   let useCase: RouteMessageUseCase
 
   beforeEach(() => {
@@ -52,13 +50,7 @@ describe('RouteMessageUseCase', () => {
     workspaceRepo = mockWorkspaceRepo()
     sessionStore = mockSessionStore()
     executeQuery = mockExecuteQuery()
-    providerRegistry = {
-      get: vi.fn().mockReturnValue({
-        models: [{ id: 'claude-haiku-4-20250506', label: 'Haiku' }],
-        createSimpleMessage: vi.fn().mockResolvedValue('no'),
-      }),
-    } as unknown as typeof ProviderRegistryType
-    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, sessionStore, executeQuery, providerRegistry)
+    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, sessionStore, executeQuery)
   })
 
   it('uses existing session to route directly to workspace', async () => {
