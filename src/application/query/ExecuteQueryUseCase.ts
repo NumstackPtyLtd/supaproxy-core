@@ -256,6 +256,8 @@ export class ExecuteQueryUseCase {
       { role: 'user' as const, content: query },
     ]
 
+    provider.setApiKey(config.apiKey)
+
     try {
       for (let round = 0; round < config.maxToolRounds; round++) {
         const toolSpecs = config.tools.map(t => t.spec)
