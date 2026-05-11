@@ -138,6 +138,7 @@ export function mockConversationRepo(): ConversationRepository {
     findByExternalThreadId: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue(undefined),
     updateStatus: vi.fn().mockResolvedValue(undefined),
+    updateRouting: vi.fn().mockResolvedValue(undefined),
     reopenFromCold: vi.fn().mockResolvedValue(undefined),
     closeConversation: vi.fn().mockResolvedValue(undefined),
     listWithStats: vi.fn().mockResolvedValue({ rows: [], total: 0 }),

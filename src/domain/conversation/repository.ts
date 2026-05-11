@@ -101,6 +101,7 @@ export interface ConversationRepository {
   findByExternalThreadId(externalThreadId: string, statuses: string[]): Promise<ConversationData | null>
   create(data: { id: string; workspaceId: string; consumerType: string; externalThreadId: string; userName?: string; channel?: string; parentId?: string }): Promise<void>
   updateStatus(id: string, status: string): Promise<void>
+  updateRouting(id: string, routedFrom: string, routedTo: string, routeReason: string): Promise<void>
   reopenFromCold(id: string): Promise<void>
   closeConversation(id: string): Promise<void>
 

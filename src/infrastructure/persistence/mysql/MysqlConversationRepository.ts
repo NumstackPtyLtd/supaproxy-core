@@ -67,6 +67,13 @@ export class MysqlConversationRepository implements ConversationRepository {
     await this.pool.execute('UPDATE conversations SET status = ?, updated_at = NOW() WHERE id = ?', [status, id])
   }
 
+  async updateRouting(id: string, routedFrom: string, routedTo: string, routeReason: string): Promise<void> {
+    await this.pool.execute(
+      'UPDATE conversations SET routed_from = ?, routed_to = ?, route_reason = ?, updated_at = NOW() WHERE id = ?',
+      [routedFrom, routedTo, routeReason, id]
+    )
+  }
+
   async reopenFromCold(id: string): Promise<void> {
     await this.pool.execute(
       "UPDATE conversations SET status = 'open', cold_at = NULL, updated_at = NOW() WHERE id = ?", [id]
