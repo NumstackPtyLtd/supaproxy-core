@@ -15,6 +15,7 @@ import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
+import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
 import type { TenantService } from './application/ports/TenantService.js'
 import { registry as consumerRegistry, slackPlugin, whatsappPlugin, apiPlugin, type ConsumerContext, type IncomingMessage, type Workspace } from '@supaproxy/consumers'
@@ -68,6 +69,9 @@ import { ConnectConsumerUseCase } from './application/connector/ConnectConsumerU
 
 // Application - Query
 import { ExecuteQueryUseCase } from './application/query/ExecuteQueryUseCase.js'
+
+// Application - Routing
+import { RouteMessageUseCase } from './application/routing/RouteMessageUseCase.js'
 
 // Application - Queue
 import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
@@ -222,6 +226,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
 
   const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails)
+  const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
+  const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, sessionStore, executeQueryUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
   // Build routes
@@ -249,7 +255,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase,
     manageConversationUseCase, lifecycleUseCase,
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
-    executeQueryUseCase, manageQueuesUseCase,
+    executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase,
     // Routes
     authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes,
   }

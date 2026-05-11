@@ -10,10 +10,18 @@ export interface WorkspaceData {
   max_thread_history: number
   cold_timeout_minutes: number | null
   close_timeout_minutes: number | null
+  is_default: boolean
   created_by: string | null
   created_at: string
   updated_at: string
   team?: string | null
+}
+
+export interface WorkspaceRoutingSummary {
+  id: string
+  name: string
+  system_prompt: string | null
+  tool_names: string[]
 }
 
 export interface ConnectionData {
@@ -150,4 +158,8 @@ export interface WorkspaceRepository {
   getFirstActiveWorkspace(): Promise<WorkspaceData | null>
 
   findActivityLog(workspaceId: string, limit: number, offset: number): Promise<{ rows: ActivityLogData[]; total: number }>
+
+  findDefaultByOrg(orgId: string): Promise<WorkspaceData | null>
+  listRoutingSummaries(orgId: string): Promise<WorkspaceRoutingSummary[]>
+  setDefault(id: string): Promise<void>
 }

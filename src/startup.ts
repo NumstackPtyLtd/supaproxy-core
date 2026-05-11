@@ -13,8 +13,15 @@ const log = pino({ name: 'startup' })
 /**
  * Auto-start all registered consumers that have org-level credentials configured.
  * Iterates the plugin registry — no consumer-specific logic here.
+ *
+ * Channel-based consumers (Slack) use direct workspace lookup via channel bindings.
+ * DM-based consumers (WhatsApp, SMS) use the routing layer (RouteMessageUseCase)
+ * to resolve the target workspace via the receptionist pattern.
  */
 export async function startConsumers(container: Container): Promise<void> {
+  // Resolve org_id once for routing (single-tenant)
+  const orgId = await container.orgRepo.getFirstOrgId()
+
   for (const plugin of container.consumerRegistry.list()) {
     if (!plugin.capabilities.orgCredentials) continue
 
@@ -48,8 +55,24 @@ export async function startConsumers(container: Container): Promise<void> {
         return null
       }
 
+      const useRouting = !plugin.capabilities.channels && orgId
+
       await plugin.start({
         onMessage: async (msg: IncomingMessage) => {
+          if (useRouting) {
+            // DM-based consumer: route via receptionist pattern
+            const result = await container.routeMessageUseCase.execute({
+              orgId: orgId!,
+              query: msg.query,
+              consumerType: msg.consumerType,
+              entryPoint: msg.channel,
+              userId: msg.userId,
+              userName: msg.userName,
+            })
+            return { answer: result.answer, conversationId: result.conversationId }
+          }
+
+          // Channel-based consumer: direct workspace lookup
           const ws = await getWorkspace(msg.channel)
           const workspaceId = ws?.id || msg.channel
 
@@ -75,7 +98,7 @@ export async function startConsumers(container: Container): Promise<void> {
         })
       }
 
-      log.info({ type: plugin.type }, `${plugin.name} consumer started`)
+      log.info({ type: plugin.type, routing: useRouting ? 'receptionist' : 'channel' }, `${plugin.name} consumer started`)
     } catch (err) {
       log.warn({ type: plugin.type, error: (err as Error).message }, `${plugin.name} consumer failed — server continues without it`)
     }

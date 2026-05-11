@@ -133,4 +133,11 @@ export class MysqlOrganisationRepository implements OrganisationRepository {
       'INSERT INTO teams (id, org_id, name) VALUES (?, ?, ?)', [id, orgId, name]
     )
   }
+
+  async getFirstOrgId(): Promise<string | null> {
+    const [rows] = await this.pool.execute<OrgRow[]>(
+      'SELECT id FROM organisations LIMIT 1'
+    )
+    return rows[0]?.id || null
+  }
 }

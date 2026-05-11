@@ -57,6 +57,8 @@ interface QueryMeta {
   userName?: string
   conversationId?: string
   sessionId?: string
+  systemPromptOverride?: string
+  skipTools?: boolean
 }
 
 export class ExecuteQueryUseCase {
@@ -139,8 +141,15 @@ export class ExecuteQueryUseCase {
       }
     }
 
-    const connections = await this.workspaceRepo.findConnectionConfigs(workspaceId)
-    const { tools, mcpConnections } = await this.discoverTools(connections, workspaceId)
+    let tools: ToolEntry[] = []
+    let mcpConnections: McpConnection[] = []
+
+    if (!meta.skipTools) {
+      const connections = await this.workspaceRepo.findConnectionConfigs(workspaceId)
+      const discovered = await this.discoverTools(connections, workspaceId)
+      tools = discovered.tools
+      mcpConnections = discovered.mcpConnections
+    }
 
     try {
       if (tools.length === 0) {
@@ -151,9 +160,11 @@ export class ExecuteQueryUseCase {
         throw new Error('No AI model configured for this workspace. Set a model in workspace settings.')
       }
 
+      const systemPrompt = meta.systemPromptOverride || workspace.system_prompt || 'You are a helpful assistant.'
+
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
-        systemPrompt: workspace.system_prompt || 'You are a helpful assistant.',
+        systemPrompt,
         maxToolRounds: workspace.max_tool_rounds || 10,
         tools,
         history,

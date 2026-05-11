@@ -10,8 +10,8 @@ interface SignupInput {
   adminName: string
   adminEmail: string
   adminPassword: string
-  workspaceName: string
-  teamName: string
+  workspaceName?: string
+  teamName?: string
   systemPrompt?: string
 }
 
@@ -39,24 +39,40 @@ export class SignupUseCase {
     const orgId = generateId()
     const userId = generateId()
     const slug = generateSlug(input.orgName)
-    const wsId = generateWorkspaceId(input.workspaceName)
 
     await this.orgRepo.create(orgId, input.orgName, slug)
 
     const hash = await this.passwordService.hash(input.adminPassword)
     await this.orgRepo.createUser(userId, orgId, input.adminEmail, input.adminName, hash, 'admin')
 
-    const teamId = await this.resolveTeam(orgId, input.teamName)
-
+    // Auto-create the #general default workspace (receptionist)
+    const generalId = generateWorkspaceId('general')
     await this.workspaceRepo.create({
-      id: wsId,
+      id: generalId,
       orgId,
-      teamId,
-      name: input.workspaceName,
+      teamId: null,
+      name: '#general',
       model: '',
-      systemPrompt: input.systemPrompt || 'You are a helpful assistant.',
+      systemPrompt: 'You are a helpful receptionist.',
       createdBy: userId,
     })
+    await this.workspaceRepo.setDefault(generalId)
+
+    // If the caller provided a workspace name, create that too
+    let userWsId = generalId
+    if (input.workspaceName) {
+      const teamId = input.teamName ? await this.resolveTeam(orgId, input.teamName) : null
+      userWsId = generateWorkspaceId(input.workspaceName)
+      await this.workspaceRepo.create({
+        id: userWsId,
+        orgId,
+        teamId,
+        name: input.workspaceName,
+        model: '',
+        systemPrompt: input.systemPrompt || 'You are a helpful assistant.',
+        createdBy: userId,
+      })
+    }
 
     const token = this.tokenService.sign({
       id: userId,
@@ -66,7 +82,7 @@ export class SignupUseCase {
       org_id: orgId,
     })
 
-    return { orgId, userId, workspaceId: wsId, token }
+    return { orgId, userId, workspaceId: userWsId, token }
   }
 
   private async resolveTeam(orgId: string, teamName: string): Promise<string> {

@@ -16,8 +16,8 @@ const signupSchema = z.object({
   admin_name: z.string().min(1, 'Admin name is required').max(255),
   admin_email: z.string().email('A valid email is required').max(255),
   admin_password: z.string().min(8, 'Password must be at least 8 characters').max(255),
-  workspace_name: z.string().min(1, 'Workspace name is required').max(255),
-  team_name: z.string().min(1, 'Team name is required').max(255),
+  workspace_name: z.string().max(255).optional(),
+  team_name: z.string().max(255).optional(),
   system_prompt: z.string().max(10000).optional(),
 })
 
