@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mockOrgRepo, mockWorkspaceRepo, stubWorkspace } from '../../__tests__/mocks.js'
+import { mockOrgRepo, mockWorkspaceRepo, mockConversationRepo, stubWorkspace } from '../../__tests__/mocks.js'
 import { RouteMessageUseCase } from './RouteMessageUseCase.js'
 import type { SessionStore } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
@@ -50,7 +50,7 @@ describe('RouteMessageUseCase', () => {
     workspaceRepo = mockWorkspaceRepo()
     sessionStore = mockSessionStore()
     executeQuery = mockExecuteQuery()
-    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, sessionStore, executeQuery)
+    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery)
   })
 
   it('uses existing session to route directly to workspace', async () => {

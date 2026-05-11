@@ -228,7 +228,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
-  const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, sessionStore, executeQueryUseCase)
+  const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
   // Build routes

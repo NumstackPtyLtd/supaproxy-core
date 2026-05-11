@@ -1,5 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
+import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
@@ -36,6 +37,7 @@ export class RouteMessageUseCase {
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly orgRepo: OrganisationRepository,
+    private readonly conversationRepo: ConversationRepository,
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
   ) {}
@@ -172,6 +174,11 @@ export class RouteMessageUseCase {
 
       // Create session pointing to the target workspace
       await this.createSession(sessionKey, targetWorkspaceId, defaultWs.id)
+
+      // Record routing metadata on the conversation
+      await this.conversationRepo.updateRouting(
+        result.conversationId, defaultWs.id, targetWorkspaceId, routeReason,
+      )
 
       // Clean the routing directive from the visible answer and add routing indicator
       const cleanAnswer = this.cleanRoutingDirective(result.answer)
