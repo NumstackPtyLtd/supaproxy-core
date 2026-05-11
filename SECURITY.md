@@ -21,7 +21,7 @@ We will acknowledge receipt within 48 hours and provide a timeline for resolutio
 
 ## Security practices
 
-- All secrets are required env vars with no defaults — the server won't start without them
+- All secrets are required env vars with no defaults; the server won't start without them
 - JWT secrets must be at least 32 characters
 - Passwords are hashed with bcrypt
 - API input is validated with Zod schemas

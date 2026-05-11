@@ -5,19 +5,19 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-**One proxy for all your AI.** Route any LLM to any team through one governed layer. Guardrails, cost tracking, fraud detection, conversation analytics — without building bot infrastructure.
+**One proxy for all your AI.** Route any LLM to any team through one governed layer. Guardrails, cost tracking, fraud detection, conversation analytics, without building bot infrastructure.
 
 ## What it does
 
 SupaProxy sits between your teams and your AI models. You bring the LLM (Anthropic, OpenAI, etc.) and the data sources (via MCP). SupaProxy handles everything in between.
 
-- **Workspaces** — each team gets an isolated AI proxy with its own model, prompt, knowledge, and guardrails
-- **MCP connections** — plug in any MCP server (stdio or HTTP) and tools are discovered automatically
-- **Multi-consumer** — Slack, WhatsApp, API, or any channel. One workspace, many entry points
-- **Guardrails** — PII filtering, compliance rules, cost caps. Set at the org level, enforce per-workspace
-- **Conversation lifecycle** — open → cold → closed with configurable timeouts and AI-generated follow-ups
-- **Post-conversation analysis** — sentiment, resolution status, knowledge gaps, compliance violations, fraud indicators
-- **Cost tracking** — per-query token counts, cost per conversation, monthly spend per workspace
+- **Workspaces**: each team gets an isolated AI proxy with its own model, prompt, knowledge, and guardrails
+- **MCP connections**: plug in any MCP server (stdio or HTTP) and tools are discovered automatically
+- **Multi-consumer**: Slack, WhatsApp, API, or any channel. One workspace, many entry points
+- **Guardrails**: PII filtering, compliance rules, cost caps. Set at the org level, enforce per-workspace
+- **Conversation lifecycle**: open, cold, closed with configurable timeouts and AI-generated follow-ups
+- **Post-conversation analysis**: sentiment, resolution status, knowledge gaps, compliance violations, fraud indicators
+- **Cost tracking**: per-query token counts, cost per conversation, monthly spend per workspace
 
 ## Quick start
 
@@ -43,7 +43,7 @@ git clone https://github.com/NumstackPtyLtd/supaproxy-server.git
 cd supaproxy-server
 pnpm install
 
-# Configure environment (must be done before Docker — MySQL reads DB_PASSWORD from .env)
+# Configure environment (must be done before Docker; MySQL reads DB_PASSWORD from .env)
 cp .env.example .env
 # Edit .env: set JWT_SECRET and DB_PASSWORD
 #   JWT_SECRET: openssl rand -hex 32
@@ -70,9 +70,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full dev setup with Node.js and p
 └─────────────┘     └──────────────┘     └─────────────────┘
 ```
 
-- **Server** — Node.js (Hono + BullMQ). Agent loop, MCP client, consumers, lifecycle manager, conversation analysis
-- **Database** — MySQL 8. Conversations, messages, audit logs, stats, knowledge sources, guardrails
-- **Queue** — Redis + BullMQ. Cold messages, conversation stats generation
+- **Server**: Node.js (Hono + BullMQ). Agent loop, MCP client, consumers, lifecycle manager, conversation analysis
+- **Database**: MySQL 8. Conversations, messages, audit logs, stats, knowledge sources, guardrails
+- **Queue**: Redis + BullMQ. Cold messages, conversation stats generation
 
 ## SDK
 
@@ -112,4 +112,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, code style, and PR process
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Managed by Numstack Pty Ltd.
+MIT. See [LICENSE](LICENSE). Managed by Numstack Pty Ltd.

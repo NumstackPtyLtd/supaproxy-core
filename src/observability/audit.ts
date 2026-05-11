@@ -8,6 +8,10 @@ const log = pino({ name: 'audit' })
 
 export function logAuditEntry(entry: AuditEntry): void {
   try {
+    if (!LOG_DIR) {
+      log.warn('SUPAPROXY_LOG_DIR not set, skipping audit file write')
+      return
+    }
     mkdirSync(LOG_DIR, { recursive: true })
     const line = JSON.stringify(entry) + '\n'
     appendFileSync(join(LOG_DIR, 'audit.jsonl'), line)

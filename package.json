@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./domain/errors": "./src/domain/shared/errors.ts"
   },
   "description": "AI operations engine. Route any LLM to any team through one governed layer.",
   "scripts": {

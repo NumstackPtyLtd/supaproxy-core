@@ -1,5 +1,5 @@
 /**
- * App factory — creates the Hono app with all routes mounted.
+ * App factory: creates the Hono app with all routes mounted.
  *
  * This is the composable entry point that both the open-source
  * server and the cloud overlay use. The cloud overlay can mount
@@ -72,7 +72,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   app.route('/', container.queryRoutes)
   app.route('/', container.routeRoutes)
 
-  // WhatsApp webhook (no auth — Meta needs direct access)
+  // WhatsApp webhook (no auth; Meta needs direct access)
   app.get('/api/webhooks/whatsapp', async (c) => {
     const mode = c.req.query('hub.mode') || ''
     const token = c.req.query('hub.verify_token') || ''

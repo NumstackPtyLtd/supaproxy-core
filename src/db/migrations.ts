@@ -352,7 +352,7 @@ const migrations: Migration[] = [
         )
       `);
 
-      // Seed with models across providers. No default set —
+      // Seed with models across providers. No default set;
       // admin must choose when configuring their AI provider.
       await pool.execute(`
         INSERT IGNORE INTO models (id, label, provider, enabled, sort_order) VALUES

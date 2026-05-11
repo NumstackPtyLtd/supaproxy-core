@@ -5,7 +5,7 @@
  * Cloud: installs @supaproxy/cloud-tenant which scopes all data
  * by org_id, enforces access guards, and adds usage limits.
  *
- * The server provides the hook — the implementation is pluggable.
+ * The server provides the hook; the implementation is pluggable.
  */
 export interface TenantService {
   /**

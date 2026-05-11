@@ -36,6 +36,7 @@ class HttpMcpConnection implements McpConnection {
       body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method: 'tools/call', params: { name, arguments: args } }),
       signal: AbortSignal.timeout(30000),
     })
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText)
     const data = await res.json() as JsonRpcResponse
     if (data.error) throw new Error(`MCP error: ${data.error.message}`)
     const result = data.result as unknown as McpToolCallResult
@@ -76,6 +77,7 @@ export class McpClientFactoryImpl implements McpClientFactory {
       body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }),
       signal: AbortSignal.timeout(30000),
     })
+    if (!res.ok) throw new Error('HTTP ' + res.status + ': ' + res.statusText)
     const data = await res.json() as JsonRpcResponse
     if (data.error) throw new Error(`MCP error: ${data.error.message}`)
     return data.result || {}
