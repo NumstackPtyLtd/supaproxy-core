@@ -49,4 +49,8 @@ export class ManageConversationUseCase {
   async getHistory(conversationId: string): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
     return this.conversationRepo.findMessages(conversationId)
   }
+
+  async setRouting(conversationId: string, routedFrom: string, routedTo: string, routeReason: string): Promise<void> {
+    await this.conversationRepo.updateRouting(conversationId, routedFrom, routedTo, routeReason)
+  }
 }

@@ -63,6 +63,8 @@ interface QueryMeta {
   sessionId?: string
   systemPromptOverride?: string
   skipTools?: boolean
+  routedFrom?: string
+  routedFromConversationId?: string
 }
 
 export class ExecuteQueryUseCase {
@@ -86,6 +88,12 @@ export class ExecuteQueryUseCase {
     const conversationId = meta.conversationId || await this.conversationUseCase.findOrCreate(
       workspaceId, meta.consumerType, sessionId, meta.userName, meta.channel
     )
+
+    // Record routing metadata if this conversation was routed from another workspace
+    if (meta.routedFrom) {
+      await this.conversationUseCase.setRouting(conversationId, meta.routedFrom, workspace.name, '')
+    }
+
     const history = await this.conversationUseCase.getHistory(conversationId)
 
     let provider: ProviderPlugin

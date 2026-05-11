@@ -66,6 +66,8 @@ export class RouteMessageUseCase {
         channel: input.entryPoint,
         userId: input.userId,
         userName: input.userName,
+        routedFrom: existingSession.routedFrom || undefined,
+        routedFromConversationId: existingSession.routedFromConversationId || undefined,
       })
 
       // Update session: set pendingRedirect if scope guardrail triggered, clear otherwise
@@ -172,12 +174,17 @@ export class RouteMessageUseCase {
         }
       }
 
-      // Create session pointing to the target workspace
-      await this.createSession(sessionKey, targetWorkspaceId, defaultWs.id)
+      // Create session pointing to the target workspace, with source conversation ID
+      await this.sessionStore.set(sessionKey, {
+        workspaceId: targetWorkspaceId,
+        lastMessageAt: Date.now(),
+        routedFrom: defaultWs.name,
+        routedFromConversationId: result.conversationId,
+      }, SESSION_TTL_SECONDS)
 
-      // Record routing metadata on the conversation
+      // Record routing metadata on the conversation (store names, not IDs)
       await this.conversationRepo.updateRouting(
-        result.conversationId, defaultWs.id, targetWorkspaceId, routeReason,
+        result.conversationId, defaultWs.name, targetWs.name, routeReason,
       )
 
       // Clean the routing directive from the visible answer and add routing indicator
