@@ -14,9 +14,10 @@ const log = pino({ name: 'startup' })
  * Auto-start all registered consumers that have org-level credentials configured.
  * Iterates the plugin registry — no consumer-specific logic here.
  *
- * Channel-based consumers (Slack) use direct workspace lookup via channel bindings.
- * DM-based consumers (WhatsApp, SMS) use the routing layer (RouteMessageUseCase)
- * to resolve the target workspace via the receptionist pattern.
+ * Message routing strategy:
+ * 1. Try channel binding (channel_id → workspace_id lookup)
+ * 2. If no binding found, fall back to the routing layer (receptionist pattern)
+ * 3. If no routing layer (no org), use channel as workspace ID (legacy fallback)
  */
 export async function startConsumers(container: Container): Promise<void> {
   // Resolve org_id once for routing (single-tenant)
@@ -55,14 +56,25 @@ export async function startConsumers(container: Container): Promise<void> {
         return null
       }
 
-      const useRouting = !plugin.capabilities.channels && orgId
-
       await plugin.start({
         onMessage: async (msg: IncomingMessage) => {
-          if (useRouting) {
-            // DM-based consumer: route via receptionist pattern
+          // 1. Try channel binding first
+          const ws = await getWorkspace(msg.channel)
+          if (ws) {
+            const result = await container.executeQueryUseCase.execute(ws.id, msg.query, {
+              consumerType: msg.consumerType,
+              channel: msg.channel,
+              userId: msg.userId,
+              userName: msg.userName,
+              sessionId: msg.threadId,
+            })
+            return { answer: result.answer, conversationId: result.conversationId || '' }
+          }
+
+          // 2. No channel binding: use routing layer if available
+          if (orgId) {
             const result = await container.routeMessageUseCase.execute({
-              orgId: orgId!,
+              orgId,
               query: msg.query,
               consumerType: msg.consumerType,
               entryPoint: msg.channel,
@@ -72,11 +84,8 @@ export async function startConsumers(container: Container): Promise<void> {
             return { answer: result.answer, conversationId: result.conversationId }
           }
 
-          // Channel-based consumer: direct workspace lookup
-          const ws = await getWorkspace(msg.channel)
-          const workspaceId = ws?.id || msg.channel
-
-          const result = await container.executeQueryUseCase.execute(workspaceId, msg.query, {
+          // 3. Legacy fallback: use channel as workspace ID
+          const result = await container.executeQueryUseCase.execute(msg.channel, msg.query, {
             consumerType: msg.consumerType,
             channel: msg.channel,
             userId: msg.userId,
@@ -98,7 +107,7 @@ export async function startConsumers(container: Container): Promise<void> {
         })
       }
 
-      log.info({ type: plugin.type, routing: useRouting ? 'receptionist' : 'channel' }, `${plugin.name} consumer started`)
+      log.info({ type: plugin.type }, `${plugin.name} consumer started`)
     } catch (err) {
       log.warn({ type: plugin.type, error: (err as Error).message }, `${plugin.name} consumer failed — server continues without it`)
     }

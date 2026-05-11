@@ -70,7 +70,7 @@ describe('SignupUseCase', () => {
       expect.objectContaining({ name: '#general' }),
     )
     expect(workspaceRepo.setDefault).toHaveBeenCalledTimes(1)
-    expect(result.workspaceId).toBe('ws-general')
+    expect(result.workspaceId).toBe('ws-acme-corp-general')
   })
 
   it('throws ConflictError if email already exists', async () => {

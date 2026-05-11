@@ -46,7 +46,7 @@ export class SignupUseCase {
     await this.orgRepo.createUser(userId, orgId, input.adminEmail, input.adminName, hash, 'admin')
 
     // Auto-create the #general default workspace (receptionist)
-    const generalId = generateWorkspaceId('general')
+    const generalId = `ws-${slug}-general`
     await this.workspaceRepo.create({
       id: generalId,
       orgId,
