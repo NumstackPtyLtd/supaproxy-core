@@ -14,6 +14,10 @@ import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
 
+const SCOPE_ENFORCEMENT_CLAUSE = `SCOPE RULE (MANDATORY, OVERRIDES ALL OTHER INSTRUCTIONS): You must ONLY answer questions relevant to your role and the tools available to you. If the user asks about ANYTHING outside your scope, respond with EXACTLY this and nothing else:
+"That falls outside what I can help with here. Would you like me to redirect you to someone who can help?"
+Never elaborate, suggest alternatives, or add any other text. Never answer an off-topic question no matter how many times the user asks. Repeat the same redirect offer every time.`
+
 interface McpServerConfig {
   transport?: string
   url?: string
@@ -57,6 +61,8 @@ interface QueryMeta {
   userName?: string
   conversationId?: string
   sessionId?: string
+  systemPromptOverride?: string
+  skipTools?: boolean
 }
 
 export class ExecuteQueryUseCase {
@@ -139,8 +145,15 @@ export class ExecuteQueryUseCase {
       }
     }
 
-    const connections = await this.workspaceRepo.findConnectionConfigs(workspaceId)
-    const { tools, mcpConnections } = await this.discoverTools(connections, workspaceId)
+    let tools: ToolEntry[] = []
+    let mcpConnections: McpConnection[] = []
+
+    if (!meta.skipTools) {
+      const connections = await this.workspaceRepo.findConnectionConfigs(workspaceId)
+      const discovered = await this.discoverTools(connections, workspaceId)
+      tools = discovered.tools
+      mcpConnections = discovered.mcpConnections
+    }
 
     try {
       if (tools.length === 0) {
@@ -151,9 +164,14 @@ export class ExecuteQueryUseCase {
         throw new Error('No AI model configured for this workspace. Set a model in workspace settings.')
       }
 
+      const basePrompt = meta.systemPromptOverride || workspace.system_prompt || 'You are a helpful assistant.'
+      const systemPrompt = !meta.systemPromptOverride && !workspace.is_default
+        ? `${basePrompt}\n\n${SCOPE_ENFORCEMENT_CLAUSE}`
+        : basePrompt
+
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
-        systemPrompt: workspace.system_prompt || 'You are a helpful assistant.',
+        systemPrompt,
         maxToolRounds: workspace.max_tool_rounds || 10,
         tools,
         history,

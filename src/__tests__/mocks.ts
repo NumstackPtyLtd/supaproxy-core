@@ -27,7 +27,7 @@ export function stubWorkspace(overrides: Partial<WorkspaceData> = {}): Workspace
     id: 'ws-test', org_id: 'org-1', team_id: 'team-1', name: 'Test Workspace',
     status: 'active', model: 'claude-sonnet-4-20250514', system_prompt: 'You are helpful.',
     max_tool_rounds: 10, max_thread_history: 50, cold_timeout_minutes: 30,
-    close_timeout_minutes: 60, created_by: 'user-1', created_at: '2024-01-01',
+    close_timeout_minutes: 60, is_default: false, created_by: 'user-1', created_at: '2024-01-01',
     updated_at: '2024-01-01',
     ...overrides,
   }
@@ -39,7 +39,9 @@ export function stubConversation(overrides: Partial<ConversationData> = {}): Con
     external_thread_id: 'thread-1', status: 'open', user_id: 'user-1',
     user_name: 'Test User', channel: null, message_count: 2,
     first_message_at: '2024-01-01', last_activity_at: '2024-01-01',
-    cold_at: null, closed_at: null, created_at: '2024-01-01', updated_at: '2024-01-01',
+    cold_at: null, closed_at: null,
+    routed_from: null, routed_to: null, route_reason: null,
+    created_at: '2024-01-01', updated_at: '2024-01-01',
     ...overrides,
   }
 }
@@ -80,6 +82,7 @@ export function mockOrgRepo(): OrganisationRepository {
     listTeams: vi.fn().mockResolvedValue([]),
     findTeamByName: vi.fn().mockResolvedValue(null),
     createTeam: vi.fn().mockResolvedValue(undefined),
+    getFirstOrgId: vi.fn().mockResolvedValue('org-1'),
   }
 }
 
@@ -122,6 +125,9 @@ export function mockWorkspaceRepo(): WorkspaceRepository {
     getActiveConsumerCount: vi.fn().mockResolvedValue(0),
     getFirstActiveWorkspace: vi.fn().mockResolvedValue(null),
     findActivityLog: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
+    findDefaultByOrg: vi.fn().mockResolvedValue(null),
+    listRoutingSummaries: vi.fn().mockResolvedValue([]),
+    setDefault: vi.fn().mockResolvedValue(undefined),
   }
 }
 

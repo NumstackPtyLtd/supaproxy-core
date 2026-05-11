@@ -47,4 +47,6 @@ export interface OrganisationRepository {
   listTeams(orgId: string): Promise<TeamData[]>
   findTeamByName(orgId: string, name: string): Promise<TeamData | null>
   createTeam(id: string, orgId: string, name: string): Promise<void>
+
+  getFirstOrgId(): Promise<string | null>
 }

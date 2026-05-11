@@ -438,6 +438,28 @@ const migrations: Migration[] = [
       await pool.execute(`ALTER TABLE consumers MODIFY COLUMN type VARCHAR(50) NOT NULL`);
     },
   },
+  {
+    version: 13,
+    name: 'workspace routing layer',
+    up: async (pool) => {
+      // Default workspace flag
+      const [wsCols] = await pool.execute<ColumnInfoRow[]>("SHOW COLUMNS FROM workspaces LIKE 'is_default'");
+      if (wsCols.length === 0) {
+        await pool.execute(`ALTER TABLE workspaces ADD COLUMN is_default BOOLEAN DEFAULT FALSE`);
+      }
+
+      // Routing metadata on conversations
+      const [routedCols] = await pool.execute<ColumnInfoRow[]>("SHOW COLUMNS FROM conversations LIKE 'routed_from'");
+      if (routedCols.length === 0) {
+        await pool.execute(`
+          ALTER TABLE conversations
+          ADD COLUMN routed_from VARCHAR(64) NULL,
+          ADD COLUMN routed_to VARCHAR(64) NULL,
+          ADD COLUMN route_reason TEXT NULL
+        `);
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

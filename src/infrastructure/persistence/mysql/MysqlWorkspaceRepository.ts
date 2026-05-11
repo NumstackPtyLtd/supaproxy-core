@@ -4,6 +4,7 @@ import type {
   WorkspaceRepository, WorkspaceData, ConnectionData, ConnectionToolData,
   ConsumerData, KnowledgeSourceData, GuardrailData, PermissionData,
   WorkspaceStatsData, WorkspaceListItemData, ActivityLogData,
+  WorkspaceRoutingSummary,
 } from '../../../domain/workspace/repository.js'
 
 interface IdRow extends RowDataPacket { id: string }
@@ -21,6 +22,7 @@ interface PermissionRow extends RowDataPacket, PermissionData {}
 interface StatsRow extends RowDataPacket, WorkspaceStatsData {}
 interface ActivityRow extends RowDataPacket, ActivityLogData {}
 interface BoundConsumerRow extends RowDataPacket { workspace_id: string; workspace_name: string }
+interface RoutingSummaryRow extends RowDataPacket { id: string; name: string; system_prompt: string | null; tool_names: string | null }
 interface ConsumerRow extends RowDataPacket { workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }
 
 export class MysqlWorkspaceRepository implements WorkspaceRepository {
@@ -295,5 +297,38 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
       'SELECT COUNT(*) as total FROM audit_logs WHERE workspace_id = ?', [workspaceId]
     )
     return { rows, total: countRows[0].total }
+  }
+
+  async findDefaultByOrg(orgId: string): Promise<WorkspaceData | null> {
+    const [rows] = await this.pool.execute<WsRow[]>(
+      'SELECT * FROM workspaces WHERE org_id = ? AND is_default = TRUE AND status = "active" LIMIT 1',
+      [orgId]
+    )
+    return rows[0] || null
+  }
+
+  async listRoutingSummaries(orgId: string): Promise<WorkspaceRoutingSummary[]> {
+    const [rows] = await this.pool.execute<RoutingSummaryRow[]>(
+      `SELECT w.id, w.name, w.system_prompt,
+              GROUP_CONCAT(ct.name SEPARATOR ',') as tool_names
+       FROM workspaces w
+       LEFT JOIN connections c ON c.workspace_id = w.id
+       LEFT JOIN connection_tools ct ON ct.connection_id = c.id
+       WHERE w.org_id = ? AND w.status = 'active' AND w.is_default = FALSE
+       GROUP BY w.id`,
+      [orgId]
+    )
+    return rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      system_prompt: r.system_prompt,
+      tool_names: r.tool_names ? r.tool_names.split(',') : [],
+    }))
+  }
+
+  async setDefault(id: string): Promise<void> {
+    await this.pool.execute(
+      'UPDATE workspaces SET is_default = TRUE WHERE id = ?', [id]
+    )
   }
 }

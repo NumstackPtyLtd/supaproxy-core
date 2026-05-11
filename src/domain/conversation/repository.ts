@@ -13,6 +13,9 @@ export interface ConversationData {
   cold_at: string | null
   closed_at: string | null
   parent_conversation_id?: string | null
+  routed_from: string | null
+  routed_to: string | null
+  route_reason: string | null
   created_at: string
   updated_at: string
 }

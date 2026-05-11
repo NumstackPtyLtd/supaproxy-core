@@ -25,6 +25,9 @@ export interface Conversation {
   last_activity_at: string | null;
   cold_at: string | null;
   closed_at: string | null;
+  routed_from: string | null;
+  routed_to: string | null;
+  route_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +136,7 @@ export interface Workspace {
   max_tool_rounds: number;
   cold_timeout_minutes: number;
   close_timeout_minutes: number;
+  is_default: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
