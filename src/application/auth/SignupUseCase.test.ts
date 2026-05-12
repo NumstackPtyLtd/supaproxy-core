@@ -18,14 +18,11 @@ describe('SignupUseCase', () => {
     adminName: 'Alice',
     adminEmail: 'alice@acme.com',
     adminPassword: 'securepassword',
-    workspaceName: 'Support',
-    teamName: 'Engineering',
   }
 
-  it('creates org, user, #general default workspace, and user workspace', async () => {
+  it('creates org, user, and #general default workspace', async () => {
     const { orgRepo, workspaceRepo, passwordService, tokenService, useCase } = setup()
     vi.mocked(orgRepo.userExistsByEmail).mockResolvedValue(false)
-    vi.mocked(orgRepo.findTeamByName).mockResolvedValue(null)
     vi.mocked(passwordService.hash).mockResolvedValue('hashed-pw')
     vi.mocked(tokenService.sign).mockReturnValue('signup-token')
 
@@ -36,41 +33,18 @@ describe('SignupUseCase', () => {
     expect(passwordService.hash).toHaveBeenCalledWith('securepassword')
     expect(orgRepo.createUser).toHaveBeenCalledTimes(1)
 
-    // #general created first, then the user workspace
-    expect(workspaceRepo.create).toHaveBeenCalledTimes(2)
-    expect(workspaceRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: '#general' }),
-    )
-    expect(workspaceRepo.setDefault).toHaveBeenCalledTimes(1)
-    expect(orgRepo.createTeam).toHaveBeenCalledTimes(1)
-    expect(workspaceRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Support' }),
-    )
-    expect(tokenService.sign).toHaveBeenCalledTimes(1)
-
-    expect(result).toHaveProperty('orgId')
-    expect(result).toHaveProperty('userId')
-    expect(result.workspaceId).toBe('ws-support')
-    expect(result.token).toBe('signup-token')
-  })
-
-  it('creates only #general when no workspace name provided', async () => {
-    const { orgRepo, workspaceRepo, useCase } = setup()
-    vi.mocked(orgRepo.userExistsByEmail).mockResolvedValue(false)
-
-    const result = await useCase.execute({
-      orgName: 'Acme Corp',
-      adminName: 'Alice',
-      adminEmail: 'alice@acme.com',
-      adminPassword: 'securepassword',
-    })
-
+    // Only #general created
     expect(workspaceRepo.create).toHaveBeenCalledTimes(1)
     expect(workspaceRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({ name: '#general' }),
     )
     expect(workspaceRepo.setDefault).toHaveBeenCalledTimes(1)
+    expect(tokenService.sign).toHaveBeenCalledTimes(1)
+
+    expect(result).toHaveProperty('orgId')
+    expect(result).toHaveProperty('userId')
     expect(result.workspaceId).toBe('ws-acme-corp-general')
+    expect(result.token).toBe('signup-token')
   })
 
   it('throws ConflictError if email already exists', async () => {
@@ -79,26 +53,5 @@ describe('SignupUseCase', () => {
 
     await expect(useCase.execute(validInput)).rejects.toThrow(ConflictError)
     expect(orgRepo.create).not.toHaveBeenCalled()
-  })
-
-  it('handles concurrent team creation (ER_DUP_ENTRY)', async () => {
-    const { orgRepo, workspaceRepo, useCase } = setup()
-    vi.mocked(orgRepo.userExistsByEmail).mockResolvedValue(false)
-    vi.mocked(orgRepo.findTeamByName)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'existing-team-id', name: 'Engineering' })
-
-    const dupError = new Error('Duplicate entry') as Error & { code: string }
-    dupError.code = 'ER_DUP_ENTRY'
-    vi.mocked(orgRepo.createTeam).mockRejectedValue(dupError)
-
-    const result = await useCase.execute(validInput)
-
-    expect(orgRepo.findTeamByName).toHaveBeenCalledTimes(2)
-    // The user workspace (not #general) should have the team
-    expect(workspaceRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ teamId: 'existing-team-id', name: 'Support' }),
-    )
-    expect(result).toHaveProperty('orgId')
   })
 })

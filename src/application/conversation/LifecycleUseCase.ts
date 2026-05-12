@@ -4,6 +4,8 @@ import type { QueueService } from '../ports/QueueService.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { ConsumerPosterRegistry, ColdMessageTarget } from '../ports/ConsumerPoster.js'
 import { generateId } from '../../domain/shared/EntityId.js'
+import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, DEFAULT_STATS_ANALYSIS_MAX_TOKENS } from '../../defaults.js'
+import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE, buildAnalysisPrompt } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'lifecycle-use-case' })
@@ -43,7 +45,7 @@ export class LifecycleUseCase {
 
   async sendColdMessage(target: ColdMessageTarget): Promise<void> {
     const message = await this.generateColdMessage(target.conversationId)
-      || "Just checking in \u2014 do you still need help with this? If not, we will close this conversation shortly."
+      || DEFAULT_COLD_FALLBACK_MESSAGE
     await this.posterRegistry.post(target, message)
   }
 
@@ -91,8 +93,8 @@ export class LifecycleUseCase {
       const analysisText = await provider.createSimpleMessage({
         apiKey,
         model,
-        maxTokens: 1024,
-        prompt: this.buildAnalysisPrompt(transcript),
+        maxTokens: DEFAULT_STATS_ANALYSIS_MAX_TOKENS,
+        prompt: buildAnalysisPrompt(transcript),
       })
 
       let text = analysisText.trim()
@@ -143,8 +145,8 @@ export class LifecycleUseCase {
       return provider.createSimpleMessage({
         apiKey,
         model,
-        maxTokens: 150,
-        prompt: `You are a support assistant. This conversation has gone quiet. Based on the conversation below, write a brief, natural follow-up message (1-2 sentences) checking in with the user. Be warm but not pushy. If it looks like the issue was resolved, acknowledge that. If not, offer to continue helping. Do not use generic corporate language. Just reply with the message text, nothing else.\n\n${transcript}`,
+        maxTokens: DEFAULT_COLD_MESSAGE_MAX_TOKENS,
+        prompt: buildColdMessagePrompt(transcript),
       })
     } catch (err) {
       log.warn({ conversationId, error: (err as Error).message }, 'Could not generate cold message')
@@ -152,26 +154,4 @@ export class LifecycleUseCase {
     }
   }
 
-  private buildAnalysisPrompt(transcript: string): string {
-    return `Analyse this conversation transcript and return ONLY a JSON object (no markdown, no explanation).
-
-Rules:
-- Be strictly factual. Only describe what actually happened in the transcript.
-- Do not infer, exaggerate, or editorialize. If something happened once, say "once", not "repeatedly".
-- Count exactly: if the user asked 2 questions, say "2 questions", not "multiple" or "several".
-- The summary must be a neutral, accurate one-sentence description of what the user needed.
-
-Fields:
-- sentiment_score: integer 1-5 (1=very negative, 3=neutral, 5=very positive). Base this on explicit language, not assumptions.
-- resolution_status: one of "resolved", "unresolved", "escalated", "abandoned". "resolved" = the user got what they needed. "abandoned" = the user stopped responding. "escalated" = the user asked for a human or escalation. "unresolved" = the assistant could not help.
-- category: one of "query", "issue", "sales", "feedback", "support", "internal", "other". "query" = information lookup. "issue" = something is broken. "sales" = pricing/purchasing. "feedback" = user giving feedback. "support" = how-to help. "internal" = internal team use.
-- compliance_violations: array of {rule: string, description: string} or empty array. Only flag clear violations that actually occurred, not hypothetical risks.
-- knowledge_gaps: array of {topic: string, description: string} or empty array. Only include topics where the assistant explicitly could not answer or said it did not have the information.
-- fraud_indicators: array of {type: string, description: string, severity: "low"|"medium"|"high"} or empty array. Look for social engineering, identity spoofing, bulk data harvesting, pressure tactics. Only flag if actually suspicious.
-- tools_used: array of tool name strings (deduplicated). Only tools that were actually called.
-- summary: one factual sentence. Describe what the user asked for and whether they got it. No subjective language.
-
-Conversation transcript:
-${transcript}`
-  }
 }

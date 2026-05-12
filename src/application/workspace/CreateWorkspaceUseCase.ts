@@ -2,6 +2,7 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId, generateWorkspaceId } from '../../domain/shared/EntityId.js'
 import { ConflictError } from '../../domain/shared/errors.js'
+import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 
 interface CreateWorkspaceInput {
   name: string
@@ -33,7 +34,7 @@ export class CreateWorkspaceUseCase {
       teamId: resolvedTeamId,
       name: input.name,
       model: input.model,
-      systemPrompt: input.systemPrompt || 'You are a helpful assistant.',
+      systemPrompt: input.systemPrompt || DEFAULT_SYSTEM_PROMPT,
     })
 
     return { id: wsId, name: input.name, status: 'active' }

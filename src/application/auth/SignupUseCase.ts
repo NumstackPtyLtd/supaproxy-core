@@ -2,17 +2,15 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { PasswordService } from '../ports/PasswordService.js'
 import type { TokenService } from '../ports/TokenService.js'
-import { generateId, generateSlug, generateWorkspaceId } from '../../domain/shared/EntityId.js'
+import { generateId, generateSlug } from '../../domain/shared/EntityId.js'
 import { ConflictError } from '../../domain/shared/errors.js'
+import { DEFAULT_WORKSPACE_NAME, DEFAULT_RECEPTIONIST_PROMPT } from '../../defaults.js'
 
 interface SignupInput {
   orgName: string
   adminName: string
   adminEmail: string
   adminPassword: string
-  workspaceName?: string
-  teamName?: string
-  systemPrompt?: string
 }
 
 interface SignupOutput {
@@ -51,28 +49,14 @@ export class SignupUseCase {
       id: generalId,
       orgId,
       teamId: null,
-      name: '#general',
+      name: DEFAULT_WORKSPACE_NAME,
       model: '',
-      systemPrompt: 'You are a helpful receptionist.',
+      systemPrompt: DEFAULT_RECEPTIONIST_PROMPT,
       createdBy: userId,
     })
     await this.workspaceRepo.setDefault(generalId)
 
-    // If the caller provided a workspace name, create that too
-    let userWsId = generalId
-    if (input.workspaceName) {
-      const teamId = input.teamName ? await this.resolveTeam(orgId, input.teamName) : null
-      userWsId = generateWorkspaceId(input.workspaceName)
-      await this.workspaceRepo.create({
-        id: userWsId,
-        orgId,
-        teamId,
-        name: input.workspaceName,
-        model: '',
-        systemPrompt: input.systemPrompt || 'You are a helpful assistant.',
-        createdBy: userId,
-      })
-    }
+    const userWsId = generalId
 
     const token = this.tokenService.sign({
       id: userId,
@@ -83,22 +67,5 @@ export class SignupUseCase {
     })
 
     return { orgId, userId, workspaceId: userWsId, token }
-  }
-
-  private async resolveTeam(orgId: string, teamName: string): Promise<string> {
-    const existing = await this.orgRepo.findTeamByName(orgId, teamName)
-    if (existing) return existing.id
-
-    const teamId = generateId()
-    try {
-      await this.orgRepo.createTeam(teamId, orgId, teamName)
-    } catch (err: unknown) {
-      if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
-        const retry = await this.orgRepo.findTeamByName(orgId, teamName)
-        if (retry) return retry.id
-      }
-      throw err
-    }
-    return teamId
   }
 }
