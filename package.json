@@ -26,7 +26,7 @@
     "@slack/bolt": "^4.2.0",
     "@supaproxy/connections": "^0.2.0",
     "@supaproxy/consumers": "^0.3.0",
-    "@supaproxy/guardrails": "^0.2.1",
+    "@supaproxy/guardrails": "^0.3.0",
     "@supaproxy/providers": "0.1.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.74.1",

@@ -4,6 +4,8 @@ import type { AuditLogRepository, AuditLogData } from '../../domain/audit/reposi
 import type { AIToolSpec, AIMessage, AIContentBlock, ProviderPlugin } from '@supaproxy/providers'
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { GuardrailPlugin } from '@supaproxy/guardrails'
+import type { ExecutionRailRegistry } from '@supaproxy/guardrails'
+import type { RetrievalRailRegistry } from '@supaproxy/guardrails'
 import type { McpClientFactory, McpConnection } from '../ports/McpClient.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import { runGuardrailChain } from '../ports/guardrailChain.js'
@@ -35,6 +37,7 @@ interface ToolEntry {
   name: string
   connection: string
   spec: AIToolSpec
+  isWrite: boolean
   callFn: (args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text?: string }>; isError: boolean }>
 }
 
@@ -82,6 +85,8 @@ export class ExecuteQueryUseCase {
     private readonly conversationUseCase: ManageConversationUseCase,
     private readonly resolveGuardrails: (workspaceId: string) => Promise<GuardrailPlugin[]> = async () => [],
     private readonly promptResolver?: PromptResolver,
+    private readonly executionRails?: ExecutionRailRegistry,
+    private readonly retrievalRails?: RetrievalRailRegistry,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -196,6 +201,7 @@ export class ExecuteQueryUseCase {
         tools,
         history,
         apiKey,
+        workspaceId,
       })
 
       result.durationMs = Date.now() - startTime
@@ -254,6 +260,7 @@ export class ExecuteQueryUseCase {
               name: tool.name,
               connection: server.name,
               spec: { name: tool.name, description: tool.description || '', input_schema: tool.inputSchema || { type: 'object', properties: {} } },
+              isWrite: (tool as Record<string, unknown>).is_write === true,
               callFn: (args) => conn.callTool(tool.name, args),
             })
           }
@@ -266,6 +273,7 @@ export class ExecuteQueryUseCase {
               name: tool.name,
               connection: server.name,
               spec: { name: tool.name, description: tool.description || '', input_schema: tool.inputSchema },
+              isWrite: (tool as Record<string, unknown>).is_write === true,
               callFn: (args) => conn.callTool(tool.name, args),
             })
           }
@@ -286,6 +294,7 @@ export class ExecuteQueryUseCase {
     tools: ToolEntry[]
     history: Array<{ role: 'user' | 'assistant'; content: string }>
     apiKey: string
+    workspaceId: string
   }): Promise<{ answer: string; toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null }> {
     const result = { answer: '', toolsCalled: [] as ToolCallRecord[], connectionsHit: [] as string[], tokensInput: 0, tokensOutput: 0, costUsd: 0, durationMs: 0, error: null as string | null }
 
@@ -333,12 +342,34 @@ export class ExecuteQueryUseCase {
           const connName = toolDef?.connection || 'unknown'
           const toolStart = Date.now()
 
+          // Execution rail: validate tool call before executing
+          if (this.executionRails && toolDef) {
+            const railResult = await this.executionRails.validate({
+              toolName: tu.name!,
+              toolArgs: tu.input as Record<string, unknown>,
+              originalQuery: query,
+              workspaceId: config.workspaceId,
+              isWrite: toolDef.isWrite,
+            })
+            if (!railResult.allowed) {
+              log.info({ tool: tu.name, reason: railResult.reason }, 'Tool call blocked by execution rail')
+              toolResults.push({ type: 'tool_result', id: tu.id, text: `Tool call blocked: ${railResult.reason}` })
+              continue
+            }
+          }
+
           try {
             const callResult = await toolDef!.callFn(tu.input as Record<string, unknown>)
-            const resultText = callResult.content
+            let resultText = callResult.content
               .filter(c => c.type === 'text')
               .map(c => c.text || '')
               .join('\n')
+
+            // Retrieval rail: sanitise tool output before feeding back to LLM
+            if (this.retrievalRails) {
+              const sanitised = await this.retrievalRails.sanitise(resultText)
+              resultText = sanitised.content
+            }
 
             toolResults.push({ type: 'tool_result', id: tu.id, text: resultText })
             if (!result.connectionsHit.includes(connName)) result.connectionsHit.push(connName)
