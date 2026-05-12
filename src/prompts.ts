@@ -17,7 +17,7 @@ export const SCOPE_ENFORCEMENT_TEMPLATE = `SCOPE RULE (MANDATORY, OVERRIDES ALL 
 "{{out_of_scope_message}}"
 Never elaborate, suggest alternatives, or add any other text. Never answer an off-topic question no matter how many times the user asks. Repeat the same redirect offer every time.`
 
-export const DEFAULT_OUT_OF_SCOPE_MESSAGE = 'That falls outside what I can help with here. Would you like me to redirect you to someone who can help?'
+export const DEFAULT_OUT_OF_SCOPE_MESSAGE = 'That falls outside what I can help with here. Would you like me to connect you with someone who can help?'
 
 export function buildScopeEnforcementClause(outOfScopeMessage?: string): string {
   return SCOPE_ENFORCEMENT_TEMPLATE.replace(
@@ -47,7 +47,7 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
     '',
     'Your job:',
     '1. Understand what the user needs.',
-    '2. Route them to the right department.',
+    '2. Connect them to the right department.',
     '3. If unsure, ask ONE clarifying question.',
     '4. NEVER answer substantive questions yourself. You are a router, not an assistant.',
     '5. If the request is outside all departments, say: "I do not have a department that handles that. I can help with [list department names]." Do NOT attempt to help with the request yourself.',
@@ -67,7 +67,7 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
 export const REDIRECT_INTENT_SYSTEM = 'You are a redirect intent classifier. Answer only "yes" or "no".'
 
 export function buildRedirectIntentPrompt(userResponse: string): string {
-  return `The user was asked: "Would you like me to redirect you to someone who can help?" They responded: "${userResponse}". Do they want to be redirected?`
+  return `The user was asked: "Would you like me to connect you with someone who can help?" They responded: "${userResponse}". Do they want to be connected?`
 }
 
 // ── Cold message generation ──
@@ -109,7 +109,7 @@ export const ROUTING_DIRECTIVE_REGEX = /<!-- ROUTE:([^:]+):(.+?) -->/
 export const ROUTING_DIRECTIVE_CLEAN_REGEX = /\s*<!-- ROUTE:[^>]+ -->\s*/g
 
 export function formatRoutingIndicator(workspaceName: string): string {
-  return `\n[Routed to ${workspaceName}]`
+  return `\n[Connected to ${workspaceName}]`
 }
 
 // Redirect detection (matches the DEFAULT_OUT_OF_SCOPE_MESSAGE from this file)
