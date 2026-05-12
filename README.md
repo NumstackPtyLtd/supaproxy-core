@@ -110,6 +110,10 @@ See `.env.example` for all environment variables.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, code style, and PR process.
 
+## Documentation
+
+Full documentation at [docs.supaproxy.cloud](https://docs.supaproxy.cloud/introduction).
+
 ## License
 
 MIT. See [LICENSE](LICENSE). Managed by Numstack Pty Ltd.
