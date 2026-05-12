@@ -260,7 +260,7 @@ export class ExecuteQueryUseCase {
               name: tool.name,
               connection: server.name,
               spec: { name: tool.name, description: tool.description || '', input_schema: tool.inputSchema || { type: 'object', properties: {} } },
-              isWrite: (tool as Record<string, unknown>).is_write === true,
+              isWrite: (tool as unknown as Record<string, unknown>).is_write === true,
               callFn: (args) => conn.callTool(tool.name, args),
             })
           }
@@ -273,7 +273,7 @@ export class ExecuteQueryUseCase {
               name: tool.name,
               connection: server.name,
               spec: { name: tool.name, description: tool.description || '', input_schema: tool.inputSchema },
-              isWrite: (tool as Record<string, unknown>).is_write === true,
+              isWrite: (tool as unknown as Record<string, unknown>).is_write === true,
               callFn: (args) => conn.callTool(tool.name, args),
             })
           }
