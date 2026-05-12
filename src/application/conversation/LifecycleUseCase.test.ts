@@ -141,7 +141,7 @@ describe('LifecycleUseCase', () => {
         { role: 'user', content: 'hello' },
       ])
       vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: null,
+        ai_api_key: '',
         ai_provider_type: 'anthropic',
       })
 
@@ -177,7 +177,7 @@ describe('LifecycleUseCase', () => {
       ])
       vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
         ai_api_key: 'sk-test',
-        ai_provider_type: null,
+        ai_provider_type: '',
       })
 
       await useCase.sendColdMessage(target)
@@ -336,7 +336,7 @@ describe('LifecycleUseCase', () => {
       })
       vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
       vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: null,
+        ai_api_key: '',
         ai_provider_type: 'anthropic',
       })
 
