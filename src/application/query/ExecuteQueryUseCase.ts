@@ -12,9 +12,13 @@ import { NotFoundError, ConfigurationError } from '../../domain/shared/errors.js
 import { IS_PRODUCTION } from '../../config.js'
 import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
+import { safeJsonParse } from '../../shared/json.js'
 import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
+
+const NO_RESPONSE_MESSAGE = '(no response)'
+const MAX_ROUNDS_MESSAGE = 'Ran out of tool-call rounds. Please simplify your question.'
 
 const scopeClause = buildScopeEnforcementClause()
 
@@ -216,9 +220,9 @@ export class ExecuteQueryUseCase {
 
   private async resolveProvider(): Promise<{ provider: ProviderPlugin; apiKey: string }> {
     const settings = await this.orgRepo.getSettingValues(['ai_provider_type', 'ai_api_key', 'anthropic_api_key'])
-    const providerType = settings['ai_provider_type'] || (() => { throw new Error('No AI provider configured. Set ai_provider_type in Settings > Integrations.') })()
+    const providerType = settings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
     const apiKey = settings['ai_api_key'] || settings['anthropic_api_key'] || null
-    if (!apiKey) throw new ConfigurationError('No AI API key configured. Set it in Settings > Integrations.')
+    if (!apiKey) throw new ConfigurationError('No AI API key configured')
     const provider = this.providerRegistry.get(providerType)
     return { provider, apiKey }
   }
@@ -231,7 +235,7 @@ export class ExecuteQueryUseCase {
     const mcpConnections: McpConnection[] = []
 
     for (const server of connections.filter(s => s.type === 'mcp')) {
-      const cfg: McpServerConfig = typeof server.config === 'string' ? JSON.parse(server.config) : server.config
+      const cfg: McpServerConfig = typeof server.config === 'string' ? safeJsonParse<McpServerConfig>(server.config, {}) : server.config
 
       try {
         if (cfg.transport === 'http' && cfg.url) {
@@ -309,7 +313,7 @@ export class ExecuteQueryUseCase {
         }
 
         if (toolUses.length === 0) {
-          result.answer = textParts.join('\n') || '(no response)'
+          result.answer = textParts.join('\n') || NO_RESPONSE_MESSAGE
           break
         }
 
@@ -340,7 +344,7 @@ export class ExecuteQueryUseCase {
       }
 
       if (!result.answer) {
-        result.answer = 'Ran out of tool-call rounds. Please simplify your question.'
+        result.answer = MAX_ROUNDS_MESSAGE
       }
     } catch (err) {
       const message = (err as Error).message

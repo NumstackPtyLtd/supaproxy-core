@@ -19,10 +19,10 @@ export type AuthEnv = {
 export function createRequireAuth(tokenService: TokenService) {
   return async function requireAuth(c: Context, next: Next) {
     const token = getCookie(c, 'supaproxy_session')
-    if (!token) return c.json({ error: 'Not authenticated' }, 401)
+    if (!token) return c.json({ error: 'not_authenticated' }, 401)
 
     const payload = tokenService.verify(token)
-    if (!payload) return c.json({ error: 'Invalid session' }, 401)
+    if (!payload) return c.json({ error: 'invalid_session' }, 401)
 
     c.set('user', payload as AuthUser)
     await next()

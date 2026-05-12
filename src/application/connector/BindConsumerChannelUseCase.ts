@@ -1,6 +1,7 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ConflictError } from '../../domain/shared/errors.js'
+import { STATUS_SAVED } from '../../defaults.js'
 
 interface BindChannelInput {
   type: string
@@ -35,6 +36,6 @@ export class BindConsumerChannelUseCase {
       await this.workspaceRepo.createConsumer(generateId(), input.workspaceId, input.type, config)
     }
 
-    return { status: 'saved', message: `Channel ${input.channelName || input.channelId} bound to this workspace.` }
+    return { status: STATUS_SAVED, message: `Channel ${input.channelName || input.channelId} bound to this workspace.` }
   }
 }

@@ -18,27 +18,27 @@ import type { TenantService } from '../../application/ports/TenantService.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ConflictError } from '../../domain/shared/errors.js'
+import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
 
 const log = pino({ name: 'routes/workspaces' })
 
 const createWorkspaceSchema = z.object({
-  name: z.string().min(1, 'Workspace name is required').max(255),
-  model: z.string().min(1, 'Model is required').max(100),
-  team_id: z.string().max(255).optional(),
-  team_name: z.string().max(255).optional(),
-  system_prompt: z.string().max(10000).optional(),
-  org_id: z.string().max(255).optional(),
+  name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH),
+  model: z.string().min(1).max(100),
+  team_id: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
+  team_name: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
+  system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
+  org_id: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
 }).refine((data) => data.team_id || data.team_name, {
-  message: 'Select a team or enter a new team name.',
   path: ['team_id'],
 })
 
 const updateWorkspaceSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  model: z.string().min(1).max(255).optional(),
-  system_prompt: z.string().max(10000).optional(),
-  cold_timeout_minutes: z.number().int().min(1).max(10080).nullable().optional(),
-  close_timeout_minutes: z.number().int().min(1).max(10080).nullable().optional(),
+  name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
+  model: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
+  system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
+  cold_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
+  close_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
 })
 
 interface WorkspaceRouteDeps {
@@ -116,7 +116,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       const workspace = await deps.getWorkspaceSummaryUseCase.execute(c.req.param('id'))
       return c.json({ workspace })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Workspace not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })
@@ -161,7 +161,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       const detail = await deps.getWorkspaceDetailUseCase.execute(c.req.param('id'))
       return c.json(detail)
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Workspace not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })
@@ -176,7 +176,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       await deps.updateWorkspaceUseCase.execute(c.req.param('id'), result.data)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Workspace not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })

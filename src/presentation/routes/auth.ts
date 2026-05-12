@@ -7,20 +7,20 @@ import type { LoginUseCase } from '../../application/auth/LoginUseCase.js'
 import type { TokenService } from '../../application/ports/TokenService.js'
 import { parseBody } from '../middleware/validate.js'
 import { ConflictError, AuthenticationError } from '../../domain/shared/errors.js'
-import { SESSION_COOKIE_MAX_AGE } from '../../defaults.js'
+import { SESSION_COOKIE_MAX_AGE, MAX_ORG_NAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, MAX_EMAIL_LENGTH, MAX_USER_NAME_LENGTH } from '../../defaults.js'
 
 const log = pino({ name: 'routes/auth' })
 
 const signupSchema = z.object({
-  org_name: z.string().min(1, 'Organisation name is required').max(255),
-  admin_name: z.string().min(1, 'Admin name is required').max(255),
-  admin_email: z.string().email('A valid email is required').max(255),
-  admin_password: z.string().min(8, 'Password must be at least 8 characters').max(255),
+  org_name: z.string().min(1).max(MAX_ORG_NAME_LENGTH),
+  admin_name: z.string().min(1).max(MAX_USER_NAME_LENGTH),
+  admin_email: z.string().email().max(MAX_EMAIL_LENGTH),
+  admin_password: z.string().min(MIN_PASSWORD_LENGTH).max(MAX_PASSWORD_LENGTH),
 })
 
 const loginSchema = z.object({
-  email: z.string().email('A valid email is required'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email(),
+  password: z.string().min(1),
 })
 
 interface AuthRouteDeps {

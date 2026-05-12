@@ -23,7 +23,7 @@ export function createQueueRoutes(deps: QueueRouteDeps) {
   queues.get('/api/org/queues/:name/failed', async (c) => {
     const name = c.req.param('name')
     if (!deps.queueService.listQueueNames().includes(name)) {
-      return c.json({ error: 'Queue not found' }, 404)
+      return c.json({ error: 'not_found' }, 404)
     }
     const jobs = await deps.manageQueuesUseCase.getFailedJobs(name)
     return c.json({ jobs })
@@ -32,7 +32,7 @@ export function createQueueRoutes(deps: QueueRouteDeps) {
   queues.post('/api/org/queues/:name/retry-all', async (c) => {
     const name = c.req.param('name')
     if (!deps.queueService.listQueueNames().includes(name)) {
-      return c.json({ error: 'Queue not found' }, 404)
+      return c.json({ error: 'not_found' }, 404)
     }
     const retried = await deps.manageQueuesUseCase.retryAll(name)
     return c.json({ status: 'ok', retried })
@@ -41,7 +41,7 @@ export function createQueueRoutes(deps: QueueRouteDeps) {
   queues.post('/api/org/queues/:name/drain', async (c) => {
     const name = c.req.param('name')
     if (!deps.queueService.listQueueNames().includes(name)) {
-      return c.json({ error: 'Queue not found' }, 404)
+      return c.json({ error: 'not_found' }, 404)
     }
     await deps.manageQueuesUseCase.drain(name)
     return c.json({ status: 'ok' })

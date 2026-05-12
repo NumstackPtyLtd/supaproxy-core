@@ -1,6 +1,7 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
+import { STATUS_CONNECTED, STATUS_SAVED } from '../../defaults.js'
 
 export interface ConsumerTypeHandler {
   buildConfig(credentials: Record<string, string>, channelId?: string, channelName?: string): string
@@ -42,12 +43,12 @@ export class ConnectConsumerUseCase {
     if (handler.start) {
       try {
         await handler.start(input.credentials)
-        return { status: 'connected', message: 'Connected. The consumer is now active.' }
+        return { status: STATUS_CONNECTED, message: 'Connected. The consumer is now active.' }
       } catch (err) {
-        return { status: 'saved', message: `Credentials saved but the consumer could not start: ${(err as Error).message}. Check the credentials and try again.` }
+        return { status: STATUS_SAVED, message: `Credentials saved but the consumer could not start: ${(err as Error).message}. Check the credentials and try again.` }
       }
     }
 
-    return { status: 'saved', message: 'Consumer configured.' }
+    return { status: STATUS_SAVED, message: 'Consumer configured.' }
   }
 }

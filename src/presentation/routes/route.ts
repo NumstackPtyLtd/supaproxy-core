@@ -7,7 +7,7 @@ import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 
 const routeBodySchema = z.object({
-  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
+  query: z.string().min(1).max(MAX_QUERY_LENGTH),
 })
 
 interface RouteRouteDeps {

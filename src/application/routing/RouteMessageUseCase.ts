@@ -6,8 +6,8 @@ import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
-import { SESSION_TTL_SECONDS } from '../../defaults.js'
-import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt } from '../../prompts.js'
+import { SESSION_TTL_SECONDS, CONSUMER_TYPE_SYSTEM } from '../../defaults.js'
+import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt, ROUTING_DIRECTIVE_REGEX, ROUTING_DIRECTIVE_CLEAN_REGEX, formatRoutingIndicator, isRedirectOffer } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'route-message' })
@@ -69,7 +69,7 @@ export class RouteMessageUseCase {
       })
 
       // Update session: set pendingRedirect if scope guardrail triggered, clear otherwise
-      const redirectOffered = this.isRedirectOffer(result.answer)
+      const redirectOffered = isRedirectOffer(result.answer)
       await this.sessionStore.set(sessionKey, {
         workspaceId: existingSession.workspaceId,
         lastMessageAt: Date.now(),
@@ -96,7 +96,7 @@ export class RouteMessageUseCase {
 
       const prompt = buildRedirectIntentPrompt(query)
       const result = await this.executeQueryUseCase.execute(defaultWs.id, prompt, {
-        consumerType: 'system',
+        consumerType: CONSUMER_TYPE_SYSTEM,
         systemPromptOverride: REDIRECT_INTENT_SYSTEM,
         skipTools: true,
       })
@@ -152,7 +152,7 @@ export class RouteMessageUseCase {
     })
 
     // Parse routing directive from the response
-    const routeMatch = result.answer.match(/<!-- ROUTE:([^:]+):(.+?) -->/)
+    const routeMatch = result.answer.match(ROUTING_DIRECTIVE_REGEX)
 
     if (routeMatch) {
       const targetWorkspaceId = routeMatch[1]
@@ -187,7 +187,7 @@ export class RouteMessageUseCase {
 
       // Clean the routing directive from the visible answer and add routing indicator
       const cleanAnswer = this.cleanRoutingDirective(result.answer)
-      const answerWithIndicator = `${cleanAnswer}\n[Routed to ${targetWs.name}]`
+      const answerWithIndicator = `${cleanAnswer}${formatRoutingIndicator(targetWs.name)}`
 
       log.info({
         orgId: input.orgId,
@@ -227,11 +227,6 @@ export class RouteMessageUseCase {
   }
 
   private cleanRoutingDirective(answer: string): string {
-    return answer.replace(/\s*<!-- ROUTE:[^>]+ -->\s*/g, '').trim()
-  }
-
-  private isRedirectOffer(answer: string): boolean {
-    const lower = answer.toLowerCase()
-    return lower.includes('redirect you') || lower.includes('outside what i can help')
+    return answer.replace(ROUTING_DIRECTIVE_CLEAN_REGEX, '').trim()
   }
 }

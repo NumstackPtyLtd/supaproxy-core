@@ -79,7 +79,7 @@ export class SaveMcpConnectionUseCase {
           )
         }
         await this.workspaceRepo.updateConnectionStatus(connId, 'connected')
-        return { status: 'saved', message: `Connected \u2014 ${connection.tools.length} tools discovered.`, tools: connection.tools.length }
+        return { status: 'saved', message: `Connected, ${connection.tools.length} tools discovered.`, tools: connection.tools.length }
       } finally {
         await connection.close()
       }

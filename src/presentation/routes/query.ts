@@ -2,14 +2,14 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { ExecuteQueryUseCase } from '../../application/query/ExecuteQueryUseCase.js'
 import { parseBody } from '../middleware/validate.js'
-import { MAX_QUERY_LENGTH } from '../../defaults.js'
+import { MAX_QUERY_LENGTH, MAX_HISTORY_ITEMS } from '../../defaults.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 
 const queryBodySchema = z.object({
-  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
+  query: z.string().min(1).max(MAX_QUERY_LENGTH),
   session_id: z.string().max(255).optional(),
   consumer_type: z.string().max(50).optional(),
   consumer_context: z.object({
@@ -21,7 +21,7 @@ const queryBodySchema = z.object({
   history: z.array(z.object({
     role: z.enum(['user', 'assistant']),
     content: z.string(),
-  })).max(100).optional(),
+  })).max(MAX_HISTORY_ITEMS).optional(),
 })
 
 interface QueryRouteDeps {
@@ -71,7 +71,7 @@ export function createQueryRoutes(deps: QueryRouteDeps) {
         session_id: result.sessionId,
       })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Workspace not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })

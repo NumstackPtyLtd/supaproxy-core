@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq'
 import type { QueueService, QueueJobCounts, FailedJob } from '../../application/ports/QueueService.js'
 import type { LifecycleUseCase } from '../../application/conversation/LifecycleUseCase.js'
+import { QUEUE_LIFECYCLE, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS, LIFECYCLE_SCAN_INTERVAL_MS, COLD_MESSAGE_CONCURRENCY, STATS_WORKER_CONCURRENCY } from '../../defaults.js'
 import pino from 'pino'
 
 const log = pino({ name: 'bullmq-service' })
@@ -19,13 +20,13 @@ export class BullMqService implements QueueService {
     private readonly redisPort: number,
   ) {
     const connection = { host: this.redisHost, port: this.redisPort }
-    this.lifecycleQueue = new Queue('lifecycle', { connection })
-    this.coldMessageQueue = new Queue('cold-messages', { connection })
-    this.statsQueue = new Queue('conversation-stats', { connection })
+    this.lifecycleQueue = new Queue(QUEUE_LIFECYCLE, { connection })
+    this.coldMessageQueue = new Queue(QUEUE_COLD_MESSAGES, { connection })
+    this.statsQueue = new Queue(QUEUE_CONVERSATION_STATS, { connection })
     this.queues = {
-      lifecycle: this.lifecycleQueue,
-      'cold-messages': this.coldMessageQueue,
-      'conversation-stats': this.statsQueue,
+      [QUEUE_LIFECYCLE]: this.lifecycleQueue,
+      [QUEUE_COLD_MESSAGES]: this.coldMessageQueue,
+      [QUEUE_CONVERSATION_STATS]: this.statsQueue,
     }
   }
 
@@ -91,7 +92,7 @@ export class BullMqService implements QueueService {
   async startWorkers(lifecycleUseCase: LifecycleUseCase): Promise<void> {
     const connection = { host: this.redisHost, port: this.redisPort }
 
-    this.lifecycleWorker = new Worker('lifecycle', async () => {
+    this.lifecycleWorker = new Worker(QUEUE_LIFECYCLE, async () => {
       try {
         await lifecycleUseCase.runLifecycleScan()
       } catch (err) {
@@ -99,20 +100,20 @@ export class BullMqService implements QueueService {
       }
     }, { connection })
 
-    this.coldMessageWorker = new Worker('cold-messages', async (job) => {
+    this.coldMessageWorker = new Worker(QUEUE_COLD_MESSAGES, async (job) => {
       await lifecycleUseCase.sendColdMessage(job.data)
-    }, { connection, concurrency: 3 })
+    }, { connection, concurrency: COLD_MESSAGE_CONCURRENCY })
 
-    this.statsWorker = new Worker('conversation-stats', async (job) => {
+    this.statsWorker = new Worker(QUEUE_CONVERSATION_STATS, async (job) => {
       await lifecycleUseCase.generateStats(job.data.conversationId)
-    }, { connection, concurrency: 2 })
+    }, { connection, concurrency: STATS_WORKER_CONCURRENCY })
 
     this.lifecycleWorker.on('failed', (job, err) => log.error({ job: job?.id, error: err.message }, 'Lifecycle job failed'))
     this.coldMessageWorker.on('failed', (job, err) => log.error({ job: job?.id, error: err.message }, 'Cold message job failed'))
     this.statsWorker.on('failed', (job, err) => log.error({ job: job?.id, error: err.message }, 'Stats job failed'))
 
-    await this.lifecycleQueue.upsertJobScheduler('scan', { every: 30_000 }, { name: 'lifecycle-scan' })
-    log.info('BullMQ workers started (scan every 30s, 3 cold message workers, 2 stats workers)')
+    await this.lifecycleQueue.upsertJobScheduler('scan', { every: LIFECYCLE_SCAN_INTERVAL_MS }, { name: 'lifecycle-scan' })
+    log.info(`BullMQ workers started (scan every ${LIFECYCLE_SCAN_INTERVAL_MS / 1000}s, ${COLD_MESSAGE_CONCURRENCY} cold message workers, ${STATS_WORKER_CONCURRENCY} stats workers)`)
   }
 
   async stopWorkers(): Promise<void> {

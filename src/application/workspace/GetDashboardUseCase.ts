@@ -1,4 +1,5 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import { safeJsonParse } from '../../shared/json.js'
 
 interface ViolationItem { rule: string; description: string }
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
@@ -61,7 +62,7 @@ export class GetDashboardUseCase {
     const byRule: Record<string, number> = {}
 
     for (const r of rows) {
-      const violations: ViolationItem[] = typeof r.compliance_violations === 'string' ? JSON.parse(r.compliance_violations) : (r.compliance_violations || [])
+      const violations: ViolationItem[] = typeof r.compliance_violations === 'string' ? safeJsonParse<ViolationItem[]>(r.compliance_violations, []) : (r.compliance_violations || [])
       totalViolations += violations.length
       for (const v of violations) {
         byRule[v.rule] = (byRule[v.rule] || 0) + 1
@@ -77,7 +78,7 @@ export class GetDashboardUseCase {
   private buildKnowledgeGaps(rows: Array<{ knowledge_gaps: string | null; created_at: string }>) {
     const counts: Record<string, { count: number; last_seen: string }> = {}
     for (const r of rows) {
-      const gaps: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? JSON.parse(r.knowledge_gaps) : (r.knowledge_gaps || [])
+      const gaps: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? safeJsonParse<KnowledgeGapItem[]>(r.knowledge_gaps, []) : (r.knowledge_gaps || [])
       for (const g of gaps) {
         if (!counts[g.topic]) counts[g.topic] = { count: 0, last_seen: r.created_at }
         counts[g.topic].count++
