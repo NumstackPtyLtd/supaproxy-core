@@ -221,13 +221,31 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
 
   function listAvailableGuardrails() {
-    return Object.entries(availableGuardrails).map(([id, { instance }]) => ({
+    const pipeline = Object.entries(availableGuardrails).map(([id, { instance }]) => ({
       id,
       name: instance.name,
       description: instance.description,
       stage: instance.stage,
       configSchema: instance.configSchema,
     }))
+
+    const execution = executionRails.list().map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      stage: p.stage,
+      configSchema: p.configSchema,
+    }))
+
+    const retrieval = retrievalRails.list().map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      stage: p.stage,
+      configSchema: p.configSchema,
+    }))
+
+    return [...pipeline, ...execution, ...retrieval]
   }
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
