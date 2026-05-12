@@ -1,20 +1,32 @@
 import { describe, it, expect } from 'vitest'
 import { NoOpTenantService } from './NoOpTenantService.js'
 
-describe('NoOpTenantService', () => {
+describe('NoOpTenantService (single-tenant)', () => {
   const service = new NoOpTenantService()
 
-  it('scopeWorkspaceList returns null (no filtering)', () => {
-    expect(service.scopeWorkspaceList('org-1')).toBeNull()
+  describe('scopeWorkspaceList', () => {
+    it('returns null (no filtering, all workspaces visible)', () => {
+      expect(service.scopeWorkspaceList('org-1')).toBeNull()
+    })
   })
 
-  it('verifyWorkspaceAccess does not throw for any input', () => {
-    expect(() => service.verifyWorkspaceAccess('org-1', 'org-2')).not.toThrow()
-    expect(() => service.verifyWorkspaceAccess(null, 'org-1')).not.toThrow()
-    expect(() => service.verifyWorkspaceAccess('org-1', 'org-1')).not.toThrow()
+  describe('verifyWorkspaceAccess', () => {
+    it('allows access when orgs match', () => {
+      expect(() => service.verifyWorkspaceAccess('org-1', 'org-1')).not.toThrow()
+    })
+
+    it('allows access when orgs differ (single-tenant, no check)', () => {
+      expect(() => service.verifyWorkspaceAccess('org-1', 'org-2')).not.toThrow()
+    })
+
+    it('allows access when workspace org is null', () => {
+      expect(() => service.verifyWorkspaceAccess(null, 'org-1')).not.toThrow()
+    })
   })
 
-  it('resolveOrgForCreation returns the user org', () => {
-    expect(service.resolveOrgForCreation('org-abc')).toBe('org-abc')
+  describe('resolveOrgForCreation', () => {
+    it('returns the user org ID', () => {
+      expect(service.resolveOrgForCreation('org-abc')).toBe('org-abc')
+    })
   })
 })
