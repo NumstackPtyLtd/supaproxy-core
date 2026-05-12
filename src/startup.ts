@@ -1,5 +1,5 @@
 /**
- * Startup routines — consumer boot, lifecycle workers.
+ * Startup routines: consumer boot, lifecycle workers.
  *
  * Separated from app creation so the cloud overlay can
  * hook into the startup sequence.
@@ -12,7 +12,7 @@ const log = pino({ name: 'startup' })
 
 /**
  * Auto-start all registered consumers that have org-level credentials configured.
- * Iterates the plugin registry — no consumer-specific logic here.
+ * Iterates the plugin registry. No consumer-specific logic here.
  *
  * Message routing strategy:
  * 1. Try channel binding (channel_id → workspace_id lookup)
@@ -43,7 +43,7 @@ export async function startConsumers(container: Container): Promise<void> {
       }
 
       if (!hasAll) {
-        log.info({ type: plugin.type }, `${plugin.name} not configured — set credentials in Settings > Integrations`)
+        log.info({ type: plugin.type }, `${plugin.name} not configured. Set credentials in Settings > Integrations`)
         continue
       }
 
@@ -109,7 +109,7 @@ export async function startConsumers(container: Container): Promise<void> {
 
       log.info({ type: plugin.type }, `${plugin.name} consumer started`)
     } catch (err) {
-      log.warn({ type: plugin.type, error: (err as Error).message }, `${plugin.name} consumer failed — server continues without it`)
+      log.warn({ type: plugin.type, error: (err as Error).message }, `${plugin.name} consumer failed. Server continues without it`)
     }
   }
 }

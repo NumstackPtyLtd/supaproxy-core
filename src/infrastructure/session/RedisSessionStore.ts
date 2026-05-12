@@ -11,7 +11,11 @@ export class RedisSessionStore implements SessionStore {
   async get(key: string): Promise<RoutingSession | null> {
     const raw = await this.client.get(key)
     if (!raw) return null
-    return JSON.parse(raw) as RoutingSession
+    try {
+      return JSON.parse(raw) as RoutingSession
+    } catch {
+      return null
+    }
   }
 
   async set(key: string, session: RoutingSession, ttlSeconds: number): Promise<void> {

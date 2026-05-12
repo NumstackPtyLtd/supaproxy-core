@@ -1,5 +1,5 @@
 /**
- * Database entity types — mirrors the MySQL schema.
+ * Database entity types: mirrors the MySQL schema.
  * Used by server for type-safe DB queries and by SDK for response typing.
  */
 

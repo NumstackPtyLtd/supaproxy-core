@@ -88,7 +88,7 @@ import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
-  // Tenant service — defaults to NoOp (single-tenant) for open-source.
+  // Tenant service: defaults to NoOp (single-tenant) for open-source.
   // Cloud deployment passes a multi-tenant implementation.
   const tenantService: TenantService = options?.tenantService ?? new NoOpTenantService()
 
@@ -100,7 +100,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const modelRepo = new MysqlModelRepository(pool)
   const passwordService = new BcryptPasswordService()
   const tokenService = new JwtTokenService(JWT_SECRET)
-  // Provider registry passed to use cases — they resolve the provider
+  // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
   const queueService = new BullMqService(REDIS_HOST, REDIS_PORT)
@@ -197,7 +197,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
-  // Guardrails — resolved per workspace at query time.
+  // Guardrails: resolved per workspace at query time.
   // Only enabled guardrails run. Config is loaded from workspace_guardrails table.
   const patternInstance = new PatternGuardrail()
   const availableGuardrails: Record<string, { instance: GuardrailPlugin; factory: () => GuardrailPlugin }> = {

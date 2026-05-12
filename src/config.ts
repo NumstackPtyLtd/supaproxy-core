@@ -25,7 +25,7 @@ export const JWT_SECRET = (() => {
 export const CORS_ORIGINS = requireEnv('CORS_ORIGINS').split(',')
 export const DASHBOARD_URL = requireEnv('DASHBOARD_URL')
 
-// Cookie domain — derived from DASHBOARD_URL so cookies work across subdomains
+// Cookie domain: derived from DASHBOARD_URL so cookies work across subdomains
 // e.g. https://supaproxy.cloud → .supaproxy.cloud
 export const COOKIE_DOMAIN = (() => {
   if (!DASHBOARD_URL) return undefined
@@ -50,5 +50,5 @@ export const REDIS_HOST = requireEnv('REDIS_HOST')
 export const REDIS_PORT = requireEnvInt('REDIS_PORT')
 
 // Audit
-export const LOG_DIR = process.env.SUPAPROXY_LOG_DIR || './var/logs'
+export const LOG_DIR = process.env.SUPAPROXY_LOG_DIR
 

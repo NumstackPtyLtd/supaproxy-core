@@ -60,10 +60,10 @@ src/
 
 The server supports pluggable multi-tenancy via `TenantService` (in `application/ports/TenantService.ts`):
 
-- **Self-hosted**: `NoOpTenantService` — single-tenant, no org scoping
+- **Self-hosted**: `NoOpTenantService`, single-tenant, no org scoping
 - **Cloud**: Injects `CloudTenantService` from the private `supaproxy-cloud` repo
 
-The `createContainer()` function accepts an optional `tenantService` parameter. All routes delegate workspace access checks to this service. Self-hosters never need to think about this — it's transparent.
+The `createContainer()` function accepts an optional `tenantService` parameter. All routes delegate workspace access checks to this service. Self-hosters never need to think about this; it is transparent.
 
 When adding new routes that access workspace data, always use `guardWorkspace()` to delegate access checks to the tenant service.
 

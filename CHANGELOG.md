@@ -24,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Frontend logging wrapper (silenced in production)
 
 ### Security
-- Required env vars with no fallback defaults — server refuses to start without them
+- Required env vars with no fallback defaults; server refuses to start without them
 - JWT secret minimum length enforcement (32 chars)
 - DOMPurify sanitization on all rendered HTML including error fallbacks
 - Hardcoded secrets removed from .env.example and docker-compose

@@ -12,7 +12,7 @@ const log = pino({ name: 'route-message' })
 
 const SESSION_TTL_SECONDS = 1800 // 30 minutes
 
-const REDIRECT_INTENT_PROMPT = `The user was asked: "Would you like me to redirect you to someone who can help?" They responded: "{{query}}" — do they want to be redirected?`
+const REDIRECT_INTENT_PROMPT = `The user was asked: "Would you like me to redirect you to someone who can help?" They responded: "{{query}}". Do they want to be redirected?`
 
 interface RouteMessageInput {
   orgId: string

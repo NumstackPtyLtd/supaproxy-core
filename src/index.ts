@@ -1,7 +1,7 @@
 /**
  * Open-source server entry point.
  *
- * Uses the composable pieces directly — no cloud overlay.
+ * Uses the composable pieces directly. No cloud overlay.
  * Single-tenant mode (NoOpTenantService is the default).
  *
  * The cloud overlay (supaproxy-cloud) imports from ./server.ts

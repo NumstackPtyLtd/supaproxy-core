@@ -3,7 +3,7 @@ import type { registry as ConsumerRegistryType } from '@supaproxy/consumers'
 
 /**
  * Delegates integration testing to the consumer plugin's validateCredentials.
- * No consumer-specific logic — the plugin knows how to test its own credentials.
+ * No consumer-specific logic; the plugin knows how to test its own credentials.
  */
 export class ConsumerIntegrationTester implements IntegrationTester {
   constructor(private readonly registry: typeof ConsumerRegistryType) {}

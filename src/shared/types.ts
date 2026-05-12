@@ -1,4 +1,4 @@
-// SupaProxy shared types — used by server, web, and SDK
+// SupaProxy shared types: used by server, web, and SDK
 
 export interface WorkspaceConfig {
   workspace: {

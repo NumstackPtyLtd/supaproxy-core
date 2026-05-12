@@ -1,5 +1,5 @@
 /**
- * API response types — typed contracts between server and clients.
+ * API response types: typed contracts between server and clients.
  * Every endpoint has a corresponding response type here.
  */
 
