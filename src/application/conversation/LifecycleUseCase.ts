@@ -78,7 +78,7 @@ export class LifecycleUseCase {
 
       const orgSettings = await this.orgRepo.getSettingValues(['ai_api_key', 'ai_provider_type'])
       const apiKey = orgSettings['ai_api_key']
-      const providerType = orgSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured. Set ai_provider_type in Settings > Integrations.') })()
+      const providerType = orgSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
       if (!apiKey) {
         await this.conversationRepo.updateStatsStatus(statsId, 'failed')
         return
@@ -134,7 +134,7 @@ export class LifecycleUseCase {
 
       const coldSettings = await this.orgRepo.getSettingValues(['ai_api_key', 'ai_provider_type'])
       const apiKey = coldSettings['ai_api_key']
-      const providerType = coldSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured. Set ai_provider_type in Settings > Integrations.') })()
+      const providerType = coldSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
       if (!apiKey) return ''
 
       const model = await this.conversationRepo.getWorkspaceModel(conversationId)

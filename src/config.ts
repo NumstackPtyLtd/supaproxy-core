@@ -14,6 +14,7 @@ export const requireEnvInt = (name: string): number => {
   return num
 }
 
+// NODE_ENV is the one exception: defaults to 'development' per Node.js convention
 export const NODE_ENV = process.env.NODE_ENV ?? 'development'
 export const IS_PRODUCTION = NODE_ENV === 'production'
 

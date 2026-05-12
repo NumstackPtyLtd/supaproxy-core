@@ -6,6 +6,7 @@ import type {
   WorkspaceStatsData, WorkspaceListItemData, ActivityLogData,
   WorkspaceRoutingSummary,
 } from '../../../domain/workspace/repository.js'
+import { STATUS_ACTIVE, STATUS_ARCHIVED, STATUS_CONNECTED, STATUS_DISCONNECTED } from '../../../defaults.js'
 
 interface IdRow extends RowDataPacket { id: string }
 interface CountRow extends RowDataPacket { c: number }
@@ -23,7 +24,7 @@ interface StatsRow extends RowDataPacket, WorkspaceStatsData {}
 interface ActivityRow extends RowDataPacket, ActivityLogData {}
 interface BoundConsumerRow extends RowDataPacket { workspace_id: string; workspace_name: string }
 interface RoutingSummaryRow extends RowDataPacket { id: string; name: string; system_prompt: string | null; tool_names: string | null }
-interface ConsumerRow extends RowDataPacket { workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }
+interface ConsumersByTypeRow extends RowDataPacket { workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }
 
 export class MysqlWorkspaceRepository implements WorkspaceRepository {
   constructor(private readonly pool: mysql.Pool) {}
@@ -44,7 +45,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
 
   async findActiveById(id: string): Promise<WorkspaceData | null> {
     const [rows] = await this.pool.execute<WsRow[]>(
-      'SELECT * FROM workspaces WHERE id = ? AND status = "active"', [id]
+      `SELECT * FROM workspaces WHERE id = ? AND status = "${STATUS_ACTIVE}"`, [id]
     )
     return rows[0] || null
   }
@@ -57,7 +58,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
   async create(workspace: { id: string; orgId: string | null; teamId: string | null; name: string; model: string; systemPrompt: string; createdBy?: string | null }): Promise<void> {
     await this.pool.execute(
       `INSERT INTO workspaces (id, org_id, team_id, name, status, model, system_prompt, max_tool_rounds, created_by)
-       VALUES (?, ?, ?, ?, 'active', ?, ?, 10, ?)`,
+       VALUES (?, ?, ?, ?, '${STATUS_ACTIVE}', ?, ?, 10, ?)`,
       [workspace.id, workspace.orgId, workspace.teamId, workspace.name, workspace.model, workspace.systemPrompt, workspace.createdBy || null]
     )
   }
@@ -71,7 +72,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
 
   async listNonArchived(orgId: string | null): Promise<WorkspaceListItemData[]> {
     const where = orgId ? 'WHERE w.org_id = ? AND w.status != ?' : 'WHERE w.status != ?'
-    const params = orgId ? [orgId, 'archived'] : ['archived']
+    const params = orgId ? [orgId, STATUS_ARCHIVED] : [STATUS_ARCHIVED]
 
     const [rows] = await this.pool.execute<WsListRow[]>(`
       SELECT w.id, w.name, t.name as team, w.status, w.model, w.created_at,
@@ -118,13 +119,13 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
 
   async createConnection(id: string, workspaceId: string, name: string, type: string, config: string): Promise<void> {
     await this.pool.execute(
-      'INSERT INTO connections (id, workspace_id, name, type, status, config) VALUES (?, ?, ?, ?, "disconnected", ?)',
+      `INSERT INTO connections (id, workspace_id, name, type, status, config) VALUES (?, ?, ?, ?, "${STATUS_DISCONNECTED}", ?)`,
       [id, workspaceId, name, type, config]
     )
   }
 
   async updateConnectionConfig(id: string, config: string): Promise<void> {
-    await this.pool.execute('UPDATE connections SET config = ?, status = "disconnected" WHERE id = ?', [config, id])
+    await this.pool.execute(`UPDATE connections SET config = ?, status = "${STATUS_DISCONNECTED}" WHERE id = ?`, [config, id])
   }
 
   async updateConnectionStatus(id: string, status: string): Promise<void> {
@@ -181,13 +182,13 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
 
   async createConsumer(id: string, workspaceId: string, type: string, config: string): Promise<void> {
     await this.pool.execute(
-      'INSERT INTO consumers (id, workspace_id, type, config, status) VALUES (?, ?, ?, ?, "active")',
+      `INSERT INTO consumers (id, workspace_id, type, config, status) VALUES (?, ?, ?, ?, "${STATUS_ACTIVE}")`,
       [id, workspaceId, type, config]
     )
   }
 
   async updateConsumerConfig(id: string, config: string): Promise<void> {
-    await this.pool.execute('UPDATE consumers SET config = ?, status = "active" WHERE id = ?', [config, id])
+    await this.pool.execute(`UPDATE consumers SET config = ?, status = "${STATUS_ACTIVE}" WHERE id = ?`, [config, id])
   }
 
   async findConsumerBoundToChannel(type: string, excludeWorkspaceId: string, channelId: string): Promise<{ workspace_id: string; workspace_name: string } | null> {
@@ -201,8 +202,8 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
   }
 
   async findConsumersByType(type: string): Promise<Array<{ workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }>> {
-    const [rows] = await this.pool.execute<ConsumerRow[]>(
-      'SELECT c.workspace_id, c.config, w.model, w.system_prompt, w.max_tool_rounds FROM consumers c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = ? AND w.status = "active"', [type]
+    const [rows] = await this.pool.execute<ConsumersByTypeRow[]>(
+      `SELECT c.workspace_id, c.config, w.model, w.system_prompt, w.max_tool_rounds FROM consumers c JOIN workspaces w ON c.workspace_id = w.id WHERE c.type = ? AND w.status = "${STATUS_ACTIVE}"`, [type]
     )
     return rows
   }
@@ -266,22 +267,22 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
   }
 
   async getActiveWorkspaceCount(): Promise<number> {
-    const [rows] = await this.pool.execute<CountRow[]>('SELECT COUNT(*) as c FROM workspaces WHERE status = "active"')
+    const [rows] = await this.pool.execute<CountRow[]>(`SELECT COUNT(*) as c FROM workspaces WHERE status = "${STATUS_ACTIVE}"`)
     return rows[0].c
   }
 
   async getConnectedConnectionCount(): Promise<number> {
-    const [rows] = await this.pool.execute<CountRow[]>("SELECT COUNT(*) as c FROM connections WHERE status = 'connected'")
+    const [rows] = await this.pool.execute<CountRow[]>(`SELECT COUNT(*) as c FROM connections WHERE status = '${STATUS_CONNECTED}'`)
     return rows[0].c
   }
 
   async getActiveConsumerCount(): Promise<number> {
-    const [rows] = await this.pool.execute<CountRow[]>("SELECT COUNT(*) as c FROM consumers WHERE status = 'active'")
+    const [rows] = await this.pool.execute<CountRow[]>(`SELECT COUNT(*) as c FROM consumers WHERE status = '${STATUS_ACTIVE}'`)
     return rows[0].c
   }
 
   async getFirstActiveWorkspace(): Promise<WorkspaceData | null> {
-    const [rows] = await this.pool.execute<WsRow[]>('SELECT * FROM workspaces WHERE status = "active" LIMIT 1')
+    const [rows] = await this.pool.execute<WsRow[]>(`SELECT * FROM workspaces WHERE status = "${STATUS_ACTIVE}" LIMIT 1`)
     return rows[0] || null
   }
 
@@ -301,7 +302,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
 
   async findDefaultByOrg(orgId: string): Promise<WorkspaceData | null> {
     const [rows] = await this.pool.execute<WsRow[]>(
-      'SELECT * FROM workspaces WHERE org_id = ? AND is_default = TRUE AND status = "active" LIMIT 1',
+      `SELECT * FROM workspaces WHERE org_id = ? AND is_default = TRUE AND status = "${STATUS_ACTIVE}" LIMIT 1`,
       [orgId]
     )
     return rows[0] || null
@@ -314,7 +315,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
        FROM workspaces w
        LEFT JOIN connections c ON c.workspace_id = w.id
        LEFT JOIN connection_tools ct ON ct.connection_id = c.id
-       WHERE w.org_id = ? AND w.status = 'active' AND w.is_default = FALSE
+       WHERE w.org_id = ? AND w.status = '${STATUS_ACTIVE}' AND w.is_default = FALSE
        GROUP BY w.id`,
       [orgId]
     )

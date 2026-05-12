@@ -1,5 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import { safeJsonParse } from '../../shared/json.js'
 
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
 
@@ -17,7 +18,7 @@ export class GetKnowledgeUseCase {
 
     const gaps: Array<KnowledgeGapItem & { conversation_id: string; user_name: string | null; timestamp: string | null }> = []
     for (const r of gapRows) {
-      const parsed: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? JSON.parse(r.knowledge_gaps) : (r.knowledge_gaps || [])
+      const parsed: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? safeJsonParse<KnowledgeGapItem[]>(r.knowledge_gaps, []) : (r.knowledge_gaps || [])
       for (const g of parsed) {
         gaps.push({ ...g, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at })
       }

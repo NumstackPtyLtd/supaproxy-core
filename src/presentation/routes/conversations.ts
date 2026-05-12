@@ -53,7 +53,7 @@ export function createConversationRoutes(deps: ConversationRouteDeps) {
       const result = await deps.getConversationDetailUseCase.execute(c.req.param('cid'))
       return c.json(result)
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Conversation not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })
@@ -64,9 +64,9 @@ export function createConversationRoutes(deps: ConversationRouteDeps) {
     try {
       await deps.closeConversationUseCase.execute(c.req.param('cid'))
       log.info({ conversationId: c.req.param('cid') }, 'Conversation closed manually, analysis queued')
-      return c.json({ status: 'closed', message: 'Conversation closed. Analysis is running.' })
+      return c.json({ status: 'closed', message: 'closed' })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Conversation not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })

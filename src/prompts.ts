@@ -103,6 +103,25 @@ Conversation transcript:
 ${transcript}`
 }
 
+// ── Routing directives ──
+
+export const ROUTING_DIRECTIVE_REGEX = /<!-- ROUTE:([^:]+):(.+?) -->/
+export const ROUTING_DIRECTIVE_CLEAN_REGEX = /\s*<!-- ROUTE:[^>]+ -->\s*/g
+
+export function formatRoutingIndicator(workspaceName: string): string {
+  return `\n[Routed to ${workspaceName}]`
+}
+
+// Redirect detection (matches the DEFAULT_OUT_OF_SCOPE_MESSAGE from this file)
+export function isRedirectOffer(answer: string): boolean {
+  const outOfScopePhrase = DEFAULT_OUT_OF_SCOPE_MESSAGE.toLowerCase()
+  return answer.toLowerCase().includes(outOfScopePhrase.substring(0, 40))
+}
+
+// Agent loop fallback messages
+export const AGENT_NO_RESPONSE = '(no response)'
+export const AGENT_MAX_ROUNDS_EXCEEDED = 'Ran out of tool-call rounds. Please simplify your question.'
+
 // ── Error messages ──
 // These return error codes, not user-facing strings.
 // Clients (dashboard, API, CLI) are responsible for formatting.

@@ -1,5 +1,8 @@
 import Redis from 'ioredis'
 import type { SessionStore, RoutingSession } from '../../application/ports/SessionStore.js'
+import pino from 'pino'
+
+const log = pino({ name: 'redis-session-store' })
 
 export class RedisSessionStore implements SessionStore {
   private readonly client: Redis
@@ -13,7 +16,8 @@ export class RedisSessionStore implements SessionStore {
     if (!raw) return null
     try {
       return JSON.parse(raw) as RoutingSession
-    } catch {
+    } catch (err) {
+      log.warn({ error: (err as Error).message, key }, 'Session parse failed')
       return null
     }
   }

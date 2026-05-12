@@ -25,7 +25,7 @@ describe('requireAuth', () => {
     const res = await app.request('/api/test')
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Not authenticated')
+    expect(body.error).toBe('not_authenticated')
   })
 
   it('returns 401 if token is invalid', async () => {
@@ -40,7 +40,7 @@ describe('requireAuth', () => {
     })
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.error).toBe('Invalid session')
+    expect(body.error).toBe('invalid_session')
   })
 
   it('sets user on context for valid token', async () => {

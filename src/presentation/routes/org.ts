@@ -11,9 +11,9 @@ import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
 
-const updateOrgSchema = z.object({ name: z.string().min(1, 'Organisation name is required').max(255) })
+const updateOrgSchema = z.object({ name: z.string().min(1).max(255) })
 const updateSettingSchema = z.object({ value: z.string().max(5000) })
-const integrationTestSchema = z.object({ type: z.string().min(1, 'Integration type is required'), credentials: z.record(z.string().max(500)) })
+const integrationTestSchema = z.object({ type: z.string().min(1), credentials: z.record(z.string().max(500)) })
 
 interface OrgRouteDeps {
   getOrgUseCase: GetOrgUseCase
@@ -38,7 +38,7 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       const orgData = await deps.getOrgUseCase.execute(user.org_id)
       return c.json({ org: orgData })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'Organisation not found' }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })
