@@ -10,7 +10,7 @@ import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlMo
 import { BcryptPasswordService } from './infrastructure/auth/BcryptPasswordService.js'
 import { JwtTokenService } from './infrastructure/auth/JwtTokenService.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
-import { PatternGuardrail, LlmGuardrail, type GuardrailPlugin } from '@supaproxy/guardrails'
+import { PatternGuardrail, LlmGuardrail, type GuardrailPlugin, ExecutionRailRegistry, WriteGuardRail, RetrievalRailRegistry, InjectionSanitiser } from '@supaproxy/guardrails'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
@@ -221,18 +221,53 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
 
   function listAvailableGuardrails() {
-    return Object.entries(availableGuardrails).map(([id, { instance }]) => ({
+    const pipeline = Object.entries(availableGuardrails).map(([id, { instance }]) => ({
       id,
       name: instance.name,
       description: instance.description,
       stage: instance.stage,
       configSchema: instance.configSchema,
     }))
+
+    const execution = executionRails.list().map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      stage: p.stage,
+      configSchema: p.configSchema,
+    }))
+
+    const retrieval = retrievalRails.list().map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      stage: p.stage,
+      configSchema: p.configSchema,
+    }))
+
+    return [...pipeline, ...execution, ...retrieval]
   }
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
   const promptResolver = new PromptResolver(promptTemplateRepo)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver)
+
+  // Execution rails: validate tool calls before execution
+  const executionRails = new ExecutionRailRegistry()
+  executionRails.register(new WriteGuardRail())
+  executionRails.on((event) => {
+    if (!event.result.allowed) {
+      log.warn({ plugin: event.pluginId, tool: event.ctx.toolName, workspace: event.ctx.workspaceId, reason: event.result.reason }, 'Tool call blocked by execution rail')
+    }
+  })
+
+  // Retrieval rails: sanitise tool output before feeding back to LLM
+  const retrievalRails = new RetrievalRailRegistry()
+  retrievalRails.register(new InjectionSanitiser())
+  retrievalRails.on((event) => {
+    log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
+  })
+
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, executionRails, retrievalRails)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
