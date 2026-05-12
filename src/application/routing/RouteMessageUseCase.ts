@@ -49,6 +49,13 @@ export class RouteMessageUseCase {
     const existingSession = await this.sessionStore.get(sessionKey)
 
     if (existingSession) {
+      // If session is on the default workspace and hasn't been routed yet,
+      // continue using the receptionist (don't bypass routing prompt)
+      const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
+      if (defaultWs && existingSession.workspaceId === defaultWs.id && !existingSession.routedFrom) {
+        return this.routeViaReceptionist(input, sessionKey)
+      }
+
       // If the AI previously offered a redirect, ask the receptionist if the user accepted
       if (existingSession.pendingRedirect) {
         log.info({ sessionKey, query: input.query }, 'Pending redirect, checking intent via AI')
