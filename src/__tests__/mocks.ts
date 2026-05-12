@@ -11,6 +11,7 @@ import type { McpClientFactory, McpConnection } from '../application/ports/McpCl
 import type { AIProvider } from '../application/ports/AIProvider.js'
 import type { ModelRepository } from '../application/ports/ModelRepository.js'
 import type { ConsumerPosterRegistry } from '../application/ports/ConsumerPoster.js'
+import type { PromptTemplateRepository } from '../domain/prompt/repository.js'
 
 // ── Stub data ──
 
@@ -244,6 +245,17 @@ export function mockModelRepo(): ModelRepository {
   return {
     listByProvider: vi.fn().mockResolvedValue([{ id: 'model-1', label: 'Model 1', is_default: true }]),
     listAll: vi.fn().mockResolvedValue([{ id: 'model-1', label: 'Model 1', is_default: true }]),
+  }
+}
+
+export function mockPromptRepo(): PromptTemplateRepository {
+  return {
+    findActive: vi.fn().mockResolvedValue(null),
+    findAllActive: vi.fn().mockResolvedValue([]),
+    findVersions: vi.fn().mockResolvedValue([]),
+    create: vi.fn().mockResolvedValue(undefined),
+    activate: vi.fn().mockResolvedValue(undefined),
+    deactivateAllForType: vi.fn().mockResolvedValue(undefined),
   }
 }
 

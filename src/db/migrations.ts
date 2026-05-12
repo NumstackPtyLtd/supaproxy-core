@@ -460,6 +460,28 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 14,
+    name: 'prompt templates table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS prompt_templates (
+          id VARCHAR(64) PRIMARY KEY,
+          prompt_type VARCHAR(50) NOT NULL,
+          scope ENUM('system', 'org', 'workspace') NOT NULL,
+          scope_id VARCHAR(64),
+          content TEXT NOT NULL,
+          version INT NOT NULL DEFAULT 1,
+          is_active BOOLEAN DEFAULT TRUE,
+          is_draft BOOLEAN DEFAULT FALSE,
+          created_by VARCHAR(64),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_type_scope (prompt_type, scope, scope_id),
+          INDEX idx_active (prompt_type, scope, scope_id, is_active)
+        )
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
