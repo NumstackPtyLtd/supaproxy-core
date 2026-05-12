@@ -100,7 +100,7 @@ describe('RouteMessageUseCase', () => {
 
     expect(result.routed).toBe(true)
     expect(result.routedTo).toBe('Insurance')
-    expect(result.answer).toContain('[Routed to Insurance]')
+    expect(result.answer).toContain('[Connected to Insurance]')
     expect(result.answer).not.toContain('<!-- ROUTE')
     expect(sessionStore.set).toHaveBeenCalledWith(
       expect.any(String),
