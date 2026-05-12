@@ -69,6 +69,7 @@ interface QueryMeta {
   skipTools?: boolean
   routedFrom?: string
   routedFromConversationId?: string
+  priorHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
 }
 
 export class ExecuteQueryUseCase {
@@ -98,7 +99,9 @@ export class ExecuteQueryUseCase {
       await this.conversationUseCase.setRouting(conversationId, meta.routedFrom, workspace.name, '')
     }
 
-    const history = await this.conversationUseCase.getHistory(conversationId)
+    const ownHistory = await this.conversationUseCase.getHistory(conversationId)
+    // Prepend prior context from routing (e.g. receptionist conversation) so the target workspace knows what was already discussed
+    const history = [...(meta.priorHistory || []), ...ownHistory]
 
     let provider: ProviderPlugin
     let apiKey: string
