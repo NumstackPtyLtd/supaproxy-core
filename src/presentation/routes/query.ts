@@ -2,13 +2,14 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { ExecuteQueryUseCase } from '../../application/query/ExecuteQueryUseCase.js'
 import { parseBody } from '../middleware/validate.js'
+import { MAX_QUERY_LENGTH } from '../../defaults.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 
 const queryBodySchema = z.object({
-  query: z.string().min(1, 'Query is required').max(10000),
+  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
   session_id: z.string().max(255).optional(),
   consumer_type: z.string().max(50).optional(),
   consumer_context: z.object({

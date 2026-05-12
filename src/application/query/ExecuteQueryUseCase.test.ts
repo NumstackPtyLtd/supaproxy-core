@@ -117,8 +117,8 @@ describe('ExecuteQueryUseCase', () => {
 
     const result = await useCase.execute('ws-test', 'hello', baseMeta)
 
-    expect(result.error).toBe('no_api_key')
-    expect(result.answer).toContain('No AI provider connected')
+    expect(result.error).toBe('no_ai_provider_configured')
+    expect(result.answer).toBe('no_ai_provider_configured')
   })
 
   it('returns error when API key is missing', async () => {
@@ -131,8 +131,8 @@ describe('ExecuteQueryUseCase', () => {
 
     const result = await useCase.execute('ws-test', 'hello', baseMeta)
 
-    expect(result.error).toBe('no_api_key')
-    expect(result.answer).toContain('No AI provider connected')
+    expect(result.error).toBe('no_ai_provider_configured')
+    expect(result.answer).toBe('no_ai_provider_configured')
   })
 
   it('runs direct LLM conversation when no tools are discovered', async () => {

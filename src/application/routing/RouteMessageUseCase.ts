@@ -6,13 +6,11 @@ import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
+import { SESSION_TTL_SECONDS } from '../../defaults.js'
+import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'route-message' })
-
-const SESSION_TTL_SECONDS = 1800 // 30 minutes
-
-const REDIRECT_INTENT_PROMPT = `The user was asked: "Would you like me to redirect you to someone who can help?" They responded: "{{query}}". Do they want to be redirected?`
 
 interface RouteMessageInput {
   orgId: string
@@ -96,10 +94,10 @@ export class RouteMessageUseCase {
       const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
       if (!defaultWs) return false
 
-      const prompt = REDIRECT_INTENT_PROMPT.replace('{{query}}', query)
+      const prompt = buildRedirectIntentPrompt(query)
       const result = await this.executeQueryUseCase.execute(defaultWs.id, prompt, {
         consumerType: 'system',
-        systemPromptOverride: 'You are a redirect intent classifier. Answer only "yes" or "no".',
+        systemPromptOverride: REDIRECT_INTENT_SYSTEM,
         skipTools: true,
       })
       return result.answer.toLowerCase().trim().startsWith('yes')

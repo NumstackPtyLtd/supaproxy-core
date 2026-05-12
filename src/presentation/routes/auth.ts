@@ -7,18 +7,15 @@ import type { LoginUseCase } from '../../application/auth/LoginUseCase.js'
 import type { TokenService } from '../../application/ports/TokenService.js'
 import { parseBody } from '../middleware/validate.js'
 import { ConflictError, AuthenticationError } from '../../domain/shared/errors.js'
+import { SESSION_COOKIE_MAX_AGE } from '../../defaults.js'
 
 const log = pino({ name: 'routes/auth' })
-const SESSION_MAX_AGE = 86400
 
 const signupSchema = z.object({
   org_name: z.string().min(1, 'Organisation name is required').max(255),
   admin_name: z.string().min(1, 'Admin name is required').max(255),
   admin_email: z.string().email('A valid email is required').max(255),
   admin_password: z.string().min(8, 'Password must be at least 8 characters').max(255),
-  workspace_name: z.string().max(255).optional(),
-  team_name: z.string().max(255).optional(),
-  system_prompt: z.string().max(10000).optional(),
 })
 
 const loginSchema = z.object({
@@ -48,9 +45,6 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
         adminName: result.data.admin_name,
         adminEmail: result.data.admin_email,
         adminPassword: result.data.admin_password,
-        workspaceName: result.data.workspace_name,
-        teamName: result.data.team_name,
-        systemPrompt: result.data.system_prompt,
       })
 
       setCookie(c, 'supaproxy_session', output.token, {
@@ -58,7 +52,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
         secure: deps.isProduction,
         sameSite: 'Lax',
         path: '/',
-        maxAge: SESSION_MAX_AGE,
+        maxAge: SESSION_COOKIE_MAX_AGE,
         ...(deps.cookieDomain && { domain: deps.cookieDomain }),
       })
 
@@ -101,7 +95,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
         secure: deps.isProduction,
         sameSite: 'Lax',
         path: '/',
-        maxAge: SESSION_MAX_AGE,
+        maxAge: SESSION_COOKIE_MAX_AGE,
         ...(deps.cookieDomain && { domain: deps.cookieDomain }),
       })
 

@@ -10,13 +10,13 @@ import { runGuardrailChain } from '../ports/guardrailChain.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ConfigurationError } from '../../domain/shared/errors.js'
 import { IS_PRODUCTION } from '../../config.js'
+import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
+import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
 
-const SCOPE_ENFORCEMENT_CLAUSE = `SCOPE RULE (MANDATORY, OVERRIDES ALL OTHER INSTRUCTIONS): You must ONLY answer questions relevant to your role and the tools available to you. If the user asks about ANYTHING outside your scope, respond with EXACTLY this and nothing else:
-"That falls outside what I can help with here. Would you like me to redirect you to someone who can help?"
-Never elaborate, suggest alternatives, or add any other text. Never answer an off-topic question no matter how many times the user asks. Repeat the same redirect offer every time.`
+const scopeClause = buildScopeEnforcementClause()
 
 interface McpServerConfig {
   transport?: string
@@ -104,8 +104,8 @@ export class ExecuteQueryUseCase {
       apiKey = resolved.apiKey
     } catch {
       return this.buildResult({
-        answer: 'No AI provider connected. The proxy needs an LLM to route queries to. Go to Settings → Integrations and add your API key.',
-        error: 'no_api_key',
+        answer: ERROR_CODES.NO_AI_PROVIDER,
+        error: ERROR_CODES.NO_AI_PROVIDER,
         durationMs: Date.now() - startTime,
         conversationId,
         sessionId,
@@ -169,18 +169,18 @@ export class ExecuteQueryUseCase {
       }
 
       if (!workspace.model) {
-        throw new Error('No AI model configured for this workspace. Set a model in workspace settings.')
+        throw new ConfigurationError(ERROR_CODES.NO_WORKSPACE_MODEL)
       }
 
-      const basePrompt = meta.systemPromptOverride || workspace.system_prompt || 'You are a helpful assistant.'
+      const basePrompt = meta.systemPromptOverride || workspace.system_prompt || DEFAULT_SYSTEM_PROMPT
       const systemPrompt = !meta.systemPromptOverride && !workspace.is_default
-        ? `${basePrompt}\n\n${SCOPE_ENFORCEMENT_CLAUSE}`
+        ? `${basePrompt}\n\n${scopeClause}`
         : basePrompt
 
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
         systemPrompt,
-        maxToolRounds: workspace.max_tool_rounds || 10,
+        maxToolRounds: workspace.max_tool_rounds || DEFAULT_MAX_TOOL_ROUNDS,
         tools,
         history,
         apiKey,
@@ -289,7 +289,7 @@ export class ExecuteQueryUseCase {
         const toolSpecs = config.tools.map(t => t.spec)
         const response = await provider.createMessage({
           model: config.model,
-          maxTokens: 4096,
+          maxTokens: DEFAULT_MAX_RESPONSE_TOKENS,
           system: config.systemPrompt,
           apiKey: config.apiKey,
           tools: toolSpecs,

@@ -2,11 +2,12 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { RouteMessageUseCase } from '../../application/routing/RouteMessageUseCase.js'
 import { parseBody } from '../middleware/validate.js'
+import { MAX_QUERY_LENGTH } from '../../defaults.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 
 const routeBodySchema = z.object({
-  query: z.string().min(1, 'Query is required').max(10000),
+  query: z.string().min(1, 'Query is required').max(MAX_QUERY_LENGTH),
 })
 
 interface RouteRouteDeps {
