@@ -4,6 +4,7 @@ import type { ConversationRepository } from '../../domain/conversation/repositor
 import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
+import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 import { SESSION_TTL_SECONDS, CONSUMER_TYPE_SYSTEM } from '../../defaults.js'
@@ -38,6 +39,7 @@ export class RouteMessageUseCase {
     private readonly conversationRepo: ConversationRepository,
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
+    private readonly conversationUseCase: ManageConversationUseCase,
   ) {}
 
   async execute(input: RouteMessageInput): Promise<RouteMessageOutput> {
@@ -58,7 +60,12 @@ export class RouteMessageUseCase {
         }
       }
 
-      // Execute in the current workspace
+      // Get prior conversation history for context continuity
+      const priorHistory = existingSession.routedFromConversationId
+        ? await this.conversationUseCase.getHistory(existingSession.routedFromConversationId)
+        : undefined
+
+      // Execute in the current workspace with prior context
       const result = await this.executeQueryUseCase.execute(existingSession.workspaceId, input.query, {
         consumerType: input.consumerType,
         channel: input.entryPoint,
@@ -66,7 +73,13 @@ export class RouteMessageUseCase {
         userName: input.userName,
         routedFrom: existingSession.routedFrom || undefined,
         routedFromConversationId: existingSession.routedFromConversationId || undefined,
+        priorHistory,
       })
+
+      // Log to #general master conversation as well
+      if (existingSession.generalConversationId) {
+        await this.logToGeneral(existingSession.generalConversationId, input.query, result.answer)
+      }
 
       // Update session: set pendingRedirect if scope guardrail triggered, clear otherwise
       const redirectOffered = isRedirectOffer(result.answer)
@@ -74,6 +87,8 @@ export class RouteMessageUseCase {
         workspaceId: existingSession.workspaceId,
         lastMessageAt: Date.now(),
         routedFrom: existingSession.routedFrom,
+        routedFromConversationId: existingSession.routedFromConversationId,
+        generalConversationId: existingSession.generalConversationId,
         pendingRedirect: redirectOffered,
       }, SESSION_TTL_SECONDS)
 
@@ -172,15 +187,17 @@ export class RouteMessageUseCase {
         }
       }
 
-      // Create session pointing to the target workspace, with source conversation ID
+      // Create session pointing to the target workspace
+      // Store #general conversation ID so we can log all messages there too
       await this.sessionStore.set(sessionKey, {
         workspaceId: targetWorkspaceId,
         lastMessageAt: Date.now(),
         routedFrom: defaultWs.name,
         routedFromConversationId: result.conversationId,
+        generalConversationId: result.conversationId,
       }, SESSION_TTL_SECONDS)
 
-      // Record routing metadata on the conversation (store names, not IDs)
+      // Record routing metadata on the conversation
       await this.conversationRepo.updateRouting(
         result.conversationId, defaultWs.name, targetWs.name, routeReason,
       )
@@ -205,8 +222,7 @@ export class RouteMessageUseCase {
       }
     }
 
-    // No routing directive: receptionist is still talking (asking clarifying question or out-of-scope)
-    // Keep session on #general so the next message continues the receptionist conversation
+    // No routing directive: receptionist is still talking
     await this.createSession(sessionKey, defaultWs.id, null)
 
     return {
@@ -214,6 +230,16 @@ export class RouteMessageUseCase {
       conversationId: result.conversationId,
       workspaceId: defaultWs.id,
       routed: false,
+    }
+  }
+
+  /** Log messages to the #general master conversation for full audit trail */
+  private async logToGeneral(generalConversationId: string, query: string, answer: string): Promise<void> {
+    try {
+      await this.conversationUseCase.recordMessage(generalConversationId, 'user', query)
+      await this.conversationUseCase.recordMessage(generalConversationId, 'assistant', answer)
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, 'Failed to log to #general conversation')
     }
   }
 

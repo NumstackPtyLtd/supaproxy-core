@@ -3,6 +3,7 @@ export interface RoutingSession {
   lastMessageAt: number
   routedFrom: string | null
   routedFromConversationId?: string
+  generalConversationId?: string
   pendingRedirect?: boolean
 }
 

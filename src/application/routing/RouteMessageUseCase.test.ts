@@ -50,7 +50,7 @@ describe('RouteMessageUseCase', () => {
     workspaceRepo = mockWorkspaceRepo()
     sessionStore = mockSessionStore()
     executeQuery = mockExecuteQuery()
-    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery)
+    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, { recordMessage: vi.fn(), getHistory: vi.fn().mockResolvedValue([]), findOrCreate: vi.fn(), setRouting: vi.fn() } as any)
   })
 
   it('uses existing session to route directly to workspace', async () => {
@@ -356,7 +356,7 @@ describe('RouteMessageUseCase', () => {
 
   it('records routing metadata on conversation when routing happens', async () => {
     const conversationRepo = mockConversationRepo()
-    const localUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQuery)
+    const localUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQuery, { recordMessage: vi.fn(), getHistory: vi.fn().mockResolvedValue([]), findOrCreate: vi.fn(), setRouting: vi.fn() } as any)
 
     const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
     const targetWs = stubWorkspace({ id: 'ws-insurance', name: 'Insurance' })
