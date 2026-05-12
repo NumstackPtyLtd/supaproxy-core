@@ -12,6 +12,6 @@ export function generateSlug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
-export function generateWorkspaceId(name: string): string {
-  return `ws-${generateSlug(name)}`
+export function generateWorkspaceId(): string {
+  return `ws-${randomBytes(12).toString('hex')}`
 }

@@ -1,7 +1,6 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId, generateWorkspaceId } from '../../domain/shared/EntityId.js'
-import { ConflictError } from '../../domain/shared/errors.js'
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 
 interface CreateWorkspaceInput {
@@ -21,12 +20,7 @@ export class CreateWorkspaceUseCase {
 
   async execute(input: CreateWorkspaceInput): Promise<{ id: string; name: string; status: string }> {
     const resolvedTeamId = await this.resolveTeam(input.orgId, input.teamId, input.teamName)
-    const wsId = generateWorkspaceId(input.name)
-
-    const exists = await this.workspaceRepo.existsById(wsId)
-    if (exists) {
-      throw new ConflictError('A workspace with this name already exists.')
-    }
+    const wsId = generateWorkspaceId()
 
     await this.workspaceRepo.create({
       id: wsId,
