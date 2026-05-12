@@ -95,7 +95,7 @@ describe('ExecuteQueryUseCase', () => {
     vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
       ai_provider_type: 'anthropic',
       ai_api_key: 'sk-test-key',
-      anthropic_api_key: null,
+      anthropic_api_key: '',
     })
   })
 
@@ -109,9 +109,9 @@ describe('ExecuteQueryUseCase', () => {
 
   it('returns error message when no AI provider is configured', async () => {
     vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-      ai_provider_type: null,
-      ai_api_key: null,
-      anthropic_api_key: null,
+      ai_provider_type: '',
+      ai_api_key: '',
+      anthropic_api_key: '',
     })
     const useCase = buildUseCase()
 
@@ -124,8 +124,8 @@ describe('ExecuteQueryUseCase', () => {
   it('returns error when API key is missing', async () => {
     vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
       ai_provider_type: 'anthropic',
-      ai_api_key: null,
-      anthropic_api_key: null,
+      ai_api_key: '',
+      anthropic_api_key: '',
     })
     const useCase = buildUseCase()
 
@@ -181,9 +181,12 @@ describe('ExecuteQueryUseCase', () => {
 
   it('blocks query when guardrail returns block action', async () => {
     const guardrail: GuardrailPlugin = {
-      type: 'pattern',
+      id: 'pattern',
       name: 'test-guard',
       description: 'Test',
+      version: '0.1.0',
+      author: 'test',
+      stage: 'pre-llm',
       configSchema: { fields: [] },
       process: vi.fn().mockResolvedValue({
         action: 'block',
@@ -206,9 +209,12 @@ describe('ExecuteQueryUseCase', () => {
 
   it('uses modified query when guardrail modifies input', async () => {
     const guardrail: GuardrailPlugin = {
-      type: 'pattern',
+      id: 'pattern',
       name: 'sanitiser',
       description: 'Sanitise',
+      version: '0.1.0',
+      author: 'test',
+      stage: 'pre-llm',
       configSchema: { fields: [] },
       process: vi.fn().mockResolvedValue({
         action: 'pass',
