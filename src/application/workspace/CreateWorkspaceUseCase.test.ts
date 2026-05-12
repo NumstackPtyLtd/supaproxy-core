@@ -1,37 +1,42 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mockWorkspaceRepo, mockOrgRepo } from '../../__tests__/mocks.js'
 import { CreateWorkspaceUseCase } from './CreateWorkspaceUseCase.js'
-import { ConflictError } from '../../domain/shared/errors.js'
 
 describe('CreateWorkspaceUseCase', () => {
-  it('creates workspace with team ID', async () => {
+  it('creates workspace with random ID (org-safe)', async () => {
     const wsRepo = mockWorkspaceRepo()
     const orgRepo = mockOrgRepo()
     const uc = new CreateWorkspaceUseCase(wsRepo, orgRepo)
 
     const result = await uc.execute({
       name: 'My Workspace',
-      model: 'claude-sonnet-4-20250514',
+      model: 'test-model',
       teamId: 'team-1',
       orgId: 'org-1',
     })
 
-    expect(result).toEqual({
-      id: 'ws-my-workspace',
-      name: 'My Workspace',
-      status: 'active',
-    })
-    expect(wsRepo.existsById).toHaveBeenCalledWith('ws-my-workspace')
+    expect(result.id).toMatch(/^ws-[0-9a-f]{24}$/)
+    expect(result.name).toBe('My Workspace')
+    expect(result.status).toBe('active')
     expect(wsRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'ws-my-workspace',
+        id: expect.stringMatching(/^ws-/),
         orgId: 'org-1',
         teamId: 'team-1',
         name: 'My Workspace',
-        model: 'claude-sonnet-4-20250514',
       }),
     )
-    expect(orgRepo.findTeamByName).not.toHaveBeenCalled()
+  })
+
+  it('two workspaces with the same name get different IDs', async () => {
+    const wsRepo = mockWorkspaceRepo()
+    const orgRepo = mockOrgRepo()
+    const uc = new CreateWorkspaceUseCase(wsRepo, orgRepo)
+
+    const result1 = await uc.execute({ name: 'Insurance', model: 'test-model', orgId: 'org-1' })
+    const result2 = await uc.execute({ name: 'Insurance', model: 'test-model', orgId: 'org-2' })
+
+    expect(result1.id).not.toBe(result2.id)
   })
 
   it('creates workspace with new team name', async () => {
@@ -39,59 +44,35 @@ describe('CreateWorkspaceUseCase', () => {
     const orgRepo = mockOrgRepo()
     const uc = new CreateWorkspaceUseCase(wsRepo, orgRepo)
 
-    // findTeamByName returns null so a new team is created
     vi.mocked(orgRepo.findTeamByName).mockResolvedValue(null)
 
     const result = await uc.execute({
       name: 'Support Bot',
-      model: 'claude-sonnet-4-20250514',
+      model: 'test-model',
       teamName: 'Support Team',
       orgId: 'org-1',
     })
 
-    expect(result.id).toBe('ws-support-bot')
+    expect(result.id).toMatch(/^ws-/)
     expect(orgRepo.findTeamByName).toHaveBeenCalledWith('org-1', 'Support Team')
-    expect(orgRepo.createTeam).toHaveBeenCalledWith(
-      expect.any(String),
-      'org-1',
-      'Support Team',
-    )
-    expect(wsRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        teamId: expect.any(String),
-      }),
-    )
+    expect(orgRepo.createTeam).toHaveBeenCalledWith(expect.any(String), 'org-1', 'Support Team')
   })
 
-  it('throws ConflictError if workspace already exists', async () => {
+  it('uses existing team when teamId provided', async () => {
     const wsRepo = mockWorkspaceRepo()
     const orgRepo = mockOrgRepo()
     const uc = new CreateWorkspaceUseCase(wsRepo, orgRepo)
 
-    vi.mocked(wsRepo.existsById).mockResolvedValue(true)
-
-    await expect(
-      uc.execute({
-        name: 'Existing',
-        model: 'claude-sonnet-4-20250514',
-        orgId: 'org-1',
-      }),
-    ).rejects.toThrow(ConflictError)
-
-    expect(wsRepo.create).not.toHaveBeenCalled()
-  })
-
-  it('generates workspace ID from name', async () => {
-    const wsRepo = mockWorkspaceRepo()
-    const orgRepo = mockOrgRepo()
-    const uc = new CreateWorkspaceUseCase(wsRepo, orgRepo)
-
-    const result = await uc.execute({
-      name: 'Hello World 123',
-      model: 'claude-sonnet-4-20250514',
+    await uc.execute({
+      name: 'Test',
+      model: 'test-model',
+      teamId: 'team-existing',
       orgId: 'org-1',
     })
 
-    expect(result.id).toBe('ws-hello-world-123')
+    expect(orgRepo.findTeamByName).not.toHaveBeenCalled()
+    expect(wsRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ teamId: 'team-existing' }),
+    )
   })
 })

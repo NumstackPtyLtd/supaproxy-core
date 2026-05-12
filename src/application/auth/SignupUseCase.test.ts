@@ -43,7 +43,7 @@ describe('SignupUseCase', () => {
 
     expect(result).toHaveProperty('orgId')
     expect(result).toHaveProperty('userId')
-    expect(result.workspaceId).toBe('ws-acme-corp-general')
+    expect(result.workspaceId).toMatch(/^ws-[0-9a-f]{24}$/)
     expect(result.token).toBe('signup-token')
   })
 

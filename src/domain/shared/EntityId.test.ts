@@ -46,11 +46,20 @@ describe('generateSlug', () => {
 })
 
 describe('generateWorkspaceId', () => {
-  it('prefixes the slug with "ws-"', () => {
-    expect(generateWorkspaceId('Acme Corp')).toBe('ws-acme-corp')
+  it('returns a ws- prefixed random hex string', () => {
+    const id = generateWorkspaceId()
+    expect(id).toMatch(/^ws-[0-9a-f]{24}$/)
   })
 
-  it('applies slug rules to the name', () => {
-    expect(generateWorkspaceId('  My Workspace!  ')).toBe('ws-my-workspace')
+  it('returns unique values (no collision between orgs)', () => {
+    const ids = new Set(Array.from({ length: 100 }, () => generateWorkspaceId()))
+    expect(ids.size).toBe(100)
+  })
+
+  it('different orgs creating same workspace name get different IDs', () => {
+    // This was the bug: generateWorkspaceId('Insurance') always returned ws-insurance
+    const id1 = generateWorkspaceId()
+    const id2 = generateWorkspaceId()
+    expect(id1).not.toBe(id2)
   })
 })

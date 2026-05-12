@@ -2,7 +2,7 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { PasswordService } from '../ports/PasswordService.js'
 import type { TokenService } from '../ports/TokenService.js'
-import { generateId, generateSlug } from '../../domain/shared/EntityId.js'
+import { generateId, generateSlug, generateWorkspaceId } from '../../domain/shared/EntityId.js'
 import { ConflictError } from '../../domain/shared/errors.js'
 import { DEFAULT_WORKSPACE_NAME, DEFAULT_RECEPTIONIST_PROMPT } from '../../defaults.js'
 
@@ -44,7 +44,7 @@ export class SignupUseCase {
     await this.orgRepo.createUser(userId, orgId, input.adminEmail, input.adminName, hash, 'admin')
 
     // Auto-create the #general default workspace (receptionist)
-    const generalId = `ws-${slug}-general`
+    const generalId = generateWorkspaceId()
     await this.workspaceRepo.create({
       id: generalId,
       orgId,
