@@ -542,6 +542,42 @@ describe('RouteMessageUseCase', () => {
     }))
   })
 
+  it('passes stable sessionKey so conversation accumulates all messages', async () => {
+    const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
+
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(defaultWs)
+    vi.mocked(orgRepo.findById).mockResolvedValue({ id: 'org-1', name: 'Acme Corp', slug: 'acme-corp', created_at: '2024-01-01' })
+    vi.mocked(workspaceRepo.listRoutingSummaries).mockResolvedValue([
+      { id: 'ws-support', name: 'Support', system_prompt: 'Help.', tool_names: [] },
+    ])
+
+    await useCase.execute(baseInput)
+
+    // sessionId should be the stable session key, not a timestamp-based ID
+    const expectedKey = `session:${baseInput.consumerType}:${baseInput.entryPoint}:${baseInput.userId}`
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-general', baseInput.query, expect.objectContaining({
+      sessionId: expectedKey,
+    }))
+  })
+
+  it('routed workspace also receives stable sessionKey', async () => {
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-insurance',
+      lastMessageAt: Date.now(),
+      routedFrom: '#general',
+    })
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(
+      stubWorkspace({ id: 'ws-general', name: '#general', is_default: true }),
+    )
+
+    await useCase.execute(baseInput)
+
+    const expectedKey = `session:${baseInput.consumerType}:${baseInput.entryPoint}:${baseInput.userId}`
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-insurance', baseInput.query, expect.objectContaining({
+      sessionId: expectedKey,
+    }))
+  })
+
   it('falls back to #general when receptionist routes to non-existent workspace', async () => {
     const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
 

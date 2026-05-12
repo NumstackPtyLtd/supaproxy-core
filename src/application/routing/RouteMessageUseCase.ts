@@ -78,6 +78,7 @@ export class RouteMessageUseCase {
         channel: input.entryPoint,
         userId: input.userId,
         userName: input.userName,
+        sessionId: sessionKey,
         routedFrom: existingSession.routedFrom || undefined,
         routedFromConversationId: existingSession.routedFromConversationId || undefined,
         priorHistory,
@@ -151,6 +152,7 @@ export class RouteMessageUseCase {
         channel: input.entryPoint,
         userId: input.userId,
         userName: input.userName,
+        sessionId: sessionKey,
       })
 
       return {
@@ -169,6 +171,7 @@ export class RouteMessageUseCase {
       channel: input.entryPoint,
       userId: input.userId,
       userName: input.userName,
+      sessionId: sessionKey,
       systemPromptOverride: systemPrompt,
       skipTools: true,
     })
