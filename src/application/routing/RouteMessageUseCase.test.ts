@@ -387,6 +387,161 @@ describe('RouteMessageUseCase', () => {
     )
   })
 
+  it('session on #general without routedFrom always uses receptionist prompt', async () => {
+    const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
+
+    // Session exists on #general but has not been routed (routedFrom is null)
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-general',
+      lastMessageAt: Date.now(),
+      routedFrom: null,
+    })
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(defaultWs)
+    vi.mocked(orgRepo.findById).mockResolvedValue({ id: 'org-1', name: 'Acme Corp', slug: 'acme-corp', created_at: '2024-01-01' })
+    vi.mocked(workspaceRepo.listRoutingSummaries).mockResolvedValue([
+      { id: 'ws-insurance', name: 'Insurance', system_prompt: 'Claims.', tool_names: [] },
+    ])
+
+    await useCase.execute({ ...baseInput, query: 'refund' })
+
+    // Should use receptionist prompt, not direct execute
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-general', 'refund', expect.objectContaining({
+      systemPromptOverride: expect.stringContaining('receptionist for Acme Corp'),
+      skipTools: true,
+    }))
+  })
+
+  it('session on #general with routedFrom routes directly (already been routed)', async () => {
+    // Session on #general but WITH routedFrom means user was re-routed back
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-general',
+      lastMessageAt: Date.now(),
+      routedFrom: '#general',
+    })
+    // findDefaultByOrg should NOT match because routedFrom is set
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(
+      stubWorkspace({ id: 'ws-general', name: '#general', is_default: true }),
+    )
+
+    await useCase.execute(baseInput)
+
+    // Should go direct (not receptionist) because routedFrom is set
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-general', baseInput.query, expect.not.objectContaining({
+      systemPromptOverride: expect.any(String),
+    }))
+  })
+
+  it('receptionist does not answer out-of-scope questions (returns to user)', async () => {
+    const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
+
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(defaultWs)
+    vi.mocked(orgRepo.findById).mockResolvedValue({ id: 'org-1', name: 'Acme Corp', slug: 'acme-corp', created_at: '2024-01-01' })
+    vi.mocked(workspaceRepo.listRoutingSummaries).mockResolvedValue([
+      { id: 'ws-insurance', name: 'Insurance', system_prompt: 'Claims.', tool_names: [] },
+    ])
+
+    // Receptionist says no matching department (no routing directive)
+    vi.mocked(executeQuery.execute).mockResolvedValue({
+      answer: 'I do not have a department that handles refunds. I can help with Insurance.',
+      conversationId: 'conv-1',
+      sessionId: 'session-1',
+      toolsCalled: [],
+      connectionsHit: [],
+      tokensInput: 10,
+      tokensOutput: 20,
+      costUsd: 0.001,
+      durationMs: 100,
+      error: null,
+    })
+
+    const result = await useCase.execute({ ...baseInput, query: 'refund' })
+
+    expect(result.routed).toBe(false)
+    expect(result.workspaceId).toBe('ws-general')
+    expect(result.answer).toContain('do not have a department')
+  })
+
+  it('logs messages to #general master conversation after routing', async () => {
+    const mockConvUseCase = {
+      recordMessage: vi.fn(),
+      getHistory: vi.fn().mockResolvedValue([]),
+      findOrCreate: vi.fn(),
+      setRouting: vi.fn(),
+    }
+
+    const localUseCase = new RouteMessageUseCase(
+      workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, mockConvUseCase as any,
+    )
+
+    // Session on target workspace with generalConversationId set
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-insurance',
+      lastMessageAt: Date.now(),
+      routedFrom: '#general',
+      generalConversationId: 'conv-general-master',
+    })
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(
+      stubWorkspace({ id: 'ws-general', name: '#general', is_default: true }),
+    )
+
+    vi.mocked(executeQuery.execute).mockResolvedValue({
+      answer: 'Here is your claim status.',
+      conversationId: 'conv-insurance',
+      sessionId: 'session-1',
+      toolsCalled: [],
+      connectionsHit: [],
+      tokensInput: 10,
+      tokensOutput: 20,
+      costUsd: 0.001,
+      durationMs: 100,
+      error: null,
+    })
+
+    await localUseCase.execute({ ...baseInput, query: 'Check my claim' })
+
+    // Should log both query and answer to #general master conversation
+    expect(mockConvUseCase.recordMessage).toHaveBeenCalledWith('conv-general-master', 'user', 'Check my claim')
+    expect(mockConvUseCase.recordMessage).toHaveBeenCalledWith('conv-general-master', 'assistant', 'Here is your claim status.')
+  })
+
+  it('passes prior history from receptionist to target workspace', async () => {
+    const mockConvUseCase = {
+      recordMessage: vi.fn(),
+      getHistory: vi.fn().mockResolvedValue([
+        { role: 'user', content: 'I need insurance help' },
+        { role: 'assistant', content: 'Connecting you to Insurance.' },
+      ]),
+      findOrCreate: vi.fn(),
+      setRouting: vi.fn(),
+    }
+
+    const localUseCase = new RouteMessageUseCase(
+      workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, mockConvUseCase as any,
+    )
+
+    // Session already routed to insurance with receptionist conversation ID
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-insurance',
+      lastMessageAt: Date.now(),
+      routedFrom: '#general',
+      routedFromConversationId: 'conv-receptionist',
+      generalConversationId: 'conv-receptionist',
+    })
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(
+      stubWorkspace({ id: 'ws-general', name: '#general', is_default: true }),
+    )
+
+    await localUseCase.execute({ ...baseInput, query: 'My policy number is 12345' })
+
+    // Should pass prior history to the target workspace
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-insurance', 'My policy number is 12345', expect.objectContaining({
+      priorHistory: [
+        { role: 'user', content: 'I need insurance help' },
+        { role: 'assistant', content: 'Connecting you to Insurance.' },
+      ],
+    }))
+  })
+
   it('falls back to #general when receptionist routes to non-existent workspace', async () => {
     const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
 
