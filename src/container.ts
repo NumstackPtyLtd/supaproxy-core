@@ -16,6 +16,9 @@ import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
+import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
+import { PromptResolver } from './application/prompt/PromptResolver.js'
+import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
 import type { TenantService } from './application/ports/TenantService.js'
 import { registry as consumerRegistry, slackPlugin, whatsappPlugin, apiPlugin, type ConsumerContext, type IncomingMessage, type Workspace } from '@supaproxy/consumers'
@@ -86,6 +89,7 @@ import { createConnectorRoutes } from './presentation/routes/connectors.js'
 import { createQueryRoutes } from './presentation/routes/query.js'
 import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
+import { createPromptRoutes } from './presentation/routes/prompts.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
   // Tenant service: defaults to NoOp (single-tenant) for open-source.
@@ -226,7 +230,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     }))
   }
 
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails)
+  const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
+  const promptResolver = new PromptResolver(promptTemplateRepo)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
@@ -240,11 +246,13 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
   const queueRoutes = createQueueRoutes({ manageQueuesUseCase, queueService, requireAuth })
   const routeRoutes = createRouteRoutes({ routeMessageUseCase, requireAuth })
+  const savePromptUseCase = new SavePromptUseCase(promptTemplateRepo)
+  const promptRoutes = createPromptRoutes({ promptResolver, promptRepo: promptTemplateRepo, savePromptUseCase, requireAuth })
 
   const container = {
     // Infrastructure
-    orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo,
-    passwordService, tokenService, providerRegistry, mcpFactory,
+    orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo, promptTemplateRepo,
+    passwordService, tokenService, providerRegistry, mcpFactory, promptResolver,
     queueService, integrationTester, posterRegistry, consumerRegistry, tenantService,
     // Middleware
     requireAuth,
@@ -257,9 +265,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase,
     manageConversationUseCase, lifecycleUseCase,
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
-    executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase,
+    executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes,
   }
 
   return container

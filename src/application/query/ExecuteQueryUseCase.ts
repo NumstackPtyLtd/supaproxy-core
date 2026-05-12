@@ -12,6 +12,7 @@ import { NotFoundError, ConfigurationError } from '../../domain/shared/errors.js
 import { IS_PRODUCTION } from '../../config.js'
 import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
+import type { PromptResolver } from '../prompt/PromptResolver.js'
 import { safeJsonParse } from '../../shared/json.js'
 import pino from 'pino'
 
@@ -20,7 +21,6 @@ const log = pino({ name: 'execute-query' })
 const NO_RESPONSE_MESSAGE = '(no response)'
 const MAX_ROUNDS_MESSAGE = 'Ran out of tool-call rounds. Please simplify your question.'
 
-const scopeClause = buildScopeEnforcementClause()
 
 interface McpServerConfig {
   transport?: string
@@ -81,6 +81,7 @@ export class ExecuteQueryUseCase {
     private readonly mcpFactory: McpClientFactory,
     private readonly conversationUseCase: ManageConversationUseCase,
     private readonly resolveGuardrails: (workspaceId: string) => Promise<GuardrailPlugin[]> = async () => [],
+    private readonly promptResolver?: PromptResolver,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -180,9 +181,13 @@ export class ExecuteQueryUseCase {
       }
 
       const basePrompt = meta.systemPromptOverride || workspace.system_prompt || DEFAULT_SYSTEM_PROMPT
-      const systemPrompt = !meta.systemPromptOverride && !workspace.is_default
-        ? `${basePrompt}\n\n${scopeClause}`
-        : basePrompt
+      let systemPrompt = basePrompt
+      if (!meta.systemPromptOverride && !workspace.is_default) {
+        const scopeClause = this.promptResolver
+          ? await this.promptResolver.resolve('scope_enforcement', workspace.org_id || '', workspaceId)
+          : buildScopeEnforcementClause()
+        systemPrompt = `${basePrompt}\n\n${scopeClause}`
+      }
 
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
