@@ -6,6 +6,7 @@ import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { GuardrailPlugin } from '@supaproxy/guardrails'
 import type { ExecutionRailRegistry } from '@supaproxy/guardrails'
 import type { RetrievalRailRegistry } from '@supaproxy/guardrails'
+import type { GuardrailEventRepository, GuardrailEventData } from '../../domain/guardrail/repository.js'
 import type { McpClientFactory, McpConnection } from '../ports/McpClient.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import { runGuardrailChain } from '../ports/guardrailChain.js'
@@ -87,6 +88,7 @@ export class ExecuteQueryUseCase {
     private readonly promptResolver?: PromptResolver,
     private readonly executionRails?: ExecutionRailRegistry,
     private readonly retrievalRails?: RetrievalRailRegistry,
+    private readonly guardrailEventRepo?: GuardrailEventRepository,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -202,6 +204,7 @@ export class ExecuteQueryUseCase {
         history,
         apiKey,
         workspaceId,
+        conversationId,
       })
 
       result.durationMs = Date.now() - startTime
@@ -295,6 +298,7 @@ export class ExecuteQueryUseCase {
     history: Array<{ role: 'user' | 'assistant'; content: string }>
     apiKey: string
     workspaceId: string
+    conversationId: string
   }): Promise<{ answer: string; toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null }> {
     const result = { answer: '', toolsCalled: [] as ToolCallRecord[], connectionsHit: [] as string[], tokensInput: 0, tokensOutput: 0, costUsd: 0, durationMs: 0, error: null as string | null }
 
@@ -354,6 +358,11 @@ export class ExecuteQueryUseCase {
             if (!railResult.allowed) {
               log.info({ tool: tu.name, reason: railResult.reason }, 'Tool call blocked by execution rail')
               toolResults.push({ type: 'tool_result', id: tu.id, text: `Tool call blocked: ${railResult.reason}` })
+              this.writeGuardrailEvent({
+                id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
+                event_type: 'execution_blocked', plugin_id: 'write-guard',
+                tool_name: tu.name!, original_query: query, reason: railResult.reason || null, stripped_content: null,
+              })
               continue
             }
           }
@@ -368,6 +377,14 @@ export class ExecuteQueryUseCase {
             // Retrieval rail: sanitise tool output before feeding back to LLM
             if (this.retrievalRails) {
               const sanitised = await this.retrievalRails.sanitise(resultText)
+              if (sanitised.stripped.length > 0) {
+                this.writeGuardrailEvent({
+                  id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
+                  event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser',
+                  tool_name: tu.name!, original_query: null, reason: null,
+                  stripped_content: sanitised.stripped.join(', ').substring(0, 500),
+                })
+              }
               resultText = sanitised.content
             }
 
@@ -435,6 +452,13 @@ export class ExecuteQueryUseCase {
     } catch (err) {
       log.error({ error: (err as Error).message }, 'Failed to write audit log')
     }
+  }
+
+  private writeGuardrailEvent(data: GuardrailEventData): void {
+    if (!this.guardrailEventRepo) return
+    this.guardrailEventRepo.create(data).catch(err => {
+      log.error({ error: (err as Error).message }, 'Failed to write guardrail event')
+    })
   }
 
   private async recordMessages(conversationId: string, query: string, answer: string, auditLogId: string): Promise<void> {

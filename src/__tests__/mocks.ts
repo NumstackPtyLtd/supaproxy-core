@@ -12,6 +12,7 @@ import type { AIProvider } from '../application/ports/AIProvider.js'
 import type { ModelRepository } from '../application/ports/ModelRepository.js'
 import type { ConsumerPosterRegistry } from '../application/ports/ConsumerPoster.js'
 import type { PromptTemplateRepository } from '../domain/prompt/repository.js'
+import type { GuardrailEventRepository } from '../domain/guardrail/repository.js'
 
 // ── Stub data ──
 
@@ -263,5 +264,12 @@ export function mockPosterRegistry(): ConsumerPosterRegistry {
   return {
     register: vi.fn(),
     post: vi.fn().mockResolvedValue(true),
+  }
+}
+
+export function mockGuardrailEventRepo(): GuardrailEventRepository {
+  return {
+    create: vi.fn().mockResolvedValue(undefined),
+    findByWorkspace: vi.fn().mockResolvedValue([]),
   }
 }

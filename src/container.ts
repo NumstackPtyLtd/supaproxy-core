@@ -17,6 +17,7 @@ import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegra
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
 import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
+import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
@@ -134,7 +135,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
-  const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo)
+  const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
+  const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo)
   const getHealthUseCase = new GetHealthUseCase(orgRepo, workspaceRepo)
 
@@ -267,7 +269,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
   })
 
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, executionRails, retrievalRails)
+  const guardrailEventRepo = new MysqlGuardrailEventRepository(pool)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, executionRails, retrievalRails, guardrailEventRepo)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
