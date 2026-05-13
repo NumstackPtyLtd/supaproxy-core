@@ -86,8 +86,8 @@ export class ExecuteQueryUseCase {
     private readonly conversationUseCase: ManageConversationUseCase,
     private readonly resolveGuardrails: (workspaceId: string) => Promise<GuardrailPlugin[]> = async () => [],
     private readonly promptResolver?: PromptResolver,
-    private readonly executionRails?: ExecutionRailRegistry,
-    private readonly retrievalRails?: RetrievalRailRegistry,
+    private readonly resolveExecutionRails: (workspaceId: string) => Promise<ExecutionRailRegistry | null> = async () => null,
+    private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
     private readonly guardrailEventRepo?: GuardrailEventRepository,
   ) {}
 
@@ -168,6 +168,10 @@ export class ExecuteQueryUseCase {
       }
     }
 
+    // Resolve execution and retrieval rails for this workspace
+    const executionRails = await this.resolveExecutionRails(workspaceId)
+    const retrievalRails = await this.resolveRetrievalRails(workspaceId)
+
     let tools: ToolEntry[] = []
     let mcpConnections: McpConnection[] = []
 
@@ -205,6 +209,8 @@ export class ExecuteQueryUseCase {
         apiKey,
         workspaceId,
         conversationId,
+        executionRails,
+        retrievalRails,
       })
 
       result.durationMs = Date.now() - startTime
@@ -299,6 +305,8 @@ export class ExecuteQueryUseCase {
     apiKey: string
     workspaceId: string
     conversationId: string
+    executionRails: ExecutionRailRegistry | null
+    retrievalRails: RetrievalRailRegistry | null
   }): Promise<{ answer: string; toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null }> {
     const result = { answer: '', toolsCalled: [] as ToolCallRecord[], connectionsHit: [] as string[], tokensInput: 0, tokensOutput: 0, costUsd: 0, durationMs: 0, error: null as string | null }
 
@@ -347,8 +355,8 @@ export class ExecuteQueryUseCase {
           const toolStart = Date.now()
 
           // Execution rail: validate tool call before executing
-          if (this.executionRails && toolDef) {
-            const railResult = await this.executionRails.validate({
+          if (config.executionRails && toolDef) {
+            const railResult = await config.executionRails.validate({
               toolName: tu.name!,
               toolArgs: tu.input as Record<string, unknown>,
               originalQuery: query,
@@ -375,8 +383,8 @@ export class ExecuteQueryUseCase {
               .join('\n')
 
             // Retrieval rail: sanitise tool output before feeding back to LLM
-            if (this.retrievalRails) {
-              const sanitised = await this.retrievalRails.sanitise(resultText)
+            if (config.retrievalRails) {
+              const sanitised = await config.retrievalRails.sanitise(resultText)
               if (sanitised.stripped.length > 0) {
                 this.writeGuardrailEvent({
                   id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,

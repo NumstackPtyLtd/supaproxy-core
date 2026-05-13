@@ -222,6 +222,10 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     return plugins
   }
 
+  // Static instances for listing available guardrails (not for execution)
+  const writeGuardInstance = new WriteGuardRail()
+  const injectionSanitiserInstance = new InjectionSanitiser()
+
   function listAvailableGuardrails() {
     const pipeline = Object.entries(availableGuardrails).map(([id, { instance }]) => ({
       id,
@@ -231,7 +235,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
       configSchema: instance.configSchema,
     }))
 
-    const execution = executionRails.list().map((p) => ({
+    const execution = [writeGuardInstance].map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -239,7 +243,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
       configSchema: p.configSchema,
     }))
 
-    const retrieval = retrievalRails.list().map((p) => ({
+    const retrieval = [injectionSanitiserInstance].map((p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -253,24 +257,35 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
-  // Execution rails: validate tool calls before execution
-  const executionRails = new ExecutionRailRegistry()
-  executionRails.register(new WriteGuardRail())
-  executionRails.on((event) => {
-    if (!event.result.allowed) {
-      log.warn({ plugin: event.pluginId, tool: event.ctx.toolName, workspace: event.ctx.workspaceId, reason: event.result.reason }, 'Tool call blocked by execution rail')
-    }
-  })
+  // Execution and retrieval rails: resolved per workspace from enabled guardrails
+  async function resolveExecutionRails(workspaceId: string): Promise<ExecutionRailRegistry | null> {
+    const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
+    const enabledIds = configs.map(c => c.guardrail_id)
+    if (!enabledIds.includes('write-guard')) return null
+    const reg = new ExecutionRailRegistry()
+    reg.register(new WriteGuardRail())
+    reg.on((event) => {
+      if (!event.result.allowed) {
+        log.warn({ plugin: event.pluginId, tool: event.ctx.toolName, workspace: event.ctx.workspaceId, reason: event.result.reason }, 'Tool call blocked by execution rail')
+      }
+    })
+    return reg
+  }
 
-  // Retrieval rails: sanitise tool output before feeding back to LLM
-  const retrievalRails = new RetrievalRailRegistry()
-  retrievalRails.register(new InjectionSanitiser())
-  retrievalRails.on((event) => {
-    log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
-  })
+  async function resolveRetrievalRails(workspaceId: string): Promise<RetrievalRailRegistry | null> {
+    const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
+    const enabledIds = configs.map(c => c.guardrail_id)
+    if (!enabledIds.includes('injection-sanitiser')) return null
+    const reg = new RetrievalRailRegistry()
+    reg.register(new InjectionSanitiser())
+    reg.on((event) => {
+      log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
+    })
+    return reg
+  }
 
   const guardrailEventRepo = new MysqlGuardrailEventRepository(pool)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, executionRails, retrievalRails, guardrailEventRepo)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)

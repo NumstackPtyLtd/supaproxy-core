@@ -455,12 +455,15 @@ describe('ExecuteQueryUseCase', () => {
 
     it('blocks write tool call when query has no write intent', async () => {
       const mockConn = setupToolCall()
-      const executionRails = new ExecutionRailRegistry()
-      executionRails.register(new WriteGuardRail())
+      const resolveExec = async () => {
+        const reg = new ExecutionRailRegistry()
+        reg.register(new WriteGuardRail())
+        return reg
+      }
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, executionRails,
+        conversationUseCase, resolveGuardrails, undefined, resolveExec,
       )
 
       const result = await useCase.execute('ws-test', 'What is my balance?', baseMeta)
@@ -473,12 +476,15 @@ describe('ExecuteQueryUseCase', () => {
 
     it('allows write tool call when query expresses write intent', async () => {
       const mockConn = setupToolCall()
-      const executionRails = new ExecutionRailRegistry()
-      executionRails.register(new WriteGuardRail())
+      const resolveExec = async () => {
+        const reg = new ExecutionRailRegistry()
+        reg.register(new WriteGuardRail())
+        return reg
+      }
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, executionRails,
+        conversationUseCase, resolveGuardrails, undefined, resolveExec,
       )
 
       const result = await useCase.execute('ws-test', 'Please delete my account', baseMeta)
@@ -516,12 +522,15 @@ describe('ExecuteQueryUseCase', () => {
           stop_reason: 'end_turn',
         })
 
-      const retrievalRails = new RetrievalRailRegistry()
-      retrievalRails.register(new InjectionSanitiser())
+      const resolveRetrieval = async () => {
+        const reg = new RetrievalRailRegistry()
+        reg.register(new InjectionSanitiser())
+        return reg
+      }
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, undefined, retrievalRails,
+        conversationUseCase, resolveGuardrails, undefined, undefined, resolveRetrieval,
       )
 
       await useCase.execute('ws-test', 'Fetch this page', baseMeta)
