@@ -482,6 +482,28 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 15,
+    name: 'guardrail events table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS guardrail_events (
+          id VARCHAR(64) PRIMARY KEY,
+          workspace_id VARCHAR(64) NOT NULL,
+          conversation_id VARCHAR(64),
+          event_type ENUM('execution_blocked', 'retrieval_stripped') NOT NULL,
+          plugin_id VARCHAR(64) NOT NULL,
+          tool_name VARCHAR(128),
+          original_query TEXT,
+          reason TEXT,
+          stripped_content TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_workspace (workspace_id, created_at DESC),
+          INDEX idx_conversation (conversation_id)
+        )
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

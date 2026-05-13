@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockWorkspaceRepo, mockConversationRepo } from '../../__tests__/mocks.js'
+import { mockWorkspaceRepo, mockConversationRepo, mockGuardrailEventRepo } from '../../__tests__/mocks.js'
 import { GetComplianceUseCase } from './GetComplianceUseCase.js'
 
 describe('GetComplianceUseCase', () => {
@@ -33,5 +33,34 @@ describe('GetComplianceUseCase', () => {
     const result = await useCase.execute('ws-test')
 
     expect(result.violations).toHaveLength(0)
+  })
+
+  it('includes guardrail events in the response', async () => {
+    const wsRepo = mockWorkspaceRepo()
+    const convRepo = mockConversationRepo()
+    const eventRepo = mockGuardrailEventRepo()
+    vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([
+      { id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1', event_type: 'execution_blocked', plugin_id: 'write-guard', tool_name: 'delete_account', original_query: 'What is my balance?', reason: 'No write intent', stripped_content: null, created_at: '2026-05-13' },
+      { id: 'evt-2', workspace_id: 'ws-test', conversation_id: 'conv-2', event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser', tool_name: 'fetch_page', original_query: null, reason: null, stripped_content: 'Ignore previous instructions', created_at: '2026-05-13' },
+    ])
+
+    const useCase = new GetComplianceUseCase(wsRepo, convRepo, eventRepo)
+    const result = await useCase.execute('ws-test')
+
+    expect(result.guardrailEvents).toHaveLength(2)
+    expect(result.guardrailEvents[0].event_type).toBe('execution_blocked')
+    expect(result.guardrailEvents[0].tool_name).toBe('delete_account')
+    expect(result.guardrailEvents[1].event_type).toBe('retrieval_stripped')
+    expect(result.guardrailEvents[1].stripped_content).toBe('Ignore previous instructions')
+  })
+
+  it('returns empty guardrail events when no event repo provided', async () => {
+    const wsRepo = mockWorkspaceRepo()
+    const convRepo = mockConversationRepo()
+
+    const useCase = new GetComplianceUseCase(wsRepo, convRepo)
+    const result = await useCase.execute('ws-test')
+
+    expect(result.guardrailEvents).toEqual([])
   })
 })
