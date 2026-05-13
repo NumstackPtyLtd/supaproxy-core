@@ -27,7 +27,7 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
   async findByWorkspace(workspaceId: string, limit = 50): Promise<GuardrailEventData[]> {
     const [rows] = await this.pool.execute<GuardrailEventRow[]>(
       `SELECT * FROM guardrail_events WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
-      [workspaceId, limit],
+      [workspaceId, String(limit)],
     )
     return rows.map(r => ({
       id: r.id,
