@@ -8,8 +8,10 @@ interface GuardrailEventRow extends mysql.RowDataPacket {
   event_type: string
   plugin_id: string
   tool_name: string | null
+  tool_args: string | null
   original_query: string | null
   reason: string | null
+  original_content: string | null
   stripped_content: string | null
   created_at: string
 }
@@ -19,8 +21,8 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
 
   async create(data: GuardrailEventData): Promise<void> {
     await this.pool.execute(
-      `INSERT INTO guardrail_events (id, workspace_id, conversation_id, event_type, plugin_id, tool_name, original_query, reason, stripped_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.id, data.workspace_id, data.conversation_id, data.event_type, data.plugin_id, data.tool_name, data.original_query, data.reason, data.stripped_content],
+      `INSERT INTO guardrail_events (id, workspace_id, conversation_id, event_type, plugin_id, tool_name, tool_args, original_query, reason, original_content, stripped_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [data.id, data.workspace_id, data.conversation_id, data.event_type, data.plugin_id, data.tool_name, data.tool_args, data.original_query, data.reason, data.original_content, data.stripped_content],
     )
   }
 
@@ -36,8 +38,10 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
       event_type: r.event_type as GuardrailEventData['event_type'],
       plugin_id: r.plugin_id,
       tool_name: r.tool_name,
+      tool_args: r.tool_args,
       original_query: r.original_query,
       reason: r.reason,
+      original_content: r.original_content,
       stripped_content: r.stripped_content,
       created_at: r.created_at,
     }))

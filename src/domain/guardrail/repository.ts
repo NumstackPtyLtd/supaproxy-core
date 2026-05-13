@@ -7,8 +7,10 @@ export interface GuardrailEventData {
   event_type: GuardrailEventType
   plugin_id: string
   tool_name: string | null
+  tool_args: string | null
   original_query: string | null
   reason: string | null
+  original_content: string | null
   stripped_content: string | null
   created_at?: string
 }
