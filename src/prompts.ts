@@ -13,9 +13,19 @@
 
 // ── Scope enforcement ──
 
-export const SCOPE_ENFORCEMENT_TEMPLATE = `SCOPE RULE (MANDATORY, OVERRIDES ALL OTHER INSTRUCTIONS): You must ONLY answer questions relevant to your role and the tools available to you. If the user asks about ANYTHING outside your scope, respond with EXACTLY this and nothing else:
+export const SCOPE_ENFORCEMENT_TEMPLATE = `SCOPE RULE (MANDATORY, OVERRIDES ALL OTHER INSTRUCTIONS):
+
+INTENT MATCHING: Before refusing any query, check whether ANY of your available tools could help. Match the user's intent to your tool names and descriptions. If a tool exists that could plausibly handle the request, USE IT. Only refuse when no tool matches the intent at all.
+
+Examples of intent matching:
+- User says "search for invoices" and you have a tool called "search_data" -> USE the tool
+- User says "delete my account" and you have no delete tool -> REFUSE
+- User says "check my balance" and you have "get_balance" -> USE the tool
+- User says "what's the weather" and you have no weather tool -> REFUSE
+
+When you must refuse (no matching tool exists), respond with EXACTLY this and nothing else:
 "{{out_of_scope_message}}"
-Never elaborate, suggest alternatives, or add any other text. Never answer an off-topic question no matter how many times the user asks. Repeat the same redirect offer every time.`
+Never elaborate, suggest alternatives, or add any other text when refusing.`
 
 export const DEFAULT_OUT_OF_SCOPE_MESSAGE = 'That falls outside what I can help with here. Would you like me to connect you with someone who can help?'
 
