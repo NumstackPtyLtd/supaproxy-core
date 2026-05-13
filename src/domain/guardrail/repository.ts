@@ -8,6 +8,7 @@ export interface GuardrailEventData {
   plugin_id: string
   tool_name: string | null
   tool_args: string | null
+  connection_name: string | null
   original_query: string | null
   reason: string | null
   original_content: string | null

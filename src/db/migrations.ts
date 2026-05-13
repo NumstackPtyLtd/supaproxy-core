@@ -512,6 +512,13 @@ const migrations: Migration[] = [
       await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN original_content TEXT AFTER reason`);
     },
   },
+  {
+    version: 17,
+    name: 'guardrail events add connection_name',
+    up: async (pool) => {
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN connection_name VARCHAR(128) AFTER tool_args`);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

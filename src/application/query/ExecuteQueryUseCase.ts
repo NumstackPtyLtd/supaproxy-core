@@ -370,6 +370,7 @@ export class ExecuteQueryUseCase {
                 id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
                 event_type: 'execution_blocked', plugin_id: 'write-guard',
                 tool_name: tu.name!, tool_args: JSON.stringify(tu.input).substring(0, 500),
+                connection_name: connName,
                 original_query: query, reason: railResult.reason || null,
                 original_content: null, stripped_content: null,
               })
@@ -392,6 +393,7 @@ export class ExecuteQueryUseCase {
                   id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
                   event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser',
                   tool_name: tu.name!, tool_args: null,
+                  connection_name: connName,
                   original_query: query, reason: null,
                   original_content: resultText.substring(0, 1000),
                   stripped_content: sanitised.stripped.join(', ').substring(0, 500),
