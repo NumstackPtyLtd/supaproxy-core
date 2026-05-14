@@ -28,6 +28,7 @@ export interface WorkspaceRow extends RowDataPacket {
   name: string
   status: 'active' | 'paused' | 'archived'
   model: string
+  provider_type: string | null
   system_prompt: string | null
   max_tool_rounds: number
   max_thread_history: number

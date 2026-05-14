@@ -773,6 +773,16 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 28,
+    name: 'workspace provider_type column',
+    up: async (pool) => {
+      const [cols] = await pool.execute<ColumnInfoRow[]>("SHOW COLUMNS FROM workspaces LIKE 'provider_type'");
+      if (cols.length === 0) {
+        await pool.execute(`ALTER TABLE workspaces ADD COLUMN provider_type VARCHAR(50) DEFAULT NULL AFTER model`);
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

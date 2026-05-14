@@ -4,6 +4,7 @@ import { NotFoundError } from '../../domain/shared/errors.js'
 interface UpdateWorkspaceInput {
   name?: string
   model?: string
+  provider_type?: string | null
   system_prompt?: string
   cold_timeout_minutes?: number | null
   close_timeout_minutes?: number | null

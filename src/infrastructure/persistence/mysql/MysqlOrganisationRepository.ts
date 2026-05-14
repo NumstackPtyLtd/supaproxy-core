@@ -22,6 +22,11 @@ export class MysqlOrganisationRepository implements OrganisationRepository {
     return rows[0] || null
   }
 
+  async anyExists(): Promise<boolean> {
+    const [rows] = await this.pool.execute<CountRow[]>('SELECT COUNT(*) as total FROM organisations')
+    return rows[0].total > 0
+  }
+
   async create(id: string, name: string, slug: string): Promise<void> {
     await this.pool.execute(
       'INSERT INTO organisations (id, name, slug) VALUES (?, ?, ?)', [id, name, slug]

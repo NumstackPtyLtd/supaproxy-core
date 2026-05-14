@@ -2,6 +2,7 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { PasswordService } from '../ports/PasswordService.js'
 import type { TokenService } from '../ports/TokenService.js'
+import type { TenantService } from '../ports/TenantService.js'
 import { generateId, generateSlug, generateWorkspaceId } from '../../domain/shared/EntityId.js'
 import { ConflictError } from '../../domain/shared/errors.js'
 import { DEFAULT_WORKSPACE_NAME, DEFAULT_RECEPTIONIST_PROMPT } from '../../defaults.js'
@@ -26,9 +27,17 @@ export class SignupUseCase {
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly passwordService: PasswordService,
     private readonly tokenService: TokenService,
+    private readonly tenantService: TenantService,
   ) {}
 
   async execute(input: SignupInput): Promise<SignupOutput> {
+    if (!this.tenantService.allowMultipleOrgs) {
+      const orgExists = await this.orgRepo.anyExists()
+      if (orgExists) {
+        throw new ConflictError('An organisation already exists. Sign in instead.')
+      }
+    }
+
     const emailExists = await this.orgRepo.userExistsByEmail(input.adminEmail)
     if (emailExists) {
       throw new ConflictError('An account with this email already exists. Sign in instead.')

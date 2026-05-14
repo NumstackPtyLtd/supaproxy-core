@@ -5,6 +5,7 @@ export interface WorkspaceData {
   name: string
   status: 'active' | 'paused' | 'archived'
   model: string
+  provider_type: string | null
   system_prompt: string | null
   max_tool_rounds: number
   max_thread_history: number
@@ -120,7 +121,7 @@ export interface WorkspaceRepository {
   findActiveById(id: string): Promise<WorkspaceData | null>
   existsById(id: string): Promise<boolean>
   create(workspace: { id: string; orgId: string | null; teamId: string | null; name: string; model: string; systemPrompt: string; createdBy?: string | null }): Promise<void>
-  update(id: string, fields: { name?: string; model?: string; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null }): Promise<void>
+  update(id: string, fields: { name?: string; model?: string; provider_type?: string | null; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null }): Promise<void>
   listNonArchived(orgId: string | null): Promise<WorkspaceListItemData[]>
   getSummary(id: string): Promise<WorkspaceData | null>
 

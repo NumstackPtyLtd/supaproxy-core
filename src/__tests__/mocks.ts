@@ -16,6 +16,7 @@ import type { PromptTemplateRepository } from '../domain/prompt/repository.js'
 import type { GuardrailEventRepository } from '../domain/guardrail/repository.js'
 import type { GuardrailPolicyRepository } from '../domain/guardrail/policyRepository.js'
 import type { InstalledGuardrailRepository } from '../domain/guardrail/installedGuardrailRepository.js'
+import type { TenantService } from '../application/ports/TenantService.js'
 
 // ── Stub data ──
 
@@ -30,7 +31,8 @@ export function stubUser(overrides: Partial<UserData> = {}): UserData {
 export function stubWorkspace(overrides: Partial<WorkspaceData> = {}): WorkspaceData {
   return {
     id: 'ws-test', org_id: 'org-1', team_id: 'team-1', name: 'Test Workspace',
-    status: 'active', model: 'claude-sonnet-4-20250514', system_prompt: 'You are helpful.',
+    status: 'active', model: 'claude-sonnet-4-20250514', provider_type: null,
+    system_prompt: 'You are helpful.',
     max_tool_rounds: 10, max_thread_history: 50, cold_timeout_minutes: 30,
     close_timeout_minutes: 60, is_default: false, created_by: 'user-1', created_at: '2024-01-01',
     updated_at: '2024-01-01',
@@ -72,6 +74,7 @@ export function stubConsumer(overrides: Partial<ConsumerData> = {}): ConsumerDat
 export function mockOrgRepo(): OrganisationRepository {
   return {
     findById: vi.fn().mockResolvedValue(null),
+    anyExists: vi.fn().mockResolvedValue(false),
     create: vi.fn().mockResolvedValue(undefined),
     updateName: vi.fn().mockResolvedValue(undefined),
     findUserByEmail: vi.fn().mockResolvedValue(null),
@@ -162,6 +165,7 @@ export function mockConversationRepo(): ConversationRepository {
     getAggregateData: vi.fn().mockResolvedValue({ total_tokens_input: 0, total_tokens_output: 0, total_cost_usd: 0, total_duration_ms: 0, query_count: 0 }),
     getTimestamps: vi.fn().mockResolvedValue(null),
     getWorkspaceModel: vi.fn().mockResolvedValue(null),
+    getWorkspaceProviderInfo: vi.fn().mockResolvedValue(null),
     findColdTransitionCandidates: vi.fn().mockResolvedValue([]),
     batchTransitionToCold: vi.fn().mockResolvedValue(undefined),
     findCloseTransitionCandidates: vi.fn().mockResolvedValue([]),
@@ -182,6 +186,16 @@ export function mockConversationRepo(): ConversationRepository {
 
 export function mockAuditRepo(): AuditLogRepository {
   return { create: vi.fn().mockResolvedValue(undefined) }
+}
+
+export function mockTenantService(overrides: Partial<TenantService> = {}): TenantService {
+  return {
+    allowMultipleOrgs: false,
+    scopeWorkspaceList: () => null,
+    verifyWorkspaceAccess: () => {},
+    resolveOrgForCreation: (orgId) => orgId,
+    ...overrides,
+  }
 }
 
 export function mockPasswordService(): PasswordService {

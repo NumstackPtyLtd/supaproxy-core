@@ -137,6 +137,7 @@ export interface ConversationRepository {
   getAggregateData(conversationId: string): Promise<ConversationAggregateData>
   getTimestamps(conversationId: string): Promise<{ first_message_at: string | null; closed_at: string | null; message_count: number } | null>
   getWorkspaceModel(conversationId: string): Promise<string | null>
+  getWorkspaceProviderInfo(conversationId: string): Promise<{ model: string; provider_type: string | null } | null>
 
   findColdTransitionCandidates(): Promise<ColdTransitionData[]>
   batchTransitionToCold(ids: string[]): Promise<void>

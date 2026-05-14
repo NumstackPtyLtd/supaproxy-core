@@ -116,7 +116,7 @@ export class ExecuteQueryUseCase {
     let provider: ProviderPlugin
     let apiKey: string
     try {
-      const resolved = await this.resolveProvider()
+      const resolved = await this.resolveProvider(workspace.provider_type)
       provider = resolved.provider
       apiKey = resolved.apiKey
     } catch {
@@ -257,11 +257,18 @@ export class ExecuteQueryUseCase {
     }
   }
 
-  private async resolveProvider(): Promise<{ provider: ProviderPlugin; apiKey: string }> {
-    const settings = await this.orgRepo.getSettingValues(['ai_provider_type', 'ai_api_key', 'anthropic_api_key'])
-    const providerType = settings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
-    const apiKey = settings['ai_api_key'] || settings['anthropic_api_key'] || null
+  private async resolveProvider(workspaceProviderType: string | null): Promise<{ provider: ProviderPlugin; apiKey: string }> {
+    // Step 1: resolve which provider type to use (workspace override > org default)
+    const orgSettings = await this.orgRepo.getSettingValues(['ai_provider_type'])
+    const providerType = workspaceProviderType || orgSettings['ai_provider_type']
+    if (!providerType) throw new ConfigurationError('No AI provider configured')
+
+    // Step 2: fetch API key using prefixed key (anthropic_api_key, openai_api_key)
+    // Fall back to legacy ai_api_key for backward compatibility
+    const keySettings = await this.orgRepo.getSettingValues([`${providerType}_api_key`, 'ai_api_key'])
+    const apiKey = keySettings[`${providerType}_api_key`] || keySettings['ai_api_key'] || null
     if (!apiKey) throw new ConfigurationError('No AI API key configured')
+
     const provider = this.providerRegistry.get(providerType)
     return { provider, apiKey }
   }

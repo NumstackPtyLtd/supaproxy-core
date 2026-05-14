@@ -63,11 +63,19 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
     )
   }
 
-  async update(id: string, fields: { name?: string; model?: string; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null }): Promise<void> {
-    await this.pool.execute(
-      'UPDATE workspaces SET name = COALESCE(?, name), model = COALESCE(?, model), system_prompt = COALESCE(?, system_prompt), cold_timeout_minutes = COALESCE(?, cold_timeout_minutes), close_timeout_minutes = COALESCE(?, close_timeout_minutes), updated_at = NOW() WHERE id = ?',
-      [fields.name || null, fields.model || null, fields.system_prompt ?? null, fields.cold_timeout_minutes || null, fields.close_timeout_minutes || null, id]
-    )
+  async update(id: string, fields: { name?: string; model?: string; provider_type?: string | null; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null }): Promise<void> {
+    const sets: string[] = []
+    const params: (string | number | null)[] = []
+    if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name) }
+    if (fields.model !== undefined) { sets.push('model = ?'); params.push(fields.model) }
+    if (fields.provider_type !== undefined) { sets.push('provider_type = ?'); params.push(fields.provider_type) }
+    if (fields.system_prompt !== undefined) { sets.push('system_prompt = ?'); params.push(fields.system_prompt) }
+    if (fields.cold_timeout_minutes !== undefined) { sets.push('cold_timeout_minutes = ?'); params.push(fields.cold_timeout_minutes) }
+    if (fields.close_timeout_minutes !== undefined) { sets.push('close_timeout_minutes = ?'); params.push(fields.close_timeout_minutes) }
+    if (sets.length === 0) return
+    sets.push('updated_at = NOW()')
+    params.push(id)
+    await this.pool.execute(`UPDATE workspaces SET ${sets.join(', ')} WHERE id = ?`, params)
   }
 
   async listNonArchived(orgId: string | null): Promise<WorkspaceListItemData[]> {

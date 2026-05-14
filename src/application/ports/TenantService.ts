@@ -26,4 +26,9 @@ export interface TenantService {
    * Returns userOrgId in multi-tenant, or the single org in single-tenant.
    */
   resolveOrgForCreation(userOrgId: string): string
+
+  /**
+   * Whether multiple orgs can be created (cloud = true, self-hosted = false).
+   */
+  allowMultipleOrgs: boolean
 }

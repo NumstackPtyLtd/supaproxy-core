@@ -7,6 +7,8 @@ import { describe, it, expect } from 'vitest'
  */
 
 class CloudTenantServiceLocal {
+  readonly allowMultipleOrgs = true
+
   scopeWorkspaceList(userOrgId: string): string {
     return userOrgId
   }
