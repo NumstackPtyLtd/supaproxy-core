@@ -485,6 +485,8 @@ describe('ExecuteQueryUseCase', () => {
       const eventRepo: GuardrailEventRepository = {
         create: vi.fn().mockResolvedValue(undefined),
         findByWorkspace: vi.fn().mockResolvedValue([]),
+        findByWorkspaceFiltered: vi.fn().mockResolvedValue({ events: [], total: 0 }),
+        updateStatus: vi.fn().mockResolvedValue(undefined),
       }
 
       const useCase = new ExecuteQueryUseCase(
@@ -501,14 +503,19 @@ describe('ExecuteQueryUseCase', () => {
         expect.objectContaining({
           event_type: 'execution_blocked',
           plugin_id: 'write-guard',
-          tool_name: 'delete_account',
-          tool_args: expect.stringContaining('"id"'),
-          original_query: 'What is my balance?',
-          reason: expect.stringContaining('write operation'),
+          context: expect.objectContaining({ tool_name: 'delete_account', original_query: 'What is my balance?' }),
+          outcome: expect.objectContaining({ reason: expect.stringContaining('write operation') }),
+          display: expect.any(Array),
+          actions: expect.any(Array),
+          status: 'open',
           workspace_id: 'ws-test',
           conversation_id: expect.any(String),
         }),
       )
+      // Display and actions come from the plugin, not hardcoded
+      const eventData = vi.mocked(eventRepo.create).mock.calls[0][0]
+      expect(eventData.display.length).toBeGreaterThan(0)
+      expect(eventData.actions.length).toBeGreaterThan(0)
     })
 
     it('allows write tool call when query expresses write intent', async () => {
@@ -616,6 +623,8 @@ describe('ExecuteQueryUseCase', () => {
       const eventRepo: GuardrailEventRepository = {
         create: vi.fn().mockResolvedValue(undefined),
         findByWorkspace: vi.fn().mockResolvedValue([]),
+        findByWorkspaceFiltered: vi.fn().mockResolvedValue({ events: [], total: 0 }),
+        updateStatus: vi.fn().mockResolvedValue(undefined),
       }
 
       const useCase = new ExecuteQueryUseCase(
@@ -630,14 +639,20 @@ describe('ExecuteQueryUseCase', () => {
         expect.objectContaining({
           event_type: 'retrieval_stripped',
           plugin_id: 'injection-sanitiser',
-          tool_name: 'search',
-          original_query: 'Search for data',
-          original_content: expect.stringContaining('Ignore previous instructions'),
-          stripped_content: expect.stringContaining('Ignore previous instructions'),
+          context: expect.objectContaining({ tool_name: 'search', original_query: 'Search for data' }),
+          outcome: expect.objectContaining({
+            original_content: expect.stringContaining('Ignore previous instructions'),
+            stripped_content: expect.stringContaining('Ignore previous instructions'),
+          }),
+          display: expect.any(Array),
+          actions: expect.any(Array),
+          status: 'open',
           workspace_id: 'ws-test',
           conversation_id: expect.any(String),
         }),
       )
+      const eventData = vi.mocked(eventRepo.create).mock.calls[0][0]
+      expect(eventData.display.length).toBeGreaterThan(0)
     })
   })
 })

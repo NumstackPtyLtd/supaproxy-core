@@ -12,6 +12,7 @@ import type { DeleteConnectionUseCase } from '../../application/workspace/Delete
 import type { GetConnectionsUseCase } from '../../application/workspace/GetConnectionsUseCase.js'
 import type { GetKnowledgeUseCase } from '../../application/workspace/GetKnowledgeUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
+import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
@@ -53,6 +54,7 @@ interface WorkspaceRouteDeps {
   getConnectionsUseCase: GetConnectionsUseCase
   getKnowledgeUseCase: GetKnowledgeUseCase
   getComplianceUseCase: GetComplianceUseCase
+  guardrailEventRepo: GuardrailEventRepository
   listAvailableGuardrails: () => Array<{ id: string; name: string; description: string; stage: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>
   orgRepo: OrganisationRepository
   workspaceRepo: WorkspaceRepository
@@ -150,8 +152,35 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
   workspaces.get('/api/workspaces/:id/compliance', async (c) => {
     const user = c.get('user') as AuthUser
     await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getComplianceUseCase.execute(c.req.param('id'))
+
+    const eventType = c.req.query('event_type')
+    const eventStatus = c.req.query('status')
+    const search = c.req.query('search')
+    const page = c.req.query('page')
+    const limit = c.req.query('limit')
+
+    const hasFilter = eventType || eventStatus || search || page || limit
+    const eventFilter = hasFilter ? {
+      event_type: eventType === 'execution_blocked' || eventType === 'retrieval_stripped' ? eventType : undefined,
+      status: eventStatus === 'open' || eventStatus === 'flagged' || eventStatus === 'dismissed' ? eventStatus : undefined,
+      search: search || undefined,
+      limit: limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20,
+      offset: page ? (Math.max(parseInt(page, 10) || 0, 0)) * (limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20) : 0,
+    } : undefined
+
+    const result = await deps.getComplianceUseCase.execute(c.req.param('id'), eventFilter)
     return c.json(result)
+  })
+
+  workspaces.patch('/api/workspaces/:id/guardrail-events/:eventId/status', async (c) => {
+    const user = c.get('user') as AuthUser
+    await guardWorkspace(c.req.param('id'), user.org_id)
+    const body = await c.req.json<{ status: string }>()
+    if (body.status !== 'open' && body.status !== 'flagged' && body.status !== 'dismissed') {
+      return c.json({ error: 'invalid_status' }, 400)
+    }
+    await deps.guardrailEventRepo.updateStatus(c.req.param('eventId'), body.status)
+    return c.json({ status: body.status })
   })
 
   workspaces.get('/api/workspaces/:id', async (c) => {

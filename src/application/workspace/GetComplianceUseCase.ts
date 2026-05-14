@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
-import type { GuardrailEventRepository, GuardrailEventData } from '../../domain/guardrail/repository.js'
+import type { GuardrailEventRepository, GuardrailEventData, GuardrailEventFilter } from '../../domain/guardrail/repository.js'
 import { safeJsonParse } from '../../shared/json.js'
 
 interface ViolationItem { rule: string; description: string }
@@ -12,11 +12,17 @@ export class GetComplianceUseCase {
     private readonly guardrailEventRepo?: GuardrailEventRepository,
   ) {}
 
-  async execute(workspaceId: string) {
-    const [guardrails, violationRows, guardrailEvents] = await Promise.all([
+  async execute(workspaceId: string, eventFilter?: GuardrailEventFilter) {
+    const guardrailEventResult = this.guardrailEventRepo && eventFilter
+      ? this.guardrailEventRepo.findByWorkspaceFiltered(workspaceId, eventFilter)
+      : this.guardrailEventRepo
+        ? this.guardrailEventRepo.findByWorkspace(workspaceId, 50).then(events => ({ events, total: events.length }))
+        : Promise.resolve({ events: [] as GuardrailEventData[], total: 0 })
+
+    const [guardrails, violationRows, eventResult] = await Promise.all([
       this.workspaceRepo.findGuardrails(workspaceId),
       this.conversationRepo.getComplianceViolationsByWorkspace(workspaceId, 20),
-      this.guardrailEventRepo ? this.guardrailEventRepo.findByWorkspace(workspaceId, 50) : Promise.resolve([] as GuardrailEventData[]),
+      guardrailEventResult,
     ])
 
     const violations: Array<ViolationItem & { conversation_id: string; user_name: string | null; timestamp: string | null }> = []
@@ -27,6 +33,6 @@ export class GetComplianceUseCase {
       }
     }
 
-    return { guardrails, violations, guardrailEvents }
+    return { guardrails, violations, guardrailEvents: eventResult.events, guardrailEventTotal: eventResult.total }
   }
 }

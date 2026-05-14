@@ -519,6 +519,69 @@ const migrations: Migration[] = [
       await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN connection_name VARCHAR(128) AFTER tool_args`);
     },
   },
+  {
+    version: 18,
+    name: 'guardrail events flexible schema',
+    up: async (pool) => {
+      // Add flexible JSON columns and status
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN context JSON AFTER plugin_id`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN outcome JSON AFTER context`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN display JSON AFTER outcome`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN actions JSON AFTER display`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN status ENUM('open', 'flagged', 'dismissed') NOT NULL DEFAULT 'open' AFTER actions`);
+      await pool.execute(`CREATE INDEX idx_status ON guardrail_events (workspace_id, status, created_at DESC)`);
+      // Migrate existing data into JSON columns
+      await pool.execute(`
+        UPDATE guardrail_events SET
+          context = JSON_OBJECT(
+            'tool_name', tool_name,
+            'tool_args', tool_args,
+            'connection_name', connection_name,
+            'original_query', original_query
+          ),
+          outcome = JSON_OBJECT(
+            'reason', reason,
+            'original_content', original_content,
+            'stripped_content', stripped_content
+          ),
+          display = CASE
+            WHEN event_type = 'execution_blocked' THEN '[{"source":"context","key":"tool_name","label":"Tool","format":"text"},{"source":"context","key":"tool_args","label":"Tool arguments","format":"code"},{"source":"context","key":"connection_name","label":"Connection","format":"text"},{"source":"context","key":"original_query","label":"User query","format":"text"},{"source":"action","key":"reason","label":"Reason","format":"warning"}]'
+            ELSE '[{"source":"context","key":"tool_name","label":"Tool","format":"text"},{"source":"context","key":"connection_name","label":"Connection","format":"text"},{"source":"context","key":"original_query","label":"User query","format":"text"},{"source":"action","key":"original_content","label":"Original output","format":"pre"},{"source":"action","key":"stripped_content","label":"Stripped content","format":"danger"}]'
+          END,
+          actions = '[{"type":"flag","label":"Flag for review"},{"type":"dismiss","label":"Dismiss"}]'
+        WHERE context IS NULL
+      `);
+      // Drop old columns
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN tool_name`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN tool_args`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN connection_name`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN original_query`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN reason`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN original_content`);
+      await pool.execute(`ALTER TABLE guardrail_events DROP COLUMN stripped_content`);
+    },
+  },
+  {
+    version: 19,
+    name: 'guardrail events display, actions, status, rename action to outcome',
+    up: async (pool) => {
+      await pool.execute(`ALTER TABLE guardrail_events CHANGE COLUMN action outcome JSON`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN display JSON AFTER outcome`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN actions JSON AFTER display`);
+      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN status ENUM('open', 'flagged', 'dismissed') NOT NULL DEFAULT 'open' AFTER actions`);
+      await pool.execute(`CREATE INDEX idx_status ON guardrail_events (workspace_id, status, created_at DESC)`);
+      // Backfill display for existing events
+      await pool.execute(`
+        UPDATE guardrail_events SET
+          display = CASE
+            WHEN event_type = 'execution_blocked' THEN '[{"source":"context","key":"tool_name","label":"Tool","format":"text"},{"source":"context","key":"tool_args","label":"Tool arguments","format":"code"},{"source":"context","key":"connection_name","label":"Connection","format":"text"},{"source":"context","key":"original_query","label":"User query","format":"text"},{"source":"outcome","key":"reason","label":"Reason","format":"warning"}]'
+            ELSE '[{"source":"context","key":"tool_name","label":"Tool","format":"text"},{"source":"context","key":"connection_name","label":"Connection","format":"text"},{"source":"context","key":"original_query","label":"User query","format":"text"},{"source":"outcome","key":"original_content","label":"Original output","format":"pre"},{"source":"outcome","key":"stripped_content","label":"Stripped content","format":"danger"}]'
+          END,
+          actions = '[{"type":"flag","label":"Flag for review"},{"type":"dismiss","label":"Dismiss"}]'
+        WHERE display IS NULL
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
