@@ -33,6 +33,7 @@ export class DynamicPluginLoader implements PluginLoader {
           author: instance.author || '',
           version: instance.version || '0.0.0',
           stage: instance.stage,
+          icon: instance.icon || undefined,
           configSchema: instance.configSchema || { fields: [] },
         },
         instance,

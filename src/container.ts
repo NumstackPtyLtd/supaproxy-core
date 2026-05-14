@@ -270,9 +270,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   // List all available guardrails: core (from catalogues) + installed (from DB)
   async function listAvailableGuardrails(orgId: string) {
-    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
-    const toCore = (p: { id: string; name: string; description: string; stage: string; configSchema: Info['configSchema'] }): Info => ({
-      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', configSchema: p.configSchema,
+    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; icon?: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+    const toCore = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: Info['configSchema'] }): Info => ({
+      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', icon: p.icon, configSchema: p.configSchema,
     })
 
     const core: Info[] = [
@@ -288,6 +288,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
       description: ig.plugin_metadata.description,
       stage: ig.plugin_metadata.stage,
       source: 'marketplace' as const,
+      icon: ig.plugin_metadata.icon,
       configSchema: ig.plugin_metadata.configSchema,
     }))
 
