@@ -38,18 +38,20 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
     return c.json(result)
   })
 
-  // GET /api/guardrail-policies - list all policies, or get compliance for a specific plugin
+  // GET /api/guardrail-policies - list all policies for the org
   policies.get('/api/guardrail-policies', async (c) => {
     const user = c.get('user') as AuthUser
-    const pluginId = c.req.query('plugin')
-
-    if (pluginId) {
-      const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId)
-      return c.json({ compliance })
-    }
-
     const result = await deps.managePoliciesUseCase.listPolicies(user.org_id)
     return c.json({ policies: result })
+  })
+
+  // GET /api/guardrail-policies/compliance?plugin=pattern - workspace compliance for a specific plugin
+  policies.get('/api/guardrail-policies/compliance', async (c) => {
+    const user = c.get('user') as AuthUser
+    const pluginId = c.req.query('plugin')
+    if (!pluginId) return c.json({ error: 'plugin query param required' }, 400)
+    const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId)
+    return c.json({ compliance })
   })
 
   // PUT /api/guardrail-policies/:pluginId - set enforcement level
