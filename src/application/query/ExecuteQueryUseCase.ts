@@ -366,13 +366,15 @@ export class ExecuteQueryUseCase {
             if (!railResult.allowed) {
               log.info({ tool: tu.name, reason: railResult.reason }, 'Tool call blocked by execution rail')
               toolResults.push({ type: 'tool_result', id: tu.id, text: `Tool call blocked: ${railResult.reason}` })
+              const plugin = railResult.pluginId ? config.executionRails!.list().find(p => p.id === railResult.pluginId) : undefined
               this.writeGuardrailEvent({
                 id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
-                event_type: 'execution_blocked', plugin_id: 'write-guard',
-                tool_name: tu.name!, tool_args: JSON.stringify(tu.input).substring(0, 500),
-                connection_name: connName,
-                original_query: query, reason: railResult.reason || null,
-                original_content: null, stripped_content: null,
+                event_type: 'execution_blocked', plugin_id: railResult.pluginId || 'unknown',
+                context: { tool_name: tu.name!, tool_args: JSON.stringify(tu.input).substring(0, 500), connection_name: connName, original_query: query },
+                outcome: { reason: railResult.reason || null },
+                display: plugin?.eventDisplay || [],
+                actions: plugin?.eventActions || [],
+                status: 'open',
               })
               continue
             }
@@ -389,14 +391,15 @@ export class ExecuteQueryUseCase {
             if (config.retrievalRails) {
               const sanitised = await config.retrievalRails.sanitise(resultText)
               if (sanitised.stripped.length > 0) {
+                const plugin = sanitised.pluginId ? config.retrievalRails!.list().find(p => p.id === sanitised.pluginId) : undefined
                 this.writeGuardrailEvent({
                   id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
-                  event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser',
-                  tool_name: tu.name!, tool_args: null,
-                  connection_name: connName,
-                  original_query: query, reason: null,
-                  original_content: resultText.substring(0, 1000),
-                  stripped_content: sanitised.stripped.join(', ').substring(0, 500),
+                  event_type: 'retrieval_stripped', plugin_id: sanitised.pluginId || 'unknown',
+                  context: { tool_name: tu.name!, connection_name: connName, original_query: query },
+                  outcome: { original_content: resultText.substring(0, 1000), stripped_content: sanitised.stripped.join(', ').substring(0, 500) },
+                  display: plugin?.eventDisplay || [],
+                  actions: plugin?.eventActions || [],
+                  status: 'open',
                 })
               }
               resultText = sanitised.content

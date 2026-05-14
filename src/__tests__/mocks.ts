@@ -271,5 +271,7 @@ export function mockGuardrailEventRepo(): GuardrailEventRepository {
   return {
     create: vi.fn().mockResolvedValue(undefined),
     findByWorkspace: vi.fn().mockResolvedValue([]),
+    findByWorkspaceFiltered: vi.fn().mockResolvedValue({ events: [], total: 0 }),
+    updateStatus: vi.fn().mockResolvedValue(undefined),
   }
 }

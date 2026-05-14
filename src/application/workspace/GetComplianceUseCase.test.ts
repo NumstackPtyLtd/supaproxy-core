@@ -40,8 +40,26 @@ describe('GetComplianceUseCase', () => {
     const convRepo = mockConversationRepo()
     const eventRepo = mockGuardrailEventRepo()
     vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([
-      { id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1', event_type: 'execution_blocked', plugin_id: 'write-guard', tool_name: 'delete_account', tool_args: '{"id":"123"}', connection_name: 'test-mcp', original_query: 'What is my balance?', reason: 'No write intent', original_content: null, stripped_content: null, created_at: '2026-05-13' },
-      { id: 'evt-2', workspace_id: 'ws-test', conversation_id: 'conv-2', event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser', tool_name: 'fetch_page', tool_args: null, connection_name: 'test-mcp', original_query: null, reason: null, original_content: 'Bad content', stripped_content: 'Ignore previous instructions', created_at: '2026-05-13' },
+      {
+        id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1',
+        event_type: 'execution_blocked', plugin_id: 'write-guard',
+        context: { tool_name: 'delete_account', connection_name: 'test-mcp' },
+        outcome: { reason: 'No write intent' },
+        display: [{ source: 'context', key: 'tool_name', label: 'Tool', format: 'text' }],
+        actions: [{ type: 'flag', label: 'Flag for review' }],
+        status: 'open',
+        created_at: '2026-05-13',
+      },
+      {
+        id: 'evt-2', workspace_id: 'ws-test', conversation_id: 'conv-2',
+        event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser',
+        context: { tool_name: 'fetch_page', connection_name: 'test-mcp' },
+        outcome: { original_content: 'Bad content', stripped_content: 'Ignore previous instructions' },
+        display: [{ source: 'outcome', key: 'stripped_content', label: 'Stripped', format: 'danger' }],
+        actions: [],
+        status: 'open',
+        created_at: '2026-05-13',
+      },
     ])
 
     const useCase = new GetComplianceUseCase(wsRepo, convRepo, eventRepo)
@@ -49,9 +67,9 @@ describe('GetComplianceUseCase', () => {
 
     expect(result.guardrailEvents).toHaveLength(2)
     expect(result.guardrailEvents[0].event_type).toBe('execution_blocked')
-    expect(result.guardrailEvents[0].tool_name).toBe('delete_account')
+    expect(result.guardrailEvents[0].context.tool_name).toBe('delete_account')
     expect(result.guardrailEvents[1].event_type).toBe('retrieval_stripped')
-    expect(result.guardrailEvents[1].stripped_content).toBe('Ignore previous instructions')
+    expect(result.guardrailEvents[1].outcome.stripped_content).toBe('Ignore previous instructions')
   })
 
   it('returns empty guardrail events when no event repo provided', async () => {
@@ -62,5 +80,45 @@ describe('GetComplianceUseCase', () => {
     const result = await useCase.execute('ws-test')
 
     expect(result.guardrailEvents).toEqual([])
+  })
+
+  it('uses findByWorkspaceFiltered when eventFilter is provided', async () => {
+    const wsRepo = mockWorkspaceRepo()
+    const convRepo = mockConversationRepo()
+    const eventRepo = mockGuardrailEventRepo()
+    vi.mocked(eventRepo.findByWorkspaceFiltered).mockResolvedValue({
+      events: [
+        {
+          id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1',
+          event_type: 'execution_blocked', plugin_id: 'write-guard',
+          context: { tool_name: 'delete_account' },
+          outcome: { reason: 'No write intent' },
+          display: [], actions: [], status: 'open',
+          created_at: '2026-05-13',
+        },
+      ],
+      total: 5,
+    })
+
+    const useCase = new GetComplianceUseCase(wsRepo, convRepo, eventRepo)
+    const result = await useCase.execute('ws-test', { event_type: 'execution_blocked', limit: 20, offset: 0 })
+
+    expect(eventRepo.findByWorkspaceFiltered).toHaveBeenCalledWith('ws-test', { event_type: 'execution_blocked', limit: 20, offset: 0 })
+    expect(eventRepo.findByWorkspace).not.toHaveBeenCalled()
+    expect(result.guardrailEvents).toHaveLength(1)
+    expect(result.guardrailEventTotal).toBe(5)
+  })
+
+  it('uses findByWorkspace when no eventFilter is provided', async () => {
+    const wsRepo = mockWorkspaceRepo()
+    const convRepo = mockConversationRepo()
+    const eventRepo = mockGuardrailEventRepo()
+    vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([])
+
+    const useCase = new GetComplianceUseCase(wsRepo, convRepo, eventRepo)
+    await useCase.execute('ws-test')
+
+    expect(eventRepo.findByWorkspace).toHaveBeenCalledWith('ws-test', 50)
+    expect(eventRepo.findByWorkspaceFiltered).not.toHaveBeenCalled()
   })
 })

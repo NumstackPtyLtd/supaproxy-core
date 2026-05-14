@@ -1,5 +1,5 @@
 import type mysql from 'mysql2/promise'
-import type { GuardrailEventRepository, GuardrailEventData } from '../../../domain/guardrail/repository.js'
+import type { GuardrailEventRepository, GuardrailEventData, GuardrailEventFilter, EventStatus } from '../../../domain/guardrail/repository.js'
 
 interface GuardrailEventRow extends mysql.RowDataPacket {
   id: string
@@ -7,14 +7,16 @@ interface GuardrailEventRow extends mysql.RowDataPacket {
   conversation_id: string | null
   event_type: string
   plugin_id: string
-  tool_name: string | null
-  tool_args: string | null
-  connection_name: string | null
-  original_query: string | null
-  reason: string | null
-  original_content: string | null
-  stripped_content: string | null
+  context: string | null
+  outcome: string | null
+  display: string | null
+  actions: string | null
+  status: string
   created_at: string
+}
+
+interface CountRow extends mysql.RowDataPacket {
+  total: number
 }
 
 export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
@@ -22,8 +24,8 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
 
   async create(data: GuardrailEventData): Promise<void> {
     await this.pool.execute(
-      `INSERT INTO guardrail_events (id, workspace_id, conversation_id, event_type, plugin_id, tool_name, tool_args, connection_name, original_query, reason, original_content, stripped_content) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [data.id, data.workspace_id, data.conversation_id, data.event_type, data.plugin_id, data.tool_name, data.tool_args, data.connection_name, data.original_query, data.reason, data.original_content, data.stripped_content],
+      `INSERT INTO guardrail_events (id, workspace_id, conversation_id, event_type, plugin_id, context, outcome, display, actions, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [data.id, data.workspace_id, data.conversation_id, data.event_type, data.plugin_id, JSON.stringify(data.context), JSON.stringify(data.outcome), JSON.stringify(data.display), JSON.stringify(data.actions), data.status],
     )
   }
 
@@ -32,20 +34,86 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
       `SELECT * FROM guardrail_events WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
       [workspaceId, String(limit)],
     )
-    return rows.map(r => ({
-      id: r.id,
-      workspace_id: r.workspace_id,
-      conversation_id: r.conversation_id,
-      event_type: r.event_type as GuardrailEventData['event_type'],
-      plugin_id: r.plugin_id,
-      tool_name: r.tool_name,
-      tool_args: r.tool_args,
-      connection_name: r.connection_name,
-      original_query: r.original_query,
-      reason: r.reason,
-      original_content: r.original_content,
-      stripped_content: r.stripped_content,
-      created_at: r.created_at,
-    }))
+    return rows.map(mapRow)
+  }
+
+  async findByWorkspaceFiltered(workspaceId: string, filter: GuardrailEventFilter): Promise<{ events: GuardrailEventData[]; total: number }> {
+    const { conditions, params } = this.buildWhere(workspaceId, filter)
+    const where = conditions.join(' AND ')
+    const limit = filter.limit ?? 20
+    const offset = filter.offset ?? 0
+
+    const [[countResult], [rows]] = await Promise.all([
+      this.pool.execute<CountRow[]>(`SELECT COUNT(*) AS total FROM guardrail_events WHERE ${where}`, params),
+      this.pool.execute<GuardrailEventRow[]>(
+        `SELECT * FROM guardrail_events WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, String(limit), String(offset)],
+      ),
+    ])
+
+    return { events: rows.map(mapRow), total: countResult[0]?.total ?? 0 }
+  }
+
+  async updateStatus(id: string, status: EventStatus): Promise<void> {
+    await this.pool.execute(
+      `UPDATE guardrail_events SET status = ? WHERE id = ?`,
+      [status, id],
+    )
+  }
+
+  private buildWhere(workspaceId: string, filter: GuardrailEventFilter): { conditions: string[]; params: string[] } {
+    const conditions: string[] = ['workspace_id = ?']
+    const params: string[] = [workspaceId]
+
+    if (filter.event_type) {
+      conditions.push('event_type = ?')
+      params.push(filter.event_type)
+    }
+
+    if (filter.status) {
+      conditions.push('status = ?')
+      params.push(filter.status)
+    }
+
+    if (filter.search) {
+      conditions.push(`(
+        plugin_id LIKE ? OR
+        JSON_UNQUOTE(JSON_EXTRACT(context, '$.tool_name')) LIKE ? OR
+        JSON_UNQUOTE(JSON_EXTRACT(context, '$.connection_name')) LIKE ? OR
+        JSON_UNQUOTE(JSON_EXTRACT(outcome, '$.reason')) LIKE ?
+      )`)
+      const term = `%${filter.search}%`
+      params.push(term, term, term, term)
+    }
+
+    return { conditions, params }
+  }
+}
+
+function parseJson(raw: string | object | null): Record<string, unknown> {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw as Record<string, unknown>
+  try { return JSON.parse(raw) } catch { return {} }
+}
+
+function parseJsonArray<T>(raw: string | T[] | null): T[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try { return JSON.parse(raw) } catch { return [] }
+}
+
+function mapRow(r: GuardrailEventRow): GuardrailEventData {
+  return {
+    id: r.id,
+    workspace_id: r.workspace_id,
+    conversation_id: r.conversation_id,
+    event_type: r.event_type as GuardrailEventData['event_type'],
+    plugin_id: r.plugin_id,
+    context: parseJson(r.context),
+    outcome: parseJson(r.outcome),
+    display: parseJsonArray(r.display),
+    actions: parseJsonArray(r.actions),
+    status: r.status as GuardrailEventData['status'],
+    created_at: r.created_at,
   }
 }
