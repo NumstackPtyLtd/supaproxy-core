@@ -565,11 +565,23 @@ const migrations: Migration[] = [
     version: 19,
     name: 'guardrail events display, actions, status, rename action to outcome',
     up: async (pool) => {
-      await pool.execute(`ALTER TABLE guardrail_events CHANGE COLUMN action outcome JSON`);
-      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN display JSON AFTER outcome`);
-      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN actions JSON AFTER display`);
-      await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN status ENUM('open', 'flagged', 'dismissed') NOT NULL DEFAULT 'open' AFTER actions`);
-      await pool.execute(`CREATE INDEX idx_status ON guardrail_events (workspace_id, status, created_at DESC)`);
+      // Check which columns exist (migration 18 may have run in full or partial form)
+      const [cols] = await pool.execute('SHOW COLUMNS FROM guardrail_events') as [Array<{ Field: string }>, unknown]
+      const fields = new Set(cols.map(c => c.Field))
+
+      if (fields.has('action') && !fields.has('outcome')) {
+        await pool.execute(`ALTER TABLE guardrail_events CHANGE COLUMN action outcome JSON`);
+      }
+      if (!fields.has('display')) {
+        await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN display JSON AFTER outcome`);
+      }
+      if (!fields.has('actions')) {
+        await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN actions JSON AFTER display`);
+      }
+      if (!fields.has('status')) {
+        await pool.execute(`ALTER TABLE guardrail_events ADD COLUMN status ENUM('open', 'flagged', 'dismissed') NOT NULL DEFAULT 'open' AFTER actions`);
+        await pool.execute(`CREATE INDEX idx_status ON guardrail_events (workspace_id, status, created_at DESC)`);
+      }
       // Backfill display for existing events
       await pool.execute(`
         UPDATE guardrail_events SET
