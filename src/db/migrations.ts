@@ -594,6 +594,65 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 20,
+    name: 'guardrail policies table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS guardrail_policies (
+          id VARCHAR(64) PRIMARY KEY,
+          org_id VARCHAR(64) NOT NULL,
+          plugin_id VARCHAR(64) NOT NULL,
+          enforcement ENUM('mandatory', 'recommended', 'off') NOT NULL DEFAULT 'off',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_org_plugin (org_id, plugin_id),
+          FOREIGN KEY (org_id) REFERENCES organisations(id) ON DELETE CASCADE
+        )
+      `);
+    },
+  },
+  {
+    version: 21,
+    name: 'guardrail policy overrides table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS guardrail_policy_overrides (
+          id VARCHAR(64) PRIMARY KEY,
+          policy_id VARCHAR(64) NOT NULL,
+          workspace_id VARCHAR(64) NOT NULL,
+          justification TEXT NOT NULL,
+          created_by VARCHAR(64) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_policy_workspace (policy_id, workspace_id),
+          FOREIGN KEY (policy_id) REFERENCES guardrail_policies(id) ON DELETE CASCADE,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+          FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+    },
+  },
+  {
+    version: 22,
+    name: 'installed guardrails table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS installed_guardrails (
+          id VARCHAR(64) PRIMARY KEY,
+          org_id VARCHAR(64) NOT NULL,
+          plugin_id VARCHAR(100) NOT NULL,
+          package_name VARCHAR(255) NOT NULL,
+          package_version VARCHAR(50) NOT NULL,
+          plugin_metadata JSON NOT NULL,
+          installed_by VARCHAR(64) NOT NULL,
+          installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_org_plugin (org_id, plugin_id),
+          FOREIGN KEY (org_id) REFERENCES organisations(id) ON DELETE CASCADE,
+          FOREIGN KEY (installed_by) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

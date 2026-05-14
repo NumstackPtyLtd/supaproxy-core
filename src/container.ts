@@ -10,7 +10,7 @@ import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlMo
 import { BcryptPasswordService } from './infrastructure/auth/BcryptPasswordService.js'
 import { JwtTokenService } from './infrastructure/auth/JwtTokenService.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
-import { PatternGuardrail, LlmGuardrail, type GuardrailPlugin, ExecutionRailRegistry, WriteGuardRail, RetrievalRailRegistry, InjectionSanitiser } from '@supaproxy/guardrails'
+import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue, type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
@@ -18,6 +18,11 @@ import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerP
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
 import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
 import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
+import { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
+import { MysqlInstalledGuardrailRepository } from './infrastructure/persistence/mysql/MysqlInstalledGuardrailRepository.js'
+import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoader.js'
+import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
+import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
@@ -80,6 +85,13 @@ import { RouteMessageUseCase } from './application/routing/RouteMessageUseCase.j
 // Application - Queue
 import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
 
+// Application - Guardrail policies
+import { ManagePoliciesUseCase } from './application/guardrail/ManagePoliciesUseCase.js'
+import { GetSecurityOverviewUseCase } from './application/guardrail/GetSecurityOverviewUseCase.js'
+import { CreatePolicyOverrideUseCase } from './application/guardrail/CreatePolicyOverrideUseCase.js'
+import { InstallGuardrailUseCase } from './application/guardrail/InstallGuardrailUseCase.js'
+import { UninstallGuardrailUseCase } from './application/guardrail/UninstallGuardrailUseCase.js'
+
 // Presentation
 import { createRequireAuth } from './presentation/middleware/auth.js'
 import { createAuthRoutes } from './presentation/routes/auth.js'
@@ -91,6 +103,8 @@ import { createQueryRoutes } from './presentation/routes/query.js'
 import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
+import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
+import { createInstalledGuardrailRoutes } from './presentation/routes/installedGuardrails.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
   // Tenant service: defaults to NoOp (single-tenant) for open-source.
@@ -135,6 +149,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
+  const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
+  const installedGuardrailRepo = new MysqlInstalledGuardrailRepository(pool)
+  const pluginLoader = new DynamicPluginLoader()
   const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo)
@@ -203,67 +220,98 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
-  // Guardrails: resolved per workspace at query time.
-  // Only enabled guardrails run. Config is loaded from workspace_guardrails table.
-  const patternInstance = new PatternGuardrail()
-  const availableGuardrails: Record<string, { instance: GuardrailPlugin; factory: () => GuardrailPlugin }> = {
-    'pattern': { instance: patternInstance, factory: () => new PatternGuardrail() },
-  }
+  // Guardrails: resolved per workspace at query time from package catalogues.
+  // The server never imports concrete plugin classes. It discovers them
+  // from the registries that plugins populate at import time.
 
   async function resolveGuardrails(workspaceId: string): Promise<GuardrailPlugin[]> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) enabledIds.add(id)
+
     const plugins: GuardrailPlugin[] = []
-    for (const { guardrail_id } of configs) {
-      const entry = availableGuardrails[guardrail_id]
-      if (entry) {
-        plugins.push(entry.factory())
-      }
+    for (const id of enabledIds) {
+      const factory = guardrailRegistry.has(id) ? () => {
+        // Create a fresh instance from the registered prototype's constructor
+        const proto = guardrailRegistry.get(id)
+        return new (proto.constructor as new () => GuardrailPlugin)()
+      } : null
+      if (factory) plugins.push(factory())
     }
     return plugins
   }
 
-  // Static instances for listing available guardrails (not for execution)
-  const writeGuardInstance = new WriteGuardRail()
-  const injectionSanitiserInstance = new InjectionSanitiser()
+  async function getEnforcedPluginIds(workspaceId: string): Promise<string[]> {
+    const ws = await workspaceRepo.findById(workspaceId)
+    if (!ws?.org_id) return []
 
-  function listAvailableGuardrails() {
-    const pipeline = Object.entries(availableGuardrails).map(([id, { instance }]) => ({
-      id,
-      name: instance.name,
-      description: instance.description,
-      stage: instance.stage,
-      configSchema: instance.configSchema,
+    const [mandatory, recommended, overrides] = await Promise.all([
+      guardrailPolicyRepo.findMandatoryPlugins(ws.org_id),
+      guardrailPolicyRepo.findRecommendedPlugins(ws.org_id),
+      guardrailPolicyRepo.findOverridesForWorkspace(workspaceId),
+    ])
+
+    const overriddenPlugins = new Set(overrides.map(o => o.plugin_id))
+    const enforced = [...mandatory]
+    for (const pluginId of recommended) {
+      if (!overriddenPlugins.has(pluginId)) enforced.push(pluginId)
+    }
+    return enforced
+  }
+
+  // Core plugin IDs: derived from catalogues, never hardcoded
+  const corePluginIds = new Set([
+    ...guardrailRegistry.list().map(p => p.id),
+    ...executionCatalogue.list().map(p => p.id),
+    ...retrievalCatalogue.list().map(p => p.id),
+  ])
+
+  // List all available guardrails: core (from catalogues) + installed (from DB)
+  async function listAvailableGuardrails(orgId: string) {
+    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+    const toCore = (p: { id: string; name: string; description: string; stage: string; configSchema: Info['configSchema'] }): Info => ({
+      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', configSchema: p.configSchema,
+    })
+
+    const core: Info[] = [
+      ...guardrailRegistry.list().map(toCore),
+      ...executionCatalogue.list().map(toCore),
+      ...retrievalCatalogue.list().map(toCore),
+    ]
+
+    const installed = await installedGuardrailRepo.findByOrg(orgId)
+    const marketplace: Info[] = installed.map(ig => ({
+      id: ig.plugin_id,
+      name: ig.plugin_metadata.name,
+      description: ig.plugin_metadata.description,
+      stage: ig.plugin_metadata.stage,
+      source: 'marketplace' as const,
+      configSchema: ig.plugin_metadata.configSchema,
     }))
 
-    const execution = [writeGuardInstance].map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      stage: p.stage,
-      configSchema: p.configSchema,
-    }))
-
-    const retrieval = [injectionSanitiserInstance].map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      stage: p.stage,
-      configSchema: p.configSchema,
-    }))
-
-    return [...pipeline, ...execution, ...retrieval]
+    return [...core, ...marketplace]
   }
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
-  // Execution and retrieval rails: resolved per workspace from enabled guardrails
+  // Execution and retrieval rails: resolved per workspace from catalogues + org policies
   async function resolveExecutionRails(workspaceId: string): Promise<ExecutionRailRegistry | null> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = configs.map(c => c.guardrail_id)
-    if (!enabledIds.includes('write-guard')) return null
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) enabledIds.add(id)
+
+    // Find which execution rail plugins are enabled for this workspace
+    const matchedPlugins = executionCatalogue.list().filter(p => enabledIds.has(p.id))
+    if (matchedPlugins.length === 0) return null
+
     const reg = new ExecutionRailRegistry()
-    reg.register(new WriteGuardRail())
+    for (const proto of matchedPlugins) {
+      reg.register(new (proto.constructor as new () => typeof proto)())
+    }
     reg.on((event) => {
       if (!event.result.allowed) {
         log.warn({ plugin: event.pluginId, tool: event.ctx.toolName, workspace: event.ctx.workspaceId, reason: event.result.reason }, 'Tool call blocked by execution rail')
@@ -274,10 +322,17 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   async function resolveRetrievalRails(workspaceId: string): Promise<RetrievalRailRegistry | null> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = configs.map(c => c.guardrail_id)
-    if (!enabledIds.includes('injection-sanitiser')) return null
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) enabledIds.add(id)
+
+    const matchedPlugins = retrievalCatalogue.list().filter(p => enabledIds.has(p.id))
+    if (matchedPlugins.length === 0) return null
+
     const reg = new RetrievalRailRegistry()
-    reg.register(new InjectionSanitiser())
+    for (const proto of matchedPlugins) {
+      reg.register(new (proto.constructor as new () => typeof proto)())
+    }
     reg.on((event) => {
       log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
     })
@@ -285,7 +340,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
 
   const guardrailEventRepo = new MysqlGuardrailEventRepository(pool)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo)
+  const preQueryGuardDeps = new PreQueryGuardDepsImpl(pool, REDIS_HOST, REDIS_PORT)
+  const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
@@ -293,7 +350,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   // Build routes
   const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
@@ -301,6 +358,17 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const routeRoutes = createRouteRoutes({ routeMessageUseCase, requireAuth })
   const savePromptUseCase = new SavePromptUseCase(promptTemplateRepo)
   const promptRoutes = createPromptRoutes({ promptResolver, promptRepo: promptTemplateRepo, savePromptUseCase, requireAuth })
+
+  // Guardrail policies
+  const managePoliciesUseCase = new ManagePoliciesUseCase(guardrailPolicyRepo)
+  const getSecurityOverviewUseCase = new GetSecurityOverviewUseCase(guardrailPolicyRepo)
+  const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
+  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, requireAuth })
+
+  // Installed guardrails (marketplace)
+  const installGuardrailUseCase = new InstallGuardrailUseCase(installedGuardrailRepo, pluginLoader, corePluginIds)
+  const uninstallGuardrailUseCase = new UninstallGuardrailUseCase(installedGuardrailRepo, corePluginIds)
+  const installedGuardrailRoutes = createInstalledGuardrailRoutes({ installGuardrailUseCase, uninstallGuardrailUseCase, installedGuardrailRepo, requireAuth })
 
   const container = {
     // Infrastructure
@@ -319,8 +387,10 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     manageConversationUseCase, lifecycleUseCase,
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
     executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
+    managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
+    installGuardrailUseCase, uninstallGuardrailUseCase,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, installedGuardrailRoutes,
   }
 
   return container

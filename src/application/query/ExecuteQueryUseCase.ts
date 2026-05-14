@@ -16,6 +16,7 @@ import { IS_PRODUCTION } from '../../config.js'
 import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
+import type { PreQueryGuardService } from './PreQueryGuardService.js'
 import { safeJsonParse } from '../../shared/json.js'
 import pino from 'pino'
 
@@ -89,6 +90,7 @@ export class ExecuteQueryUseCase {
     private readonly resolveExecutionRails: (workspaceId: string) => Promise<ExecutionRailRegistry | null> = async () => null,
     private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
     private readonly guardrailEventRepo?: GuardrailEventRepository,
+    private readonly preQueryGuard?: PreQueryGuardService,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -125,6 +127,20 @@ export class ExecuteQueryUseCase {
         conversationId,
         sessionId,
       })
+    }
+
+    // ── Pre-query enforcement (cost caps, rate limits, blocked topics) ──
+    if (this.preQueryGuard) {
+      const guard = await this.preQueryGuard.checkQuery(workspaceId, meta.userId, query)
+      if (!guard.allowed) {
+        return this.buildResult({
+          answer: guard.reason || 'This query was blocked by a compliance policy.',
+          error: guard.code || 'pre_query_blocked',
+          durationMs: Date.now() - startTime,
+          conversationId,
+          sessionId,
+        })
+      }
     }
 
     // ── Input guardrail pipeline ──

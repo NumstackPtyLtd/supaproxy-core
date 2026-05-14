@@ -13,6 +13,8 @@ import type { ModelRepository } from '../application/ports/ModelRepository.js'
 import type { ConsumerPosterRegistry } from '../application/ports/ConsumerPoster.js'
 import type { PromptTemplateRepository } from '../domain/prompt/repository.js'
 import type { GuardrailEventRepository } from '../domain/guardrail/repository.js'
+import type { GuardrailPolicyRepository } from '../domain/guardrail/policyRepository.js'
+import type { InstalledGuardrailRepository } from '../domain/guardrail/installedGuardrailRepository.js'
 
 // ── Stub data ──
 
@@ -273,5 +275,34 @@ export function mockGuardrailEventRepo(): GuardrailEventRepository {
     findByWorkspace: vi.fn().mockResolvedValue([]),
     findByWorkspaceFiltered: vi.fn().mockResolvedValue({ events: [], total: 0 }),
     updateStatus: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+export function mockGuardrailPolicyRepo(): GuardrailPolicyRepository {
+  return {
+    listByOrg: vi.fn().mockResolvedValue([]),
+    findByOrgAndPlugin: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue(undefined),
+    getComplianceForPolicy: vi.fn().mockResolvedValue([]),
+    findOverride: vi.fn().mockResolvedValue(null),
+    createOverride: vi.fn().mockResolvedValue(undefined),
+    deleteOverride: vi.fn().mockResolvedValue(undefined),
+    getOrgEventStats: vi.fn().mockResolvedValue({
+      total_events: 0, blocked_events: 0, stripped_events: 0, flagged_events: 0,
+      events_by_day: [], top_workspaces: [], recent_flagged: [],
+      compliance_score: 100, total_workspaces: 0, compliant_workspaces: 0,
+    }),
+    findMandatoryPlugins: vi.fn().mockResolvedValue([]),
+    findRecommendedPlugins: vi.fn().mockResolvedValue([]),
+    findOverridesForWorkspace: vi.fn().mockResolvedValue([]),
+  }
+}
+
+export function mockInstalledGuardrailRepo(): InstalledGuardrailRepository {
+  return {
+    findByOrg: vi.fn().mockResolvedValue([]),
+    findByOrgAndPlugin: vi.fn().mockResolvedValue(null),
+    install: vi.fn().mockResolvedValue(undefined),
+    uninstall: vi.fn().mockResolvedValue(undefined),
   }
 }
