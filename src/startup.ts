@@ -14,13 +14,12 @@ const log = pino({ name: 'startup' })
  * Auto-start all registered consumers that have org-level credentials configured.
  * Iterates the plugin registry. No consumer-specific logic here.
  *
- * Message routing strategy:
- * 1. Try channel binding (channel_id → workspace_id lookup)
- * 2. If no binding found, fall back to the routing layer (receptionist pattern)
- * 3. If no routing layer (no org), use channel as workspace ID (legacy fallback)
+ * Message routing strategy (via entry_points table):
+ * 1. Look up entry_point for the incoming channel
+ * 2. If routing_mode = 'direct', execute against the bound workspace
+ * 3. Otherwise (receptionist mode or no entry_point), route through the receptionist
  */
 export async function startConsumers(container: Container): Promise<void> {
-  // Resolve org_id once for routing (single-tenant)
   const orgId = await container.orgRepo.getFirstOrgId()
 
   for (const plugin of container.consumerRegistry.list()) {
@@ -47,21 +46,19 @@ export async function startConsumers(container: Container): Promise<void> {
         continue
       }
 
-      const getWorkspace = async (channelId: string): Promise<Workspace | null> => {
-        const consumers = await container.workspaceRepo.findConsumersByType(plugin.type)
-        for (const row of consumers) {
-          const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config
-          if ((cfg.channels || []).includes(channelId)) return { id: row.workspace_id, name: '' }
-        }
-        return null
+      // Auto-activate integration record for this consumer type
+      if (orgId) {
+        await container.manageIntegrationUseCase.activate(orgId, plugin.type)
       }
 
       await plugin.start({
         onMessage: async (msg: IncomingMessage) => {
-          // 1. Try channel binding first
-          const ws = await getWorkspace(msg.channel)
-          if (ws) {
-            const result = await container.executeQueryUseCase.execute(ws.id, msg.query, {
+          // Resolve routing via entry_points
+          const routing = await container.manageEntryPointUseCase.resolveRouting(msg.consumerType, msg.channel)
+
+          if (routing.mode === 'direct' && routing.workspaceId) {
+            // Direct routing: bypass receptionist
+            const result = await container.executeQueryUseCase.execute(routing.workspaceId, msg.query, {
               consumerType: msg.consumerType,
               channel: msg.channel,
               userId: msg.userId,
@@ -71,10 +68,11 @@ export async function startConsumers(container: Container): Promise<void> {
             return { answer: result.answer, conversationId: result.conversationId || '' }
           }
 
-          // 2. No channel binding: use routing layer if available
-          if (orgId) {
+          // Receptionist routing (default)
+          const routingOrgId = routing.orgId || orgId
+          if (routingOrgId) {
             const result = await container.routeMessageUseCase.execute({
-              orgId,
+              orgId: routingOrgId,
               query: msg.query,
               consumerType: msg.consumerType,
               entryPoint: msg.channel,
@@ -84,19 +82,16 @@ export async function startConsumers(container: Container): Promise<void> {
             return { answer: result.answer, conversationId: result.conversationId }
           }
 
-          // 3. Legacy fallback: use channel as workspace ID
-          const result = await container.executeQueryUseCase.execute(msg.channel, msg.query, {
-            consumerType: msg.consumerType,
-            channel: msg.channel,
-            userId: msg.userId,
-            userName: msg.userName,
-            sessionId: msg.threadId,
-          })
-          return { answer: result.answer, conversationId: result.conversationId || '' }
+          // No org: cannot route
+          return { answer: 'No organisation configured. Please complete setup.', conversationId: '' }
         },
         onError: (err: Error) => log.error({ type: plugin.type, error: err.message }, 'Consumer error'),
         logger: log,
-        getWorkspaceForChannel: getWorkspace,
+        getWorkspaceForChannel: async (_channelId: string): Promise<Workspace | null> => {
+          // Legacy callback required by the consumer plugin interface.
+          // With the new entry_points model, routing is handled in onMessage.
+          return null
+        },
       }, credentials)
 
       if (plugin.sendMessage) {

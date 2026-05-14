@@ -74,6 +74,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   app.route('/', container.promptRoutes)
   app.route('/', container.guardrailPolicyRoutes)
   app.route('/', container.installedGuardrailRoutes)
+  app.route('/', container.integrationRoutes)
 
   // WhatsApp webhook (no auth; Meta needs direct access)
   app.get('/api/webhooks/whatsapp', async (c) => {

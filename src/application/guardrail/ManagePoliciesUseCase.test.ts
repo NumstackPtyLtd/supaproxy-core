@@ -88,8 +88,8 @@ describe('ManagePoliciesUseCase', () => {
       const existing: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: '@supaproxy/guardrails:pattern', enforcement: 'mandatory' }
       vi.mocked(policyRepo.findByOrgAndPlugin).mockResolvedValue(existing)
       vi.mocked(policyRepo.getComplianceForPolicy).mockResolvedValue([
-        { workspace_id: 'ws-1', workspace_name: 'General', enabled: true, has_override: false },
-        { workspace_id: 'ws-2', workspace_name: 'Sales', enabled: false, has_override: false },
+        { workspace_id: 'ws-1', workspace_name: 'General', enabled: true, has_override: false, is_default: true },
+        { workspace_id: 'ws-2', workspace_name: 'Sales', enabled: false, has_override: false, is_default: false },
       ])
 
       const result = await useCase.getCompliance('org-1', '@supaproxy/guardrails:pattern')
