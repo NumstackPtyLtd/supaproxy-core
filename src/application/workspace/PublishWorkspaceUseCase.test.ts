@@ -27,6 +27,13 @@ describe('PublishWorkspaceUseCase', () => {
     expect(workspaceRepo.unsetDefault).toHaveBeenCalledWith('ws-1')
   })
 
+  it('rejects unpublishing #general', async () => {
+    const { workspaceRepo, useCase } = setup()
+    vi.mocked(workspaceRepo.findById).mockResolvedValue(stubWorkspace({ id: 'ws-1', name: '#general', is_default: true }))
+
+    await expect(useCase.execute('ws-1', false)).rejects.toThrow('#general')
+  })
+
   it('rejects if workspace not found', async () => {
     const { workspaceRepo, useCase } = setup()
     vi.mocked(workspaceRepo.findById).mockResolvedValue(null)
