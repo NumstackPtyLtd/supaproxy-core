@@ -132,6 +132,8 @@ export function mockWorkspaceRepo(): WorkspaceRepository {
     findDefaultByOrg: vi.fn().mockResolvedValue(null),
     listRoutingSummaries: vi.fn().mockResolvedValue([]),
     setDefault: vi.fn().mockResolvedValue(undefined),
+    unsetDefault: vi.fn().mockResolvedValue(undefined),
+    deleteWorkspace: vi.fn().mockResolvedValue(undefined),
   }
 }
 

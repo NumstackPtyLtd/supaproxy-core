@@ -332,4 +332,14 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
       'UPDATE workspaces SET is_default = TRUE WHERE id = ?', [id]
     )
   }
+
+  async unsetDefault(id: string): Promise<void> {
+    await this.pool.execute(
+      'UPDATE workspaces SET is_default = FALSE WHERE id = ?', [id]
+    )
+  }
+
+  async deleteWorkspace(id: string): Promise<void> {
+    await this.pool.execute('DELETE FROM workspaces WHERE id = ?', [id])
+  }
 }

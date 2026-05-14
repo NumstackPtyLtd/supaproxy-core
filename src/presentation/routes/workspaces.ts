@@ -12,6 +12,8 @@ import type { DeleteConnectionUseCase } from '../../application/workspace/Delete
 import type { GetConnectionsUseCase } from '../../application/workspace/GetConnectionsUseCase.js'
 import type { GetKnowledgeUseCase } from '../../application/workspace/GetKnowledgeUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
+import type { DeleteWorkspaceUseCase } from '../../application/workspace/DeleteWorkspaceUseCase.js'
+import type { PublishWorkspaceUseCase } from '../../application/workspace/PublishWorkspaceUseCase.js'
 import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
@@ -19,7 +21,7 @@ import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ConflictError } from '../../domain/shared/errors.js'
+import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
 import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
 
 const log = pino({ name: 'routes/workspaces' })
@@ -55,6 +57,8 @@ interface WorkspaceRouteDeps {
   getConnectionsUseCase: GetConnectionsUseCase
   getKnowledgeUseCase: GetKnowledgeUseCase
   getComplianceUseCase: GetComplianceUseCase
+  deleteWorkspaceUseCase: DeleteWorkspaceUseCase
+  publishWorkspaceUseCase: PublishWorkspaceUseCase
   guardrailEventRepo: GuardrailEventRepository
   guardrailPolicyRepo: GuardrailPolicyRepository
   listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>>
@@ -228,6 +232,47 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     await guardWorkspace(c.req.param('id'), user.org_id)
     const result = await deps.getDashboardUseCase.execute(c.req.param('id'))
     return c.json(result)
+  })
+
+  // ── Delete workspace ──
+
+  workspaces.delete('/api/workspaces/:id', async (c) => {
+    const user = c.get('user') as AuthUser
+    try {
+      await guardWorkspace(c.req.param('id'), user.org_id)
+      await deps.deleteWorkspaceUseCase.execute(c.req.param('id'))
+      return c.json({ status: 'ok' })
+    } catch (err) {
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      throw err
+    }
+  })
+
+  // ── Publish / Unpublish ──
+
+  workspaces.post('/api/workspaces/:id/publish', async (c) => {
+    const user = c.get('user') as AuthUser
+    try {
+      await guardWorkspace(c.req.param('id'), user.org_id)
+      await deps.publishWorkspaceUseCase.execute(c.req.param('id'), true)
+      return c.json({ status: 'ok' })
+    } catch (err) {
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      throw err
+    }
+  })
+
+  workspaces.post('/api/workspaces/:id/unpublish', async (c) => {
+    const user = c.get('user') as AuthUser
+    try {
+      await guardWorkspace(c.req.param('id'), user.org_id)
+      await deps.publishWorkspaceUseCase.execute(c.req.param('id'), false)
+      return c.json({ status: 'ok' })
+    } catch (err) {
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      throw err
+    }
   })
 
   // ── Guardrails ──

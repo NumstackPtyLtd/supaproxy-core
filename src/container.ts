@@ -57,6 +57,8 @@ import { GetWorkspaceSummaryUseCase } from './application/workspace/GetWorkspace
 import { GetDashboardUseCase } from './application/workspace/GetDashboardUseCase.js'
 import { GetActivityUseCase } from './application/workspace/GetActivityUseCase.js'
 import { DeleteConnectionUseCase } from './application/workspace/DeleteConnectionUseCase.js'
+import { DeleteWorkspaceUseCase } from './application/workspace/DeleteWorkspaceUseCase.js'
+import { PublishWorkspaceUseCase } from './application/workspace/PublishWorkspaceUseCase.js'
 import { GetConnectionsUseCase } from './application/workspace/GetConnectionsUseCase.js'
 import { GetKnowledgeUseCase } from './application/workspace/GetKnowledgeUseCase.js'
 import { GetComplianceUseCase } from './application/workspace/GetComplianceUseCase.js'
@@ -147,6 +149,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const getDashboardUseCase = new GetDashboardUseCase(conversationRepo)
   const getActivityUseCase = new GetActivityUseCase(workspaceRepo)
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
+  const deleteWorkspaceUseCase = new DeleteWorkspaceUseCase(workspaceRepo)
+  const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
   const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
@@ -351,7 +355,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   // Build routes
   const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
