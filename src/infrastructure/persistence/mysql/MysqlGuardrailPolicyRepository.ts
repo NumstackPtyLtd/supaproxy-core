@@ -30,6 +30,7 @@ interface ComplianceRow extends mysql.RowDataPacket {
   workspace_name: string
   enabled: number
   has_override: number
+  is_default: number
 }
 
 interface CountRow extends mysql.RowDataPacket {
@@ -114,7 +115,8 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
          w.id AS workspace_id,
          w.name AS workspace_name,
          CASE WHEN wg.id IS NOT NULL AND wg.enabled = 1 THEN 1 ELSE 0 END AS enabled,
-         CASE WHEN gpo.id IS NOT NULL THEN 1 ELSE 0 END AS has_override
+         CASE WHEN gpo.id IS NOT NULL THEN 1 ELSE 0 END AS has_override,
+         CASE WHEN w.is_default = 1 THEN 1 ELSE 0 END AS is_default
        FROM workspaces w
        LEFT JOIN workspace_guardrails wg ON wg.workspace_id = w.id AND wg.guardrail_id = ?
        LEFT JOIN guardrail_policy_overrides gpo ON gpo.policy_id = ? AND gpo.workspace_id = w.id
@@ -127,6 +129,7 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
       workspace_name: r.workspace_name,
       enabled: r.enabled === 1,
       has_override: r.has_override === 1,
+      is_default: r.is_default === 1,
     }))
   }
 

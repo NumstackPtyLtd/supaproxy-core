@@ -23,6 +23,7 @@ export interface PolicyComplianceRow {
   workspace_name: string
   enabled: boolean
   has_override: boolean
+  is_default: boolean
 }
 
 export interface SecurityOverviewStats {
