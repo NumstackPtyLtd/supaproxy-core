@@ -27,8 +27,8 @@ dependencies:
     specifier: ^0.2.1
     version: 0.2.1(zod@3.25.76)
   '@supaproxy/consumers':
-    specifier: ^0.3.0
-    version: 0.3.0(@slack/bolt@4.7.0)
+    specifier: ^0.4.1
+    version: 0.4.1(@slack/bolt@4.7.0)
   '@supaproxy/guardrails':
     specifier: ^0.6.0
     version: 0.6.0
@@ -892,8 +892,8 @@ packages:
       - zod
     dev: false
 
-  /@supaproxy/consumers@0.3.0(@slack/bolt@4.7.0):
-    resolution: {integrity: sha512-IratawsWmaq1kKgS56dtLPoCzrEswIEH0glCc9sYaJc4LthUpGgKQ8ukZc4pvXGqEVEz+u8aKEdlVpIqe7iOSA==}
+  /@supaproxy/consumers@0.4.1(@slack/bolt@4.7.0):
+    resolution: {integrity: sha512-NBuxHM66w6u/ZfDJh+vBflglD9H5YNXN7DnJLmw/ioMsjpRiNqq1A0OED0ePynRsWUfGsHOXTrCq9/XVxNItgw==}
     peerDependencies:
       '@slack/bolt': ^4.0.0
     peerDependenciesMeta:

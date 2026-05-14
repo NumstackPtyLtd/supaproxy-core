@@ -25,7 +25,7 @@
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@slack/bolt": "^4.2.0",
     "@supaproxy/connections": "^0.2.1",
-    "@supaproxy/consumers": "^0.3.0",
+    "@supaproxy/consumers": "^0.4.1",
     "@supaproxy/guardrails": "^0.6.0",
     "@supaproxy/providers": "0.1.2",
     "bcrypt": "^6.0.0",
