@@ -99,7 +99,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       log.info({ workspace: ws.id, name: ws.name }, 'Workspace created')
       return c.json(ws)
     } catch (err) {
-      if (err instanceof ConflictError) return c.json({ error: err.message }, 400)
+      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
       throw err
     }
   })
@@ -244,7 +244,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       return c.json({ status: 'ok' })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
   })

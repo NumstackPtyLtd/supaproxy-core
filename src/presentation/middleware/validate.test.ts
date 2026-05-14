@@ -44,7 +44,7 @@ describe('parseBody', () => {
     })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('Validation failed')
+    expect(body.error).toBe('validation_failed')
     expect(body.fields.name).toBe('Name is required')
   })
 
@@ -55,7 +55,7 @@ describe('parseBody', () => {
     })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('Validation failed')
+    expect(body.error).toBe('validation_failed')
   })
 
   it('returns 400 for invalid JSON', async () => {
@@ -98,7 +98,7 @@ describe('validationError', () => {
     const res = await app.request('/manual-error', { method: 'POST' })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error).toBe('Validation failed')
+    expect(body.error).toBe('validation_failed')
     expect(body.fields.email).toBe('Invalid email')
   })
 })

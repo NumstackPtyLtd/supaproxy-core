@@ -71,7 +71,7 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
   policies.get('/api/guardrail-policies/compliance', async (c) => {
     const user = c.get('user') as AuthUser
     const pluginId = c.req.query('plugin')
-    if (!pluginId) return c.json({ error: 'plugin query param required' }, 400)
+    if (!pluginId) return c.json({ error: 'missing_plugin_param' }, 400)
     const search = c.req.query('search') || undefined
     const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId, search)
     return c.json({ compliance })
@@ -88,7 +88,7 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
       await deps.managePoliciesUseCase.setEnforcement(user.org_id, pluginId, body.data.enforcement)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
   })
@@ -110,9 +110,9 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
       })
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       if (err instanceof NotFoundError) return c.json({ error: 'policy_not_found' }, 404)
-      if (err instanceof ConflictError) return c.json({ error: err.message }, 409)
+      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 409)
       throw err
     }
   })

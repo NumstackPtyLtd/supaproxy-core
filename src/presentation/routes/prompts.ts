@@ -79,7 +79,7 @@ export function createPromptRoutes(deps: PromptRouteDeps) {
 
       return c.json({ id: result.id, version: result.version })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
   })

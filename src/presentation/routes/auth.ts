@@ -59,7 +59,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
       log.info({ org: result.data.org_name, admin: result.data.admin_email, workspace: output.workspaceId }, 'Setup complete')
       return c.json({ status: 'ok', org_id: output.orgId, user_id: output.userId, workspace_id: output.workspaceId })
     } catch (err) {
-      if (err instanceof ConflictError) return c.json({ error: err.message }, 400)
+      if (err instanceof ConflictError) return c.json({ error: 'email_taken' }, 400)
       throw err
     }
   })
@@ -84,7 +84,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
 
     if (!email || !password) {
       if (isFormSubmit) return c.redirect(`${deps.dashboardUrl}/login?error=missing_fields`)
-      return c.json({ error: 'Email and password are required.' }, 400)
+      return c.json({ error: 'missing_fields' }, 400)
     }
 
     try {
@@ -104,7 +104,7 @@ export function createAuthRoutes(deps: AuthRouteDeps) {
     } catch (err) {
       if (err instanceof AuthenticationError) {
         if (isFormSubmit) return c.redirect(`${deps.dashboardUrl}/login?error=invalid_credentials`)
-        return c.json({ error: err.message }, 401)
+        return c.json({ error: 'invalid_credentials' }, 401)
       }
       throw err
     }

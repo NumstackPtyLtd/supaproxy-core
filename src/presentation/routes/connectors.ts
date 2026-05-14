@@ -30,9 +30,9 @@ interface ConnectorRouteDeps {
 }
 
 function handleDomainError(c: import('hono').Context, err: unknown) {
-  if (err instanceof NotFoundError) return c.json({ error: err.message }, 404)
-  if (err instanceof ConflictError) return c.json({ error: err.message }, 400)
-  if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+  if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+  if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
+  if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
   throw err
 }
 
@@ -76,9 +76,9 @@ export function createConnectorRoutes(deps: ConnectorRouteDeps) {
       })
       return c.json(output)
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
-      if (err instanceof NotFoundError) return c.json({ error: err.message }, 404)
-      return c.json({ error: (err as Error).message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      return c.json({ error: 'consumer_connect_failed' }, 400)
     }
   })
 

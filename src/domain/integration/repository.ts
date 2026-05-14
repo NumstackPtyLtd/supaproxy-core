@@ -1,5 +1,3 @@
-export type RoutingMode = 'receptionist' | 'direct'
-
 export interface IntegrationData {
   id: string
   org_id: string
@@ -14,7 +12,7 @@ export interface EntryPointData {
   integration_id: string
   channel_id: string
   channel_name: string | null
-  routing_mode: RoutingMode
+  direct: boolean
   direct_workspace_id: string | null
   created_at?: string
 }
@@ -37,7 +35,7 @@ export interface EntryPointRepository {
   findByChannel(type: string, channelId: string): Promise<EntryPointWithIntegration | null>
   findById(id: string): Promise<EntryPointData | null>
   create(data: EntryPointData): Promise<void>
-  update(id: string, data: { channel_name?: string; routing_mode?: RoutingMode; direct_workspace_id?: string | null }): Promise<void>
+  update(id: string, data: { channel_name?: string; direct?: boolean; direct_workspace_id?: string | null }): Promise<void>
   delete(id: string): Promise<void>
   findByOrg(orgId: string): Promise<Array<EntryPointData & { integration_type: string }>>
 }

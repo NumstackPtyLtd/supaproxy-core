@@ -15,7 +15,7 @@ describe('ManageEntryPointUseCase', () => {
     it('returns entry points for an integration', async () => {
       const { entryPointRepo, useCase } = setup()
       const eps: EntryPointData[] = [
-        { id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general', routing_mode: 'receptionist', direct_workspace_id: null },
+        { id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general', direct: false, direct_workspace_id: null },
       ]
       vi.mocked(entryPointRepo.findByIntegration).mockResolvedValue(eps)
 
@@ -25,7 +25,7 @@ describe('ManageEntryPointUseCase', () => {
   })
 
   describe('createEntryPoint', () => {
-    it('creates an entry point with receptionist mode by default', async () => {
+    it('creates an entry point with non-direct mode by default', async () => {
       const { integrationRepo, entryPointRepo, useCase } = setup()
       vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' })
 
@@ -36,26 +36,26 @@ describe('ManageEntryPointUseCase', () => {
           integration_id: 'i1',
           channel_id: 'C123',
           channel_name: '#support',
-          routing_mode: 'receptionist',
+          direct: false,
           direct_workspace_id: null,
         }),
       )
     })
 
-    it('creates an entry point with direct routing mode', async () => {
+    it('creates an entry point with direct mode', async () => {
       const { integrationRepo, entryPointRepo, useCase } = setup()
       vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' })
 
       await useCase.createEntryPoint('org-1', 'slack', {
         channel_id: 'C456',
         channel_name: '#billing',
-        routing_mode: 'direct',
+        direct: true,
         direct_workspace_id: 'ws-billing',
       })
 
       expect(entryPointRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          routing_mode: 'direct',
+          direct: true,
           direct_workspace_id: 'ws-billing',
         }),
       )
@@ -70,35 +70,35 @@ describe('ManageEntryPointUseCase', () => {
   })
 
   describe('updateEntryPoint', () => {
-    it('updates routing mode', async () => {
+    it('updates direct mode', async () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findById).mockResolvedValue({
         id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general',
-        routing_mode: 'receptionist', direct_workspace_id: null,
+        direct: false, direct_workspace_id: null,
       })
 
-      await useCase.updateEntryPoint('ep1', { routing_mode: 'direct', direct_workspace_id: 'ws-1' })
+      await useCase.updateEntryPoint('ep1', { direct: true, direct_workspace_id: 'ws-1' })
 
-      expect(entryPointRepo.update).toHaveBeenCalledWith('ep1', { routing_mode: 'direct', direct_workspace_id: 'ws-1' })
+      expect(entryPointRepo.update).toHaveBeenCalledWith('ep1', { direct: true, direct_workspace_id: 'ws-1' })
     })
 
     it('rejects if entry point not found', async () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findById).mockResolvedValue(null)
 
-      await expect(useCase.updateEntryPoint('ep-999', { routing_mode: 'direct' })).rejects.toThrow()
+      await expect(useCase.updateEntryPoint('ep-999', { direct: true })).rejects.toThrow()
     })
 
-    it('clears direct_workspace_id when switching to receptionist', async () => {
+    it('clears direct_workspace_id when switching to non-direct', async () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findById).mockResolvedValue({
         id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general',
-        routing_mode: 'direct', direct_workspace_id: 'ws-1',
+        direct: true, direct_workspace_id: 'ws-1',
       })
 
-      await useCase.updateEntryPoint('ep1', { routing_mode: 'receptionist' })
+      await useCase.updateEntryPoint('ep1', { direct: false })
 
-      expect(entryPointRepo.update).toHaveBeenCalledWith('ep1', { routing_mode: 'receptionist', direct_workspace_id: null })
+      expect(entryPointRepo.update).toHaveBeenCalledWith('ep1', { direct: false, direct_workspace_id: null })
     })
   })
 
@@ -107,7 +107,7 @@ describe('ManageEntryPointUseCase', () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findById).mockResolvedValue({
         id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general',
-        routing_mode: 'receptionist', direct_workspace_id: null,
+        direct: false, direct_workspace_id: null,
       })
 
       await useCase.deleteEntryPoint('ep1')
@@ -132,11 +132,11 @@ describe('ManageEntryPointUseCase', () => {
       expect(result).toEqual({ mode: 'receptionist' })
     })
 
-    it('returns receptionist for entry points with receptionist mode', async () => {
+    it('returns receptionist for non-direct entry points', async () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findByChannel).mockResolvedValue({
         id: 'ep1', integration_id: 'i1', channel_id: 'C123', channel_name: '#general',
-        routing_mode: 'receptionist', direct_workspace_id: null,
+        direct: false, direct_workspace_id: null,
         integration_type: 'slack', org_id: 'org-1',
       })
 
@@ -148,7 +148,7 @@ describe('ManageEntryPointUseCase', () => {
       const { entryPointRepo, useCase } = setup()
       vi.mocked(entryPointRepo.findByChannel).mockResolvedValue({
         id: 'ep1', integration_id: 'i1', channel_id: 'C456', channel_name: '#billing',
-        routing_mode: 'direct', direct_workspace_id: 'ws-billing',
+        direct: true, direct_workspace_id: 'ws-billing',
         integration_type: 'slack', org_id: 'org-1',
       })
 

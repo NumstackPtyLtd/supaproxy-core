@@ -1,17 +1,17 @@
-import type { IntegrationRepository, EntryPointRepository, RoutingMode } from '../../domain/integration/repository.js'
+import type { IntegrationRepository, EntryPointRepository } from '../../domain/integration/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 
 interface CreateEntryPointInput {
   channel_id: string
   channel_name?: string
-  routing_mode?: RoutingMode
+  direct?: boolean
   direct_workspace_id?: string
 }
 
 interface UpdateEntryPointInput {
   channel_name?: string
-  routing_mode?: RoutingMode
+  direct?: boolean
   direct_workspace_id?: string | null
 }
 
@@ -40,8 +40,8 @@ export class ManageEntryPointUseCase {
       integration_id: integration.id,
       channel_id: input.channel_id,
       channel_name: input.channel_name || null,
-      routing_mode: input.routing_mode || 'receptionist',
-      direct_workspace_id: input.routing_mode === 'direct' ? (input.direct_workspace_id || null) : null,
+      direct: input.direct || false,
+      direct_workspace_id: input.direct ? (input.direct_workspace_id || null) : null,
     })
   }
 
@@ -51,8 +51,8 @@ export class ManageEntryPointUseCase {
 
     const update: UpdateEntryPointInput = { ...input }
 
-    // Clear direct_workspace_id when switching to receptionist
-    if (input.routing_mode === 'receptionist') {
+    // Clear direct_workspace_id when switching to non-direct
+    if (input.direct === false) {
       update.direct_workspace_id = null
     }
 
@@ -70,7 +70,7 @@ export class ManageEntryPointUseCase {
 
     if (!ep) return { mode: 'receptionist' }
 
-    if (ep.routing_mode === 'direct' && ep.direct_workspace_id) {
+    if (ep.direct && ep.direct_workspace_id) {
       return { mode: 'direct', workspaceId: ep.direct_workspace_id, orgId: ep.org_id }
     }
 

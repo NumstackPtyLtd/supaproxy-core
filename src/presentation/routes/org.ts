@@ -75,8 +75,8 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       if (!testResult.ok) return c.json({ error: testResult.error }, 400)
       return c.json(testResult.detail || { status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
-      return c.json({ error: `Could not reach ${result.data.type} service` }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
+      return c.json({ error: 'integration_test_failed' }, 400)
     }
   })
 

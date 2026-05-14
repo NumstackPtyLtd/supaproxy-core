@@ -27,12 +27,12 @@ export async function parseBody<T extends z.ZodType>(
     }
     return {
       success: false,
-      response: c.json({ error: 'Validation failed', fields }, 400) as Response & { status: ContentfulStatusCode },
+      response: c.json({ error: 'validation_failed', fields }, 400) as Response & { status: ContentfulStatusCode },
     }
   }
   return { success: true, data: parsed.data }
 }
 
 export function validationError(c: Context, fields: Record<string, string>) {
-  return c.json({ error: 'Validation failed', fields }, 400)
+  return c.json({ error: 'validation_failed', fields }, 400)
 }
