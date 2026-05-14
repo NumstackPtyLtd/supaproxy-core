@@ -19,6 +19,11 @@ import { PORT, DASHBOARD_URL } from './config.js'
 
 const log = pino({ name: 'supaproxy' })
 
+// Prevent unhandled rejections from crashing the process (e.g. consumer SDK async errors)
+process.on('unhandledRejection', (reason) => {
+  log.error({ error: reason instanceof Error ? reason.message : String(reason) }, 'Unhandled rejection (server continues)')
+})
+
 // --- Init ---
 const pool = getPool()
 await runMigrations(pool)
