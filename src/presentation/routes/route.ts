@@ -44,7 +44,7 @@ export function createRouteRoutes(deps: RouteRouteDeps) {
         routed_to: result.routedTo || null,
       })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: err.message }, 404)
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
   })

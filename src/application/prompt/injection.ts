@@ -53,7 +53,7 @@ const INJECTION_PATTERNS = [
 const OUTPUT_LEAKAGE_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /^SYSTEM:\s+You\s+are/im, label: 'system prompt leakage' },
   { pattern: /(?:here are |these are )?(?:my |the |your )?(?:system |internal )?(?:instructions|prompt|rules)\s*(?:are|is|:)/im, label: 'system prompt leakage' },
-  { pattern: /sk-ant-[a-zA-Z0-9-]{20,}/i, label: 'credential exposure (Anthropic key)' },
+  { pattern: /sk-ant-[a-zA-Z0-9-]{20,}/i, label: 'credential exposure (API key)' },
   { pattern: /sk-[a-zA-Z0-9]{20,}/i, label: 'credential exposure (API key)' },
   { pattern: /xoxb-[a-zA-Z0-9-]+/i, label: 'credential exposure (Slack token)' },
   { pattern: /eyJ[a-zA-Z0-9_-]{20,}\.eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/i, label: 'credential exposure (JWT token)' },

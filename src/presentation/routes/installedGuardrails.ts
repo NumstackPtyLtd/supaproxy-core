@@ -41,8 +41,8 @@ export function createInstalledGuardrailRoutes(deps: InstalledGuardrailRouteDeps
       const result = await deps.installGuardrailUseCase.execute(user.org_id, user.id, body.data.package_name)
       return c.json({ guardrail: result })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
-      if (err instanceof ConflictError) return c.json({ error: err.message }, 409)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
+      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 409)
       throw err
     }
   })
@@ -56,7 +56,7 @@ export function createInstalledGuardrailRoutes(deps: InstalledGuardrailRouteDeps
       await deps.uninstallGuardrailUseCase.execute(user.org_id, pluginId)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
+      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }

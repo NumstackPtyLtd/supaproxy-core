@@ -12,13 +12,13 @@ const createEntryPointSchema = z.object({
   type: z.string().min(1).max(50),
   channel_id: z.string().min(1).max(255),
   channel_name: z.string().max(255).optional(),
-  routing_mode: z.enum(['receptionist', 'direct']).optional(),
+  direct: z.boolean().optional(),
   direct_workspace_id: z.string().max(64).optional(),
 })
 
 const updateEntryPointSchema = z.object({
   channel_name: z.string().max(255).optional(),
-  routing_mode: z.enum(['receptionist', 'direct']).optional(),
+  direct: z.boolean().optional(),
   direct_workspace_id: z.string().max(64).nullable().optional(),
 })
 
@@ -76,7 +76,7 @@ export function createIntegrationRoutes(deps: IntegrationRouteDeps) {
       await deps.manageEntryPointUseCase.createEntryPoint(user.org_id, body.data.type, {
         channel_id: body.data.channel_id,
         channel_name: body.data.channel_name,
-        routing_mode: body.data.routing_mode,
+        direct: body.data.direct,
         direct_workspace_id: body.data.direct_workspace_id,
       })
       return c.json({ status: 'ok' })

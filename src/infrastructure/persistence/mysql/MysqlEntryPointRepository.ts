@@ -1,12 +1,12 @@
 import type mysql from 'mysql2/promise'
-import type { EntryPointRepository, EntryPointData, EntryPointWithIntegration, RoutingMode } from '../../../domain/integration/repository.js'
+import type { EntryPointRepository, EntryPointData, EntryPointWithIntegration } from '../../../domain/integration/repository.js'
 
 interface EntryPointRow extends mysql.RowDataPacket {
   id: string
   integration_id: string
   channel_id: string
   channel_name: string | null
-  routing_mode: string
+  direct: number
   direct_workspace_id: string | null
   created_at: string
 }
@@ -50,17 +50,17 @@ export class MysqlEntryPointRepository implements EntryPointRepository {
 
   async create(data: EntryPointData): Promise<void> {
     await this.pool.execute(
-      'INSERT INTO entry_points (id, integration_id, channel_id, channel_name, routing_mode, direct_workspace_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [data.id, data.integration_id, data.channel_id, data.channel_name, data.routing_mode, data.direct_workspace_id],
+      'INSERT INTO entry_points (id, integration_id, channel_id, channel_name, direct, direct_workspace_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.id, data.integration_id, data.channel_id, data.channel_name, data.direct ? 1 : 0, data.direct_workspace_id],
     )
   }
 
-  async update(id: string, data: { channel_name?: string; routing_mode?: RoutingMode; direct_workspace_id?: string | null }): Promise<void> {
+  async update(id: string, data: { channel_name?: string; direct?: boolean; direct_workspace_id?: string | null }): Promise<void> {
     const sets: string[] = []
-    const params: (string | null)[] = []
+    const params: (string | number | null)[] = []
 
     if (data.channel_name !== undefined) { sets.push('channel_name = ?'); params.push(data.channel_name); }
-    if (data.routing_mode !== undefined) { sets.push('routing_mode = ?'); params.push(data.routing_mode); }
+    if (data.direct !== undefined) { sets.push('direct = ?'); params.push(data.direct ? 1 : 0); }
     if (data.direct_workspace_id !== undefined) { sets.push('direct_workspace_id = ?'); params.push(data.direct_workspace_id); }
 
     if (sets.length === 0) return
@@ -91,7 +91,7 @@ function mapRow(r: EntryPointRow): EntryPointData {
     integration_id: r.integration_id,
     channel_id: r.channel_id,
     channel_name: r.channel_name,
-    routing_mode: r.routing_mode as RoutingMode,
+    direct: Boolean(r.direct),
     direct_workspace_id: r.direct_workspace_id,
     created_at: r.created_at,
   }

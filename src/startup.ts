@@ -16,8 +16,8 @@ const log = pino({ name: 'startup' })
  *
  * Message routing strategy (via entry_points table):
  * 1. Look up entry_point for the incoming channel
- * 2. If routing_mode = 'direct', execute against the bound workspace
- * 3. Otherwise (receptionist mode or no entry_point), route through the receptionist
+ * 2. If direct = true, execute against the bound workspace
+ * 3. Otherwise (non-direct or no entry_point), route through the receptionist
  */
 export async function startConsumers(container: Container): Promise<void> {
   const orgId = await container.orgRepo.getFirstOrgId()

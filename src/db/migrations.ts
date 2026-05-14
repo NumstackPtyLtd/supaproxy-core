@@ -761,6 +761,18 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 27,
+    name: 'entry points routing_mode to direct boolean',
+    up: async (pool) => {
+      const [cols] = await pool.execute<ColumnInfoRow[]>("SHOW COLUMNS FROM entry_points LIKE 'direct'");
+      if (cols.length === 0) {
+        await pool.execute(`ALTER TABLE entry_points ADD COLUMN direct BOOLEAN DEFAULT FALSE AFTER channel_name`);
+        await pool.execute(`UPDATE entry_points SET direct = (routing_mode = 'direct')`);
+        await pool.execute(`ALTER TABLE entry_points DROP COLUMN routing_mode`);
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
