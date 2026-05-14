@@ -27,9 +27,9 @@ export class ManagePoliciesUseCase {
     })
   }
 
-  async getCompliance(orgId: string, pluginId: string): Promise<PolicyComplianceRow[]> {
+  async getCompliance(orgId: string, pluginId: string, search?: string): Promise<PolicyComplianceRow[]> {
     const policy = await this.policyRepo.findByOrgAndPlugin(orgId, pluginId)
     if (!policy) return []
-    return this.policyRepo.getComplianceForPolicy(policy.id, pluginId, orgId)
+    return this.policyRepo.getComplianceForPolicy(policy.id, pluginId, orgId, search)
   }
 }

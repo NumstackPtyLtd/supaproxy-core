@@ -50,7 +50,8 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
     const user = c.get('user') as AuthUser
     const pluginId = c.req.query('plugin')
     if (!pluginId) return c.json({ error: 'plugin query param required' }, 400)
-    const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId)
+    const search = c.req.query('search') || undefined
+    const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId, search)
     return c.json({ compliance })
   })
 

@@ -94,7 +94,7 @@ describe('ManagePoliciesUseCase', () => {
 
       const result = await useCase.getCompliance('org-1', '@supaproxy/guardrails:pattern')
 
-      expect(policyRepo.getComplianceForPolicy).toHaveBeenCalledWith('p1', '@supaproxy/guardrails:pattern', 'org-1')
+      expect(policyRepo.getComplianceForPolicy).toHaveBeenCalledWith('p1', '@supaproxy/guardrails:pattern', 'org-1', undefined)
       expect(result).toHaveLength(2)
       expect(result[1].enabled).toBe(false)
     })

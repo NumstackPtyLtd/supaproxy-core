@@ -100,7 +100,15 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
     )
   }
 
-  async getComplianceForPolicy(policyId: string, pluginId: string, orgId: string): Promise<PolicyComplianceRow[]> {
+  async getComplianceForPolicy(policyId: string, pluginId: string, orgId: string, search?: string): Promise<PolicyComplianceRow[]> {
+    const conditions = [`w.org_id = ?`, `w.status != 'archived'`]
+    const params: string[] = [pluginId, policyId, orgId]
+
+    if (search) {
+      conditions.push('w.name LIKE ?')
+      params.push(`%${search}%`)
+    }
+
     const [rows] = await this.pool.execute<ComplianceRow[]>(
       `SELECT
          w.id AS workspace_id,
@@ -110,9 +118,9 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
        FROM workspaces w
        LEFT JOIN workspace_guardrails wg ON wg.workspace_id = w.id AND wg.guardrail_id = ?
        LEFT JOIN guardrail_policy_overrides gpo ON gpo.policy_id = ? AND gpo.workspace_id = w.id
-       WHERE w.org_id = ? AND w.status != 'archived'
+       WHERE ${conditions.join(' AND ')}
        ORDER BY w.name`,
-      [pluginId, policyId, orgId],
+      params,
     )
     return rows.map(r => ({
       workspace_id: r.workspace_id,
