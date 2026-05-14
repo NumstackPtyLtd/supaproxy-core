@@ -57,7 +57,7 @@ interface WorkspaceRouteDeps {
   getComplianceUseCase: GetComplianceUseCase
   guardrailEventRepo: GuardrailEventRepository
   guardrailPolicyRepo: GuardrailPolicyRepository
-  listAvailableGuardrails: () => Array<{ id: string; name: string; description: string; stage: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>
+  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>>
   orgRepo: OrganisationRepository
   workspaceRepo: WorkspaceRepository
   tenantService: TenantService
@@ -237,7 +237,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     const workspaceId = c.req.param('id')
     await guardWorkspace(workspaceId, user.org_id)
 
-    const available = deps.listAvailableGuardrails()
+    const available = await deps.listAvailableGuardrails(user.org_id)
     const enabled = await deps.workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
     const enabledIds = new Set(enabled.map(e => e.guardrail_id))
 

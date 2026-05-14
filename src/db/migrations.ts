@@ -632,6 +632,27 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 22,
+    name: 'installed guardrails table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS installed_guardrails (
+          id VARCHAR(64) PRIMARY KEY,
+          org_id VARCHAR(64) NOT NULL,
+          plugin_id VARCHAR(100) NOT NULL,
+          package_name VARCHAR(255) NOT NULL,
+          package_version VARCHAR(50) NOT NULL,
+          plugin_metadata JSON NOT NULL,
+          installed_by VARCHAR(64) NOT NULL,
+          installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY idx_org_plugin (org_id, plugin_id),
+          FOREIGN KEY (org_id) REFERENCES organisations(id) ON DELETE CASCADE,
+          FOREIGN KEY (installed_by) REFERENCES users(id) ON DELETE CASCADE
+        )
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

@@ -19,6 +19,8 @@ import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js
 import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
 import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
 import { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
+import { MysqlInstalledGuardrailRepository } from './infrastructure/persistence/mysql/MysqlInstalledGuardrailRepository.js'
+import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoader.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
 import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
@@ -87,6 +89,8 @@ import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
 import { ManagePoliciesUseCase } from './application/guardrail/ManagePoliciesUseCase.js'
 import { GetSecurityOverviewUseCase } from './application/guardrail/GetSecurityOverviewUseCase.js'
 import { CreatePolicyOverrideUseCase } from './application/guardrail/CreatePolicyOverrideUseCase.js'
+import { InstallGuardrailUseCase } from './application/guardrail/InstallGuardrailUseCase.js'
+import { UninstallGuardrailUseCase } from './application/guardrail/UninstallGuardrailUseCase.js'
 
 // Presentation
 import { createRequireAuth } from './presentation/middleware/auth.js'
@@ -100,6 +104,7 @@ import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
+import { createInstalledGuardrailRoutes } from './presentation/routes/installedGuardrails.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
   // Tenant service: defaults to NoOp (single-tenant) for open-source.
@@ -145,6 +150,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
   const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
+  const installedGuardrailRepo = new MysqlInstalledGuardrailRepository(pool)
+  const pluginLoader = new DynamicPluginLoader()
   const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo)
@@ -254,17 +261,37 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     return enforced
   }
 
-  // List all available guardrails from package catalogues (for dashboard UI)
-  function listAvailableGuardrails() {
-    const toInfo = (p: { id: string; name: string; description: string; stage: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }) => ({
-      id: p.id, name: p.name, description: p.description, stage: p.stage, configSchema: p.configSchema,
+  // Core plugin IDs: derived from catalogues, never hardcoded
+  const corePluginIds = new Set([
+    ...guardrailRegistry.list().map(p => p.id),
+    ...executionCatalogue.list().map(p => p.id),
+    ...retrievalCatalogue.list().map(p => p.id),
+  ])
+
+  // List all available guardrails: core (from catalogues) + installed (from DB)
+  async function listAvailableGuardrails(orgId: string) {
+    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+    const toCore = (p: { id: string; name: string; description: string; stage: string; configSchema: Info['configSchema'] }): Info => ({
+      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', configSchema: p.configSchema,
     })
 
-    return [
-      ...guardrailRegistry.list().map(toInfo),
-      ...executionCatalogue.list().map(toInfo),
-      ...retrievalCatalogue.list().map(toInfo),
+    const core: Info[] = [
+      ...guardrailRegistry.list().map(toCore),
+      ...executionCatalogue.list().map(toCore),
+      ...retrievalCatalogue.list().map(toCore),
     ]
+
+    const installed = await installedGuardrailRepo.findByOrg(orgId)
+    const marketplace: Info[] = installed.map(ig => ({
+      id: ig.plugin_id,
+      name: ig.plugin_metadata.name,
+      description: ig.plugin_metadata.description,
+      stage: ig.plugin_metadata.stage,
+      source: 'marketplace' as const,
+      configSchema: ig.plugin_metadata.configSchema,
+    }))
+
+    return [...core, ...marketplace]
   }
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
@@ -338,6 +365,11 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
   const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, requireAuth })
 
+  // Installed guardrails (marketplace)
+  const installGuardrailUseCase = new InstallGuardrailUseCase(installedGuardrailRepo, pluginLoader, corePluginIds)
+  const uninstallGuardrailUseCase = new UninstallGuardrailUseCase(installedGuardrailRepo, corePluginIds)
+  const installedGuardrailRoutes = createInstalledGuardrailRoutes({ installGuardrailUseCase, uninstallGuardrailUseCase, installedGuardrailRepo, requireAuth })
+
   const container = {
     // Infrastructure
     orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo, promptTemplateRepo,
@@ -356,8 +388,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
     executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
     managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
+    installGuardrailUseCase, uninstallGuardrailUseCase,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, installedGuardrailRoutes,
   }
 
   return container

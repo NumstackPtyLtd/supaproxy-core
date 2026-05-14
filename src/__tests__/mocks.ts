@@ -14,6 +14,7 @@ import type { ConsumerPosterRegistry } from '../application/ports/ConsumerPoster
 import type { PromptTemplateRepository } from '../domain/prompt/repository.js'
 import type { GuardrailEventRepository } from '../domain/guardrail/repository.js'
 import type { GuardrailPolicyRepository } from '../domain/guardrail/policyRepository.js'
+import type { InstalledGuardrailRepository } from '../domain/guardrail/installedGuardrailRepository.js'
 
 // ── Stub data ──
 
@@ -294,5 +295,14 @@ export function mockGuardrailPolicyRepo(): GuardrailPolicyRepository {
     findMandatoryPlugins: vi.fn().mockResolvedValue([]),
     findRecommendedPlugins: vi.fn().mockResolvedValue([]),
     findOverridesForWorkspace: vi.fn().mockResolvedValue([]),
+  }
+}
+
+export function mockInstalledGuardrailRepo(): InstalledGuardrailRepository {
+  return {
+    findByOrg: vi.fn().mockResolvedValue([]),
+    findByOrgAndPlugin: vi.fn().mockResolvedValue(null),
+    install: vi.fn().mockResolvedValue(undefined),
+    uninstall: vi.fn().mockResolvedValue(undefined),
   }
 }
