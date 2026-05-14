@@ -10,7 +10,7 @@ import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlMo
 import { BcryptPasswordService } from './infrastructure/auth/BcryptPasswordService.js'
 import { JwtTokenService } from './infrastructure/auth/JwtTokenService.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
-import { PatternGuardrail, LlmGuardrail, type GuardrailPlugin, ExecutionRailRegistry, WriteGuardRail, RetrievalRailRegistry, InjectionSanitiser } from '@supaproxy/guardrails'
+import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue, type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
@@ -213,35 +213,29 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   }
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
-  // Guardrails: resolved per workspace at query time.
-  // Only enabled guardrails run. Config is loaded from workspace_guardrails table.
-  const patternInstance = new PatternGuardrail()
-  const availableGuardrails: Record<string, { instance: GuardrailPlugin; factory: () => GuardrailPlugin }> = {
-    'pattern': { instance: patternInstance, factory: () => new PatternGuardrail() },
-  }
+  // Guardrails: resolved per workspace at query time from package catalogues.
+  // The server never imports concrete plugin classes. It discovers them
+  // from the registries that plugins populate at import time.
 
   async function resolveGuardrails(workspaceId: string): Promise<GuardrailPlugin[]> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
     const enabledIds = new Set(configs.map(c => c.guardrail_id))
 
-    // Org-level policy enforcement: merge in mandatory and recommended plugins
     const enforcedIds = await getEnforcedPluginIds(workspaceId)
-    for (const id of enforcedIds) {
-      enabledIds.add(id)
-    }
+    for (const id of enforcedIds) enabledIds.add(id)
 
     const plugins: GuardrailPlugin[] = []
     for (const id of enabledIds) {
-      const entry = availableGuardrails[id]
-      if (entry) {
-        plugins.push(entry.factory())
-      }
+      const factory = guardrailRegistry.has(id) ? () => {
+        // Create a fresh instance from the registered prototype's constructor
+        const proto = guardrailRegistry.get(id)
+        return new (proto.constructor as new () => GuardrailPlugin)()
+      } : null
+      if (factory) plugins.push(factory())
     }
     return plugins
   }
 
-  // Resolves which plugin IDs are forced on by org-level policies for a workspace.
-  // Mandatory plugins are always included. Recommended plugins are included unless overridden.
   async function getEnforcedPluginIds(workspaceId: string): Promise<string[]> {
     const ws = await workspaceRepo.findById(workspaceId)
     if (!ws?.org_id) return []
@@ -253,62 +247,44 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     ])
 
     const overriddenPlugins = new Set(overrides.map(o => o.plugin_id))
-
-    // Mandatory: always enforced. Recommended: enforced unless overridden.
     const enforced = [...mandatory]
     for (const pluginId of recommended) {
-      if (!overriddenPlugins.has(pluginId)) {
-        enforced.push(pluginId)
-      }
+      if (!overriddenPlugins.has(pluginId)) enforced.push(pluginId)
     }
     return enforced
   }
 
-  // Static instances for listing available guardrails (not for execution)
-  const writeGuardInstance = new WriteGuardRail()
-  const injectionSanitiserInstance = new InjectionSanitiser()
-
+  // List all available guardrails from package catalogues (for dashboard UI)
   function listAvailableGuardrails() {
-    const pipeline = Object.entries(availableGuardrails).map(([id, { instance }]) => ({
-      id,
-      name: instance.name,
-      description: instance.description,
-      stage: instance.stage,
-      configSchema: instance.configSchema,
-    }))
+    const toInfo = (p: { id: string; name: string; description: string; stage: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }) => ({
+      id: p.id, name: p.name, description: p.description, stage: p.stage, configSchema: p.configSchema,
+    })
 
-    const execution = [writeGuardInstance].map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      stage: p.stage,
-      configSchema: p.configSchema,
-    }))
-
-    const retrieval = [injectionSanitiserInstance].map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      stage: p.stage,
-      configSchema: p.configSchema,
-    }))
-
-    return [...pipeline, ...execution, ...retrieval]
+    return [
+      ...guardrailRegistry.list().map(toInfo),
+      ...executionCatalogue.list().map(toInfo),
+      ...retrievalCatalogue.list().map(toInfo),
+    ]
   }
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
-  // Execution and retrieval rails: resolved per workspace from enabled guardrails + org policies
+  // Execution and retrieval rails: resolved per workspace from catalogues + org policies
   async function resolveExecutionRails(workspaceId: string): Promise<ExecutionRailRegistry | null> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
     const enabledIds = new Set(configs.map(c => c.guardrail_id))
     const enforcedIds = await getEnforcedPluginIds(workspaceId)
     for (const id of enforcedIds) enabledIds.add(id)
 
-    if (!enabledIds.has('write-guard')) return null
+    // Find which execution rail plugins are enabled for this workspace
+    const matchedPlugins = executionCatalogue.list().filter(p => enabledIds.has(p.id))
+    if (matchedPlugins.length === 0) return null
+
     const reg = new ExecutionRailRegistry()
-    reg.register(new WriteGuardRail())
+    for (const proto of matchedPlugins) {
+      reg.register(new (proto.constructor as new () => typeof proto)())
+    }
     reg.on((event) => {
       if (!event.result.allowed) {
         log.warn({ plugin: event.pluginId, tool: event.ctx.toolName, workspace: event.ctx.workspaceId, reason: event.result.reason }, 'Tool call blocked by execution rail')
@@ -323,9 +299,13 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     const enforcedIds = await getEnforcedPluginIds(workspaceId)
     for (const id of enforcedIds) enabledIds.add(id)
 
-    if (!enabledIds.has('injection-sanitiser')) return null
+    const matchedPlugins = retrievalCatalogue.list().filter(p => enabledIds.has(p.id))
+    if (matchedPlugins.length === 0) return null
+
     const reg = new RetrievalRailRegistry()
-    reg.register(new InjectionSanitiser())
+    for (const proto of matchedPlugins) {
+      reg.register(new (proto.constructor as new () => typeof proto)())
+    }
     reg.on((event) => {
       log.warn({ plugin: event.pluginId, stripped: event.result.stripped }, 'Injection attempt detected in tool output')
     })
