@@ -38,9 +38,16 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
     return c.json(result)
   })
 
-  // GET /api/guardrail-policies - list all policies for the org
+  // GET /api/guardrail-policies - list all policies, or get compliance for a specific plugin
   policies.get('/api/guardrail-policies', async (c) => {
     const user = c.get('user') as AuthUser
+    const pluginId = c.req.query('plugin')
+
+    if (pluginId) {
+      const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId)
+      return c.json({ compliance })
+    }
+
     const result = await deps.managePoliciesUseCase.listPolicies(user.org_id)
     return c.json({ policies: result })
   })
@@ -59,14 +66,6 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
       if (err instanceof ValidationError) return c.json({ error: err.message }, 400)
       throw err
     }
-  })
-
-  // GET /api/guardrail-policies/:pluginId/compliance - workspace compliance for a policy
-  policies.get('/api/guardrail-policies/:pluginId/compliance', async (c) => {
-    const user = c.get('user') as AuthUser
-    const pluginId = c.req.param('pluginId')
-    const result = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId)
-    return c.json({ compliance: result })
   })
 
   // POST /api/guardrail-policies/:pluginId/override - workspace admin justifies disabling a recommended policy
