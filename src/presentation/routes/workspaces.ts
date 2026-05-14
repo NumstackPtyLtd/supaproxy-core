@@ -40,6 +40,7 @@ const createWorkspaceSchema = z.object({
 const updateWorkspaceSchema = z.object({
   name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
   model: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
+  provider_type: z.string().min(1).max(50).nullable().optional(),
   system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
   cold_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
   close_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),

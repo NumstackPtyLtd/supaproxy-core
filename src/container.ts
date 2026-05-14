@@ -137,7 +137,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const requireAuth = createRequireAuth(tokenService)
 
   // Application use cases
-  const signupUseCase = new SignupUseCase(orgRepo, workspaceRepo, passwordService, tokenService)
+  const signupUseCase = new SignupUseCase(orgRepo, workspaceRepo, passwordService, tokenService, tenantService)
   const loginUseCase = new LoginUseCase(orgRepo, passwordService, tokenService)
   const getOrgUseCase = new GetOrgUseCase(orgRepo)
   const updateOrgUseCase = new UpdateOrgUseCase(orgRepo)

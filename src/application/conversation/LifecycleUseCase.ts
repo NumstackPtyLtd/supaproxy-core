@@ -69,21 +69,20 @@ export class LifecycleUseCase {
 
       const aggregate = await this.conversationRepo.getAggregateData(conversationId)
       const timestamps = await this.conversationRepo.getTimestamps(conversationId)
-      const model = await this.conversationRepo.getWorkspaceModel(conversationId)
+      const providerInfo = await this.conversationRepo.getWorkspaceProviderInfo(conversationId)
 
-      if (!model) {
+      if (!providerInfo) {
         await this.conversationRepo.updateStatsStatus(statsId, 'failed')
         return
       }
 
-      const orgSettings = await this.orgRepo.getSettingValues(['ai_api_key', 'ai_provider_type'])
-      const apiKey = orgSettings['ai_api_key']
-      const providerType = orgSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
-      if (!apiKey) {
+      const resolved = await this.resolveOrgProvider(providerInfo.provider_type)
+      if (!resolved) {
         await this.conversationRepo.updateStatsStatus(statsId, 'failed')
         return
       }
-      const provider = this.providerRegistry.get(providerType)
+      const { provider, apiKey } = resolved
+      const model = providerInfo.model
 
       const durationSec = timestamps?.first_message_at && timestamps?.closed_at
         ? Math.round((new Date(timestamps.closed_at).getTime() - new Date(timestamps.first_message_at).getTime()) / 1000)
@@ -127,20 +126,30 @@ export class LifecycleUseCase {
     }
   }
 
+  private async resolveOrgProvider(workspaceProviderType: string | null): Promise<{ provider: ProviderPlugin; apiKey: string } | null> {
+    const orgSettings = await this.orgRepo.getSettingValues(['ai_provider_type'])
+    const providerType = workspaceProviderType || orgSettings['ai_provider_type']
+    if (!providerType) return null
+
+    const keySettings = await this.orgRepo.getSettingValues([`${providerType}_api_key`, 'ai_api_key'])
+    const apiKey = keySettings[`${providerType}_api_key`] || keySettings['ai_api_key'] || null
+    if (!apiKey) return null
+
+    const provider = this.providerRegistry.get(providerType)
+    return { provider, apiKey }
+  }
+
   private async generateColdMessage(conversationId: string): Promise<string> {
     try {
       const messages = await this.conversationRepo.findMessages(conversationId)
       if (messages.length === 0) return ''
 
-      const coldSettings = await this.orgRepo.getSettingValues(['ai_api_key', 'ai_provider_type'])
-      const apiKey = coldSettings['ai_api_key']
-      const providerType = coldSettings['ai_provider_type'] || (() => { throw new Error('No AI provider configured') })()
-      if (!apiKey) return ''
-
-      const model = await this.conversationRepo.getWorkspaceModel(conversationId)
-      if (!model) return ''
-
-      const provider = this.providerRegistry.get(providerType)
+      const providerInfo = await this.conversationRepo.getWorkspaceProviderInfo(conversationId)
+      if (!providerInfo) return ''
+      const resolved = await this.resolveOrgProvider(providerInfo.provider_type)
+      if (!resolved) return ''
+      const { provider, apiKey } = resolved
+      const model = providerInfo.model
       const transcript = messages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n\n')
       return provider.createSimpleMessage({
         apiKey,

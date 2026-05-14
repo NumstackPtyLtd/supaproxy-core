@@ -28,6 +28,14 @@ function mockProviderRegistry(plugin?: ProviderPlugin): typeof ProviderRegistryT
   return { get: vi.fn().mockReturnValue(p) } as unknown as typeof ProviderRegistryType
 }
 
+function mockSettingValues(store: Record<string, string>) {
+  return async (keys: string[]) => {
+    const result: Record<string, string> = {}
+    for (const k of keys) result[k] = store[k] || ''
+    return result
+  }
+}
+
 describe('LifecycleUseCase', () => {
   let conversationRepo: ReturnType<typeof mockConversationRepo>
   let orgRepo: ReturnType<typeof mockOrgRepo>
@@ -107,11 +115,11 @@ describe('LifecycleUseCase', () => {
         { role: 'user', content: 'I need help' },
         { role: 'assistant', content: 'Sure, what do you need?' },
       ])
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: 'sk-test',
+      vi.mocked(orgRepo.getSettingValues).mockImplementation(mockSettingValues({
         ai_provider_type: 'anthropic',
-      })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
+        anthropic_api_key: 'sk-test',
+      }))
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
       vi.mocked(providerPlugin.createSimpleMessage).mockResolvedValue('Still need help?')
 
       await useCase.sendColdMessage(target)
@@ -140,10 +148,10 @@ describe('LifecycleUseCase', () => {
       vi.mocked(conversationRepo.findMessages).mockResolvedValue([
         { role: 'user', content: 'hello' },
       ])
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: '',
+      vi.mocked(orgRepo.getSettingValues).mockImplementation(mockSettingValues({
         ai_provider_type: 'anthropic',
-      })
+      }))
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
 
       await useCase.sendColdMessage(target)
 
@@ -157,11 +165,7 @@ describe('LifecycleUseCase', () => {
       vi.mocked(conversationRepo.findMessages).mockResolvedValue([
         { role: 'user', content: 'hello' },
       ])
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: 'sk-test',
-        ai_provider_type: 'anthropic',
-      })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue(null)
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue(null)
 
       await useCase.sendColdMessage(target)
 
@@ -175,14 +179,11 @@ describe('LifecycleUseCase', () => {
       vi.mocked(conversationRepo.findMessages).mockResolvedValue([
         { role: 'user', content: 'hello' },
       ])
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: 'sk-test',
-        ai_provider_type: '',
-      })
+      vi.mocked(orgRepo.getSettingValues).mockImplementation(mockSettingValues({}))
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
 
       await useCase.sendColdMessage(target)
 
-      // generateColdMessage catches the thrown error and returns ''
       expect(posterRegistry.post).toHaveBeenCalledWith(
         target,
         expect.stringContaining('checking in'),
@@ -194,10 +195,11 @@ describe('LifecycleUseCase', () => {
 
   describe('generateStats', () => {
     beforeEach(() => {
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: 'sk-test',
+      vi.mocked(orgRepo.getSettingValues).mockImplementation(mockSettingValues({
         ai_provider_type: 'anthropic',
-      })
+        anthropic_api_key: 'sk-test',
+      }))
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
     })
 
     it('creates stats and completes with AI analysis', async () => {
@@ -215,7 +217,7 @@ describe('LifecycleUseCase', () => {
         closed_at: '2024-01-01T10:05:00Z',
         message_count: 2,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
 
       const analysisJson = JSON.stringify({
         sentiment_score: 3,
@@ -278,7 +280,7 @@ describe('LifecycleUseCase', () => {
         closed_at: '2024-01-01T10:01:00Z',
         message_count: 1,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
       vi.mocked(providerPlugin.createSimpleMessage).mockResolvedValue(
         JSON.stringify({ sentiment_score: 4, resolution_status: 'resolved', category: 'query', compliance_violations: [], knowledge_gaps: [], fraud_indicators: [], tools_used: [], summary: 'Test' }),
       )
@@ -315,7 +317,7 @@ describe('LifecycleUseCase', () => {
         closed_at: '2024-01-01T10:01:00Z',
         message_count: 1,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue(null)
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue(null)
 
       await useCase.generateStats('conv-1')
 
@@ -334,11 +336,10 @@ describe('LifecycleUseCase', () => {
       vi.mocked(conversationRepo.getTimestamps).mockResolvedValue({
         first_message_at: null, closed_at: null, message_count: 1,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
-      vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-        ai_api_key: '',
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
+      vi.mocked(orgRepo.getSettingValues).mockImplementation(mockSettingValues({
         ai_provider_type: 'anthropic',
-      })
+      }))
 
       await useCase.generateStats('conv-1')
 
@@ -359,7 +360,7 @@ describe('LifecycleUseCase', () => {
         closed_at: '2024-01-01T10:01:00Z',
         message_count: 1,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
       vi.mocked(providerPlugin.createSimpleMessage).mockRejectedValue(new Error('AI failed'))
 
       await useCase.generateStats('conv-1')
@@ -381,7 +382,7 @@ describe('LifecycleUseCase', () => {
         closed_at: '2024-01-01T10:01:00Z',
         message_count: 1,
       })
-      vi.mocked(conversationRepo.getWorkspaceModel).mockResolvedValue('claude-sonnet-4-20250514')
+      vi.mocked(conversationRepo.getWorkspaceProviderInfo).mockResolvedValue({ model: 'claude-sonnet-4-20250514', provider_type: null })
 
       const wrappedJson = '```json\n' + JSON.stringify({
         sentiment_score: 5,

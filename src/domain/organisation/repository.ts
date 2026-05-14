@@ -29,6 +29,7 @@ export interface TeamData {
 
 export interface OrganisationRepository {
   findById(id: string): Promise<OrgData | null>
+  anyExists(): Promise<boolean>
   create(id: string, name: string, slug: string): Promise<void>
   updateName(id: string, name: string): Promise<void>
 

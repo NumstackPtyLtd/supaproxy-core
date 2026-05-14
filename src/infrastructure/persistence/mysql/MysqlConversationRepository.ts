@@ -20,6 +20,7 @@ interface SeqRow extends RowDataPacket { next_seq: number }
 interface AggRow extends RowDataPacket { ti: number; to2: number; cost: number; dur: number; qcount: number }
 interface TimestampRow extends RowDataPacket { first_message_at: string | null; closed_at: string | null; message_count: number }
 interface ModelRow extends RowDataPacket { model: string }
+interface ProviderInfoRow extends RowDataPacket { model: string; provider_type: string | null }
 interface TicketRow extends RowDataPacket { open_count: number | null; cold_count: number | null; closed_today: number | null; closed_week: number | null }
 interface SentimentRow extends RowDataPacket { sentiment_score: number; cnt: number }
 interface CompStatsRow extends RowDataPacket { compliance_violations: string | null; conversation_id: string; created_at: string }
@@ -227,6 +228,13 @@ export class MysqlConversationRepository implements ConversationRepository {
       'SELECT w.model FROM workspaces w JOIN conversations c ON c.workspace_id = w.id WHERE c.id = ?', [conversationId]
     )
     return rows[0]?.model || null
+  }
+
+  async getWorkspaceProviderInfo(conversationId: string): Promise<{ model: string; provider_type: string | null } | null> {
+    const [rows] = await this.pool.execute<ProviderInfoRow[]>(
+      'SELECT w.model, w.provider_type FROM workspaces w JOIN conversations c ON c.workspace_id = w.id WHERE c.id = ?', [conversationId]
+    )
+    return rows[0] || null
   }
 
   async findColdTransitionCandidates(): Promise<ColdTransitionData[]> {

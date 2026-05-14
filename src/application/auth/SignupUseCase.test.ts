@@ -1,16 +1,17 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockOrgRepo, mockWorkspaceRepo, mockPasswordService, mockTokenService } from '../../__tests__/mocks.js'
+import { mockOrgRepo, mockWorkspaceRepo, mockPasswordService, mockTokenService, mockTenantService } from '../../__tests__/mocks.js'
 import { SignupUseCase } from './SignupUseCase.js'
 import { ConflictError } from '../../domain/shared/errors.js'
 
 describe('SignupUseCase', () => {
-  function setup() {
+  function setup(allowMultipleOrgs = false) {
     const orgRepo = mockOrgRepo()
     const workspaceRepo = mockWorkspaceRepo()
     const passwordService = mockPasswordService()
     const tokenService = mockTokenService()
-    const useCase = new SignupUseCase(orgRepo, workspaceRepo, passwordService, tokenService)
-    return { orgRepo, workspaceRepo, passwordService, tokenService, useCase }
+    const tenantService = mockTenantService({ allowMultipleOrgs })
+    const useCase = new SignupUseCase(orgRepo, workspaceRepo, passwordService, tokenService, tenantService)
+    return { orgRepo, workspaceRepo, passwordService, tokenService, tenantService, useCase }
   }
 
   const validInput = {
@@ -53,5 +54,23 @@ describe('SignupUseCase', () => {
 
     await expect(useCase.execute(validInput)).rejects.toThrow(ConflictError)
     expect(orgRepo.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects signup in single-tenant mode when an org already exists', async () => {
+    const { orgRepo, useCase } = setup(false)
+    vi.mocked(orgRepo.anyExists).mockResolvedValue(true)
+
+    await expect(useCase.execute(validInput)).rejects.toThrow(ConflictError)
+    expect(orgRepo.create).not.toHaveBeenCalled()
+  })
+
+  it('allows signup in multi-tenant mode when an org already exists', async () => {
+    const { orgRepo, useCase } = setup(true)
+    vi.mocked(orgRepo.anyExists).mockResolvedValue(true)
+    vi.mocked(orgRepo.userExistsByEmail).mockResolvedValue(false)
+
+    const result = await useCase.execute(validInput)
+
+    expect(result).toHaveProperty('orgId')
   })
 })

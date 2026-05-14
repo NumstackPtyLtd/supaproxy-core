@@ -93,11 +93,16 @@ describe('ExecuteQueryUseCase', () => {
       stubWorkspace({ id: 'ws-test', model: 'claude-sonnet-4-20250514' }),
     )
 
-    // Default: org has an AI provider configured
-    vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-      ai_provider_type: 'anthropic',
-      ai_api_key: 'sk-test-key',
-      anthropic_api_key: '',
+    // Default: org has an AI provider configured (prefixed key pattern)
+    vi.mocked(orgRepo.getSettingValues).mockImplementation(async (keys: string[]) => {
+      const store: Record<string, string> = {
+        ai_provider_type: 'anthropic',
+        anthropic_api_key: 'sk-test-key',
+        ai_api_key: '',
+      }
+      const result: Record<string, string> = {}
+      for (const k of keys) result[k] = store[k] || ''
+      return result
     })
   })
 
@@ -110,11 +115,7 @@ describe('ExecuteQueryUseCase', () => {
   })
 
   it('returns error message when no AI provider is configured', async () => {
-    vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-      ai_provider_type: '',
-      ai_api_key: '',
-      anthropic_api_key: '',
-    })
+    vi.mocked(orgRepo.getSettingValues).mockResolvedValue({})
     const useCase = buildUseCase()
 
     const result = await useCase.execute('ws-test', 'hello', baseMeta)
@@ -124,10 +125,11 @@ describe('ExecuteQueryUseCase', () => {
   })
 
   it('returns error when API key is missing', async () => {
-    vi.mocked(orgRepo.getSettingValues).mockResolvedValue({
-      ai_provider_type: 'anthropic',
-      ai_api_key: '',
-      anthropic_api_key: '',
+    vi.mocked(orgRepo.getSettingValues).mockImplementation(async (keys: string[]) => {
+      const store: Record<string, string> = { ai_provider_type: 'anthropic' }
+      const result: Record<string, string> = {}
+      for (const k of keys) result[k] = store[k] || ''
+      return result
     })
     const useCase = buildUseCase()
 
@@ -135,6 +137,47 @@ describe('ExecuteQueryUseCase', () => {
 
     expect(result.error).toBe('no_ai_provider_configured')
     expect(result.answer).toBe('no_ai_provider_configured')
+  })
+
+  it('uses workspace provider_type override when set', async () => {
+    vi.mocked(workspaceRepo.findActiveById).mockResolvedValue(
+      stubWorkspace({ id: 'ws-test', model: 'gpt-4o', provider_type: 'openai' }),
+    )
+    vi.mocked(orgRepo.getSettingValues).mockImplementation(async (keys: string[]) => {
+      const store: Record<string, string> = {
+        ai_provider_type: 'anthropic',
+        openai_api_key: 'sk-openai-key',
+        anthropic_api_key: 'sk-anthropic-key',
+      }
+      const result: Record<string, string> = {}
+      for (const k of keys) result[k] = store[k] || ''
+      return result
+    })
+    vi.mocked(workspaceRepo.findConnectionConfigs).mockResolvedValue([])
+    const useCase = buildUseCase()
+
+    await useCase.execute('ws-test', 'hello', baseMeta)
+
+    expect(providerRegistry.get).toHaveBeenCalledWith('openai')
+    expect(provider.setApiKey).toHaveBeenCalledWith('sk-openai-key')
+  })
+
+  it('falls back to legacy ai_api_key when prefixed key is missing', async () => {
+    vi.mocked(orgRepo.getSettingValues).mockImplementation(async (keys: string[]) => {
+      const store: Record<string, string> = {
+        ai_provider_type: 'anthropic',
+        ai_api_key: 'sk-legacy-key',
+      }
+      const result: Record<string, string> = {}
+      for (const k of keys) result[k] = store[k] || ''
+      return result
+    })
+    vi.mocked(workspaceRepo.findConnectionConfigs).mockResolvedValue([])
+    const useCase = buildUseCase()
+
+    await useCase.execute('ws-test', 'hello', baseMeta)
+
+    expect(provider.setApiKey).toHaveBeenCalledWith('sk-legacy-key')
   })
 
   it('runs direct LLM conversation when no tools are discovered', async () => {

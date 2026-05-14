@@ -7,6 +7,8 @@ import type { TenantService } from '../../application/ports/TenantService.js'
  * are visible, no access checks, creation uses the user's org.
  */
 export class NoOpTenantService implements TenantService {
+  readonly allowMultipleOrgs = false
+
   scopeWorkspaceList(_userOrgId: string): string | null {
     return null // No filtering; show all workspaces
   }
