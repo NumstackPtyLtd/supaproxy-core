@@ -363,7 +363,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const managePoliciesUseCase = new ManagePoliciesUseCase(guardrailPolicyRepo)
   const getSecurityOverviewUseCase = new GetSecurityOverviewUseCase(guardrailPolicyRepo)
   const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
-  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, requireAuth })
+  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, listAvailableGuardrails, requireAuth })
 
   // Installed guardrails (marketplace)
   const installGuardrailUseCase = new InstallGuardrailUseCase(installedGuardrailRepo, pluginLoader, corePluginIds)

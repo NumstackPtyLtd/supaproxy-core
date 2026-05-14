@@ -20,6 +20,7 @@ interface GuardrailPolicyRouteDeps {
   managePoliciesUseCase: ManagePoliciesUseCase
   getSecurityOverviewUseCase: GetSecurityOverviewUseCase
   createPolicyOverrideUseCase: CreatePolicyOverrideUseCase
+  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace' }>>
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
@@ -38,11 +39,32 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
     return c.json(result)
   })
 
-  // GET /api/guardrail-policies - list all policies for the org
+  // GET /api/guardrail-policies - list guardrails with enforcement, supports filtering
   policies.get('/api/guardrail-policies', async (c) => {
     const user = c.get('user') as AuthUser
-    const result = await deps.managePoliciesUseCase.listPolicies(user.org_id)
-    return c.json({ policies: result })
+    const search = c.req.query('search')?.toLowerCase()
+    const enforcementFilter = c.req.query('enforcement') // mandatory | recommended | off
+    const sourceFilter = c.req.query('source') // core | marketplace
+    const stageFilter = c.req.query('stage') // pre-llm | post-llm | execution | retrieval
+
+    const [allGuardrails, policyRows] = await Promise.all([
+      deps.listAvailableGuardrails(user.org_id),
+      deps.managePoliciesUseCase.listPolicies(user.org_id),
+    ])
+
+    const policyMap = new Map(policyRows.map(p => [p.plugin_id, p.enforcement]))
+
+    let results = allGuardrails.map(g => ({
+      ...g,
+      enforcement: policyMap.get(g.id) || 'off',
+    }))
+
+    if (search) results = results.filter(g => g.name.toLowerCase().includes(search) || g.id.toLowerCase().includes(search) || g.description.toLowerCase().includes(search))
+    if (enforcementFilter) results = results.filter(g => g.enforcement === enforcementFilter)
+    if (sourceFilter) results = results.filter(g => g.source === sourceFilter)
+    if (stageFilter) results = results.filter(g => g.stage === stageFilter)
+
+    return c.json({ guardrails: results, total: results.length })
   })
 
   // GET /api/guardrail-policies/compliance?plugin=pattern - workspace compliance for a specific plugin
