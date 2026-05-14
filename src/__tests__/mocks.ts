@@ -3,6 +3,7 @@ import type { OrganisationRepository, UserData, OrgSettingData, TeamData } from 
 import type { WorkspaceRepository, WorkspaceData, ConnectionData, ConsumerData, WorkspaceStatsData, WorkspaceListItemData } from '../domain/workspace/repository.js'
 import type { ConversationRepository, ConversationData, ConversationStatsData as ConvStatsData, ConversationFilterData, ColdTransitionData } from '../domain/conversation/repository.js'
 import type { AuditLogRepository } from '../domain/audit/repository.js'
+import type { IntegrationRepository, EntryPointRepository } from '../domain/integration/repository.js'
 import type { PasswordService } from '../application/ports/PasswordService.js'
 import type { TokenService, TokenPayload } from '../application/ports/TokenService.js'
 import type { QueueService, QueueJobCounts } from '../application/ports/QueueService.js'
@@ -306,5 +307,27 @@ export function mockInstalledGuardrailRepo(): InstalledGuardrailRepository {
     findByOrgAndPlugin: vi.fn().mockResolvedValue(null),
     install: vi.fn().mockResolvedValue(undefined),
     uninstall: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+export function mockIntegrationRepo(): IntegrationRepository {
+  return {
+    findByOrg: vi.fn().mockResolvedValue([]),
+    findByOrgAndType: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue(undefined),
+    updateStatus: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+export function mockEntryPointRepo(): EntryPointRepository {
+  return {
+    findByIntegration: vi.fn().mockResolvedValue([]),
+    findByChannel: vi.fn().mockResolvedValue(null),
+    findById: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue(undefined),
+    update: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
+    findByOrg: vi.fn().mockResolvedValue([]),
   }
 }

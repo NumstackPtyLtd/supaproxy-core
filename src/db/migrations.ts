@@ -677,6 +677,90 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 24,
+    name: 'consumer integrations table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS consumer_integrations (
+          id VARCHAR(64) PRIMARY KEY,
+          org_id VARCHAR(64) NOT NULL,
+          type VARCHAR(50) NOT NULL,
+          status ENUM('active', 'inactive') DEFAULT 'active',
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (org_id) REFERENCES organisations(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_type_per_org (org_id, type)
+        )
+      `);
+    },
+  },
+  {
+    version: 25,
+    name: 'entry points table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS entry_points (
+          id VARCHAR(64) PRIMARY KEY,
+          integration_id VARCHAR(64) NOT NULL,
+          channel_id VARCHAR(255) NOT NULL,
+          channel_name VARCHAR(255),
+          routing_mode ENUM('receptionist', 'direct') DEFAULT 'receptionist',
+          direct_workspace_id VARCHAR(64),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (integration_id) REFERENCES consumer_integrations(id) ON DELETE CASCADE,
+          FOREIGN KEY (direct_workspace_id) REFERENCES workspaces(id) ON DELETE SET NULL,
+          UNIQUE KEY unique_channel (integration_id, channel_id)
+        )
+      `);
+    },
+  },
+  {
+    version: 26,
+    name: 'migrate consumers to integrations and entry points',
+    up: async (pool) => {
+      // For each distinct (org_id, type) in the consumers table, create a consumer_integration row.
+      // Then for each consumer with channels in config, create entry_point rows.
+      const [consumers] = await pool.execute<mysql.RowDataPacket[]>(
+        `SELECT c.id, c.workspace_id, c.type, c.config, c.status, w.org_id
+         FROM consumers c
+         JOIN workspaces w ON w.id = c.workspace_id
+         WHERE w.org_id IS NOT NULL`
+      );
+
+      const createdIntegrations = new Map<string, string>(); // key: org_id:type -> integration_id
+
+      for (const row of consumers) {
+        const key = `${row.org_id}:${row.type}`;
+        let integrationId = createdIntegrations.get(key);
+
+        if (!integrationId) {
+          integrationId = generateId();
+          await pool.execute(
+            `INSERT IGNORE INTO consumer_integrations (id, org_id, type, status) VALUES (?, ?, ?, 'active')`,
+            [integrationId, row.org_id, row.type]
+          );
+          createdIntegrations.set(key, integrationId);
+        }
+
+        // Parse channels from config JSON
+        let channels: string[] = [];
+        try {
+          const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+          channels = cfg?.channels || [];
+        } catch { /* skip invalid JSON */ }
+
+        for (const channelId of channels) {
+          if (!channelId) continue;
+          const epId = generateId();
+          await pool.execute(
+            `INSERT IGNORE INTO entry_points (id, integration_id, channel_id, routing_mode) VALUES (?, ?, ?, 'receptionist')`,
+            [epId, integrationId, channelId]
+          );
+        }
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
