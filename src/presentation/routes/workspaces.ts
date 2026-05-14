@@ -13,6 +13,7 @@ import type { GetConnectionsUseCase } from '../../application/workspace/GetConne
 import type { GetKnowledgeUseCase } from '../../application/workspace/GetKnowledgeUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
 import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
+import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
@@ -55,6 +56,7 @@ interface WorkspaceRouteDeps {
   getKnowledgeUseCase: GetKnowledgeUseCase
   getComplianceUseCase: GetComplianceUseCase
   guardrailEventRepo: GuardrailEventRepository
+  guardrailPolicyRepo: GuardrailPolicyRepository
   listAvailableGuardrails: () => Array<{ id: string; name: string; description: string; stage: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>
   orgRepo: OrganisationRepository
   workspaceRepo: WorkspaceRepository
@@ -160,9 +162,11 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     const limit = c.req.query('limit')
 
     const hasFilter = eventType || eventStatus || search || page || limit
+    const validEventType = eventType === 'execution_blocked' || eventType === 'retrieval_stripped' ? eventType as 'execution_blocked' | 'retrieval_stripped' : undefined
+    const validStatus = eventStatus === 'open' || eventStatus === 'flagged' || eventStatus === 'dismissed' ? eventStatus as 'open' | 'flagged' | 'dismissed' : undefined
     const eventFilter = hasFilter ? {
-      event_type: eventType === 'execution_blocked' || eventType === 'retrieval_stripped' ? eventType : undefined,
-      status: eventStatus === 'open' || eventStatus === 'flagged' || eventStatus === 'dismissed' ? eventStatus : undefined,
+      event_type: validEventType,
+      status: validStatus,
       search: search || undefined,
       limit: limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20,
       offset: page ? (Math.max(parseInt(page, 10) || 0, 0)) * (limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20) : 0,
@@ -237,10 +241,15 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     const enabled = await deps.workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
     const enabledIds = new Set(enabled.map(e => e.guardrail_id))
 
+    // Fetch org-level policy enforcement for each guardrail
+    const policies = await deps.guardrailPolicyRepo.listByOrg(user.org_id)
+    const policyMap = new Map(policies.map(p => [p.plugin_id, p.enforcement]))
+
     const guardrails = available.map(g => ({
       ...g,
       enabled: enabledIds.has(g.id),
       workspaceConfig: enabled.find(e => e.guardrail_id === g.id)?.config || null,
+      enforcement: policyMap.get(g.id) || null,
     }))
 
     return c.json({ guardrails })

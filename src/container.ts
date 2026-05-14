@@ -18,6 +18,7 @@ import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerP
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
 import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
 import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
+import { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
@@ -80,6 +81,11 @@ import { RouteMessageUseCase } from './application/routing/RouteMessageUseCase.j
 // Application - Queue
 import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
 
+// Application - Guardrail policies
+import { ManagePoliciesUseCase } from './application/guardrail/ManagePoliciesUseCase.js'
+import { GetSecurityOverviewUseCase } from './application/guardrail/GetSecurityOverviewUseCase.js'
+import { CreatePolicyOverrideUseCase } from './application/guardrail/CreatePolicyOverrideUseCase.js'
+
 // Presentation
 import { createRequireAuth } from './presentation/middleware/auth.js'
 import { createAuthRoutes } from './presentation/routes/auth.js'
@@ -91,6 +97,7 @@ import { createQueryRoutes } from './presentation/routes/query.js'
 import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
+import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 
 export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
   // Tenant service: defaults to NoOp (single-tenant) for open-source.
@@ -135,6 +142,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
+  const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
   const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo)
@@ -212,14 +220,46 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   async function resolveGuardrails(workspaceId: string): Promise<GuardrailPlugin[]> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+
+    // Org-level policy enforcement: merge in mandatory and recommended plugins
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) {
+      enabledIds.add(id)
+    }
+
     const plugins: GuardrailPlugin[] = []
-    for (const { guardrail_id } of configs) {
-      const entry = availableGuardrails[guardrail_id]
+    for (const id of enabledIds) {
+      const entry = availableGuardrails[id]
       if (entry) {
         plugins.push(entry.factory())
       }
     }
     return plugins
+  }
+
+  // Resolves which plugin IDs are forced on by org-level policies for a workspace.
+  // Mandatory plugins are always included. Recommended plugins are included unless overridden.
+  async function getEnforcedPluginIds(workspaceId: string): Promise<string[]> {
+    const ws = await workspaceRepo.findById(workspaceId)
+    if (!ws?.org_id) return []
+
+    const [mandatory, recommended, overrides] = await Promise.all([
+      guardrailPolicyRepo.findMandatoryPlugins(ws.org_id),
+      guardrailPolicyRepo.findRecommendedPlugins(ws.org_id),
+      guardrailPolicyRepo.findOverridesForWorkspace(workspaceId),
+    ])
+
+    const overriddenPlugins = new Set(overrides.map(o => o.plugin_id))
+
+    // Mandatory: always enforced. Recommended: enforced unless overridden.
+    const enforced = [...mandatory]
+    for (const pluginId of recommended) {
+      if (!overriddenPlugins.has(pluginId)) {
+        enforced.push(pluginId)
+      }
+    }
+    return enforced
   }
 
   // Static instances for listing available guardrails (not for execution)
@@ -257,11 +297,14 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
-  // Execution and retrieval rails: resolved per workspace from enabled guardrails
+  // Execution and retrieval rails: resolved per workspace from enabled guardrails + org policies
   async function resolveExecutionRails(workspaceId: string): Promise<ExecutionRailRegistry | null> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = configs.map(c => c.guardrail_id)
-    if (!enabledIds.includes('write-guard')) return null
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) enabledIds.add(id)
+
+    if (!enabledIds.has('write-guard')) return null
     const reg = new ExecutionRailRegistry()
     reg.register(new WriteGuardRail())
     reg.on((event) => {
@@ -274,8 +317,11 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   async function resolveRetrievalRails(workspaceId: string): Promise<RetrievalRailRegistry | null> {
     const configs = await workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = configs.map(c => c.guardrail_id)
-    if (!enabledIds.includes('injection-sanitiser')) return null
+    const enabledIds = new Set(configs.map(c => c.guardrail_id))
+    const enforcedIds = await getEnforcedPluginIds(workspaceId)
+    for (const id of enforcedIds) enabledIds.add(id)
+
+    if (!enabledIds.has('injection-sanitiser')) return null
     const reg = new RetrievalRailRegistry()
     reg.register(new InjectionSanitiser())
     reg.on((event) => {
@@ -293,7 +339,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   // Build routes
   const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
@@ -301,6 +347,12 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const routeRoutes = createRouteRoutes({ routeMessageUseCase, requireAuth })
   const savePromptUseCase = new SavePromptUseCase(promptTemplateRepo)
   const promptRoutes = createPromptRoutes({ promptResolver, promptRepo: promptTemplateRepo, savePromptUseCase, requireAuth })
+
+  // Guardrail policies
+  const managePoliciesUseCase = new ManagePoliciesUseCase(guardrailPolicyRepo)
+  const getSecurityOverviewUseCase = new GetSecurityOverviewUseCase(guardrailPolicyRepo)
+  const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
+  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, requireAuth })
 
   const container = {
     // Infrastructure
@@ -319,8 +371,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
     manageConversationUseCase, lifecycleUseCase,
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
     executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
+    managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes,
   }
 
   return container

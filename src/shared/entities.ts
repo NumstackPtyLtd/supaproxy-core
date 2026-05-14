@@ -219,3 +219,25 @@ export interface OrgSetting {
   value: string;
   is_secret: boolean;
 }
+
+// ── Guardrail policies ──
+
+export type PolicyEnforcement = 'mandatory' | 'recommended' | 'off';
+
+export interface GuardrailPolicy {
+  id: string;
+  org_id: string;
+  plugin_id: string;
+  enforcement: PolicyEnforcement;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuardrailPolicyOverride {
+  id: string;
+  policy_id: string;
+  workspace_id: string;
+  justification: string;
+  created_by: string;
+  created_at: string;
+}
