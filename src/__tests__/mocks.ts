@@ -77,7 +77,7 @@ export function mockOrgRepo(): OrganisationRepository {
     findUserById: vi.fn().mockResolvedValue(null),
     userExistsByEmail: vi.fn().mockResolvedValue(false),
     createUser: vi.fn().mockResolvedValue(undefined),
-    listUsers: vi.fn().mockResolvedValue([]),
+    listUsers: vi.fn().mockResolvedValue({ users: [], total: 0 }),
     listSettings: vi.fn().mockResolvedValue([]),
     findSetting: vi.fn().mockResolvedValue(null),
     upsertSetting: vi.fn().mockResolvedValue(undefined),
