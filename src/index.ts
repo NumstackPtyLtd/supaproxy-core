@@ -12,6 +12,7 @@ import { serve } from '@hono/node-server'
 import pino from 'pino'
 import { getPool } from './db/pool.js'
 import { runMigrations } from './db/migrations.js'
+import { seed } from './db/seed.js'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
@@ -22,6 +23,7 @@ const log = pino({ name: 'supaproxy' })
 // --- Init ---
 const pool = getPool()
 await runMigrations(pool)
+await seed(pool)
 
 // --- Composition root (single-tenant, no options needed) ---
 const container = createContainer(pool)
