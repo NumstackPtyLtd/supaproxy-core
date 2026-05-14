@@ -11,12 +11,12 @@ function mockDeps() {
     },
     pluginLoader: {
       load: vi.fn().mockResolvedValue({
-        plugin_id: 'profanity-filter',
+        plugin_id: '@supaproxy/guardrail-profanity:profanity-filter',
         metadata: { name: 'Profanity filter', description: 'Filters profanity', author: 'Test', version: '1.0.0', stage: 'pre-llm', configSchema: { fields: [] } },
         instance: {},
       }),
     },
-    corePluginIds: new Set(['pattern', 'write-guard', 'injection-sanitiser']),
+    corePluginIds: new Set(['@supaproxy/guardrails:pattern', '@supaproxy/guardrails:write-guard', '@supaproxy/guardrails:injection-sanitiser']),
   }
 }
 
@@ -31,11 +31,11 @@ describe('InstallGuardrailUseCase', () => {
     expect(deps.installedRepo.install).toHaveBeenCalledWith(
       expect.objectContaining({
         org_id: 'org-1',
-        plugin_id: 'profanity-filter',
+        plugin_id: '@supaproxy/guardrail-profanity:profanity-filter',
         package_name: '@supaproxy/guardrail-profanity',
       }),
     )
-    expect(result.plugin_id).toBe('profanity-filter')
+    expect(result.plugin_id).toBe('@supaproxy/guardrail-profanity:profanity-filter')
   })
 
   it('rejects if plugin loader fails', async () => {
@@ -49,7 +49,7 @@ describe('InstallGuardrailUseCase', () => {
   it('rejects if plugin ID collides with a core plugin', async () => {
     const deps = mockDeps()
     deps.pluginLoader.load.mockResolvedValue({
-      plugin_id: 'pattern',
+      plugin_id: '@supaproxy/guardrails:pattern',
       metadata: { name: 'Fake', description: '', author: '', version: '1.0.0', stage: 'pre-llm', configSchema: { fields: [] } },
       instance: {},
     })

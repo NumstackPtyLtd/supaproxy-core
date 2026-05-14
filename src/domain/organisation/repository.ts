@@ -36,7 +36,7 @@ export interface OrganisationRepository {
   findUserById(id: string): Promise<UserData | null>
   userExistsByEmail(email: string): Promise<boolean>
   createUser(id: string, orgId: string, email: string, name: string, passwordHash: string, role: string): Promise<void>
-  listUsers(orgId: string): Promise<Array<{ id: string; name: string; email: string; org_role: string; created_at: string }>>
+  listUsers(orgId: string, params?: { search?: string; limit?: number; offset?: number }): Promise<{ users: Array<{ id: string; name: string; email: string; org_role: string; created_at: string }>; total: number }>
 
   listSettings(orgId: string): Promise<OrgSettingData[]>
   findSetting(orgId: string, key: string): Promise<OrgSettingData | null>

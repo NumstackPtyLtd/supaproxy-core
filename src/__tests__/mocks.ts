@@ -77,7 +77,7 @@ export function mockOrgRepo(): OrganisationRepository {
     findUserById: vi.fn().mockResolvedValue(null),
     userExistsByEmail: vi.fn().mockResolvedValue(false),
     createUser: vi.fn().mockResolvedValue(undefined),
-    listUsers: vi.fn().mockResolvedValue([]),
+    listUsers: vi.fn().mockResolvedValue({ users: [], total: 0 }),
     listSettings: vi.fn().mockResolvedValue([]),
     findSetting: vi.fn().mockResolvedValue(null),
     upsertSetting: vi.fn().mockResolvedValue(undefined),
@@ -132,6 +132,8 @@ export function mockWorkspaceRepo(): WorkspaceRepository {
     findDefaultByOrg: vi.fn().mockResolvedValue(null),
     listRoutingSummaries: vi.fn().mockResolvedValue([]),
     setDefault: vi.fn().mockResolvedValue(undefined),
+    unsetDefault: vi.fn().mockResolvedValue(undefined),
+    deleteWorkspace: vi.fn().mockResolvedValue(undefined),
   }
 }
 

@@ -82,8 +82,11 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
 
   org.get('/api/org/users', async (c) => {
     const user = c.get('user') as AuthUser
-    const users = await deps.listOrgUsersUseCase.execute(user.org_id)
-    return c.json({ users })
+    const search = c.req.query('search') || undefined
+    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || 50, 1), 200) : 50
+    const page = parseInt(c.req.query('page') || '0', 10)
+    const result = await deps.listOrgUsersUseCase.execute(user.org_id, { search, limit, offset: page * limit })
+    return c.json(result)
   })
 
   return org

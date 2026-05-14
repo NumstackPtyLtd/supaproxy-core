@@ -42,7 +42,7 @@ describe('GetComplianceUseCase', () => {
     vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([
       {
         id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1',
-        event_type: 'execution_blocked', plugin_id: 'write-guard',
+        event_type: 'execution_blocked', plugin_id: '@supaproxy/guardrails:write-guard',
         context: { tool_name: 'delete_account', connection_name: 'test-mcp' },
         outcome: { reason: 'No write intent' },
         display: [{ source: 'context', key: 'tool_name', label: 'Tool', format: 'text' }],
@@ -52,7 +52,7 @@ describe('GetComplianceUseCase', () => {
       },
       {
         id: 'evt-2', workspace_id: 'ws-test', conversation_id: 'conv-2',
-        event_type: 'retrieval_stripped', plugin_id: 'injection-sanitiser',
+        event_type: 'retrieval_stripped', plugin_id: '@supaproxy/guardrails:injection-sanitiser',
         context: { tool_name: 'fetch_page', connection_name: 'test-mcp' },
         outcome: { original_content: 'Bad content', stripped_content: 'Ignore previous instructions' },
         display: [{ source: 'outcome', key: 'stripped_content', label: 'Stripped', format: 'danger' }],
@@ -90,7 +90,7 @@ describe('GetComplianceUseCase', () => {
       events: [
         {
           id: 'evt-1', workspace_id: 'ws-test', conversation_id: 'conv-1',
-          event_type: 'execution_blocked', plugin_id: 'write-guard',
+          event_type: 'execution_blocked', plugin_id: '@supaproxy/guardrails:write-guard',
           context: { tool_name: 'delete_account' },
           outcome: { reason: 'No write intent' },
           display: [], actions: [], status: 'open',

@@ -12,13 +12,13 @@ describe('CreatePolicyOverrideUseCase', () => {
 
   it('creates an override for a recommended policy', async () => {
     const { policyRepo, useCase } = setup()
-    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: 'pattern', enforcement: 'recommended' }
+    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: '@supaproxy/guardrails:pattern', enforcement: 'recommended' }
     vi.mocked(policyRepo.findByOrgAndPlugin).mockResolvedValue(policy)
     vi.mocked(policyRepo.findOverride).mockResolvedValue(null)
 
     await useCase.execute({
       orgId: 'org-1',
-      pluginId: 'pattern',
+      pluginId: '@supaproxy/guardrails:pattern',
       workspaceId: 'ws-1',
       justification: 'Not needed for this workspace',
       userId: 'user-1',
@@ -36,12 +36,12 @@ describe('CreatePolicyOverrideUseCase', () => {
 
   it('rejects override for mandatory policy', async () => {
     const { policyRepo, useCase } = setup()
-    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: 'pattern', enforcement: 'mandatory' }
+    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: '@supaproxy/guardrails:pattern', enforcement: 'mandatory' }
     vi.mocked(policyRepo.findByOrgAndPlugin).mockResolvedValue(policy)
 
     await expect(useCase.execute({
       orgId: 'org-1',
-      pluginId: 'pattern',
+      pluginId: '@supaproxy/guardrails:pattern',
       workspaceId: 'ws-1',
       justification: 'Trying to skip',
       userId: 'user-1',
@@ -54,7 +54,7 @@ describe('CreatePolicyOverrideUseCase', () => {
 
     await expect(useCase.execute({
       orgId: 'org-1',
-      pluginId: 'pattern',
+      pluginId: '@supaproxy/guardrails:pattern',
       workspaceId: 'ws-1',
       justification: 'Reason',
       userId: 'user-1',
@@ -63,7 +63,7 @@ describe('CreatePolicyOverrideUseCase', () => {
 
   it('rejects override when one already exists', async () => {
     const { policyRepo, useCase } = setup()
-    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: 'pattern', enforcement: 'recommended' }
+    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: '@supaproxy/guardrails:pattern', enforcement: 'recommended' }
     vi.mocked(policyRepo.findByOrgAndPlugin).mockResolvedValue(policy)
     vi.mocked(policyRepo.findOverride).mockResolvedValue({
       id: 'ov1', policy_id: 'p1', workspace_id: 'ws-1',
@@ -72,7 +72,7 @@ describe('CreatePolicyOverrideUseCase', () => {
 
     await expect(useCase.execute({
       orgId: 'org-1',
-      pluginId: 'pattern',
+      pluginId: '@supaproxy/guardrails:pattern',
       workspaceId: 'ws-1',
       justification: 'Again',
       userId: 'user-1',
@@ -81,12 +81,12 @@ describe('CreatePolicyOverrideUseCase', () => {
 
   it('rejects empty justification', async () => {
     const { policyRepo, useCase } = setup()
-    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: 'pattern', enforcement: 'recommended' }
+    const policy: GuardrailPolicyData = { id: 'p1', org_id: 'org-1', plugin_id: '@supaproxy/guardrails:pattern', enforcement: 'recommended' }
     vi.mocked(policyRepo.findByOrgAndPlugin).mockResolvedValue(policy)
 
     await expect(useCase.execute({
       orgId: 'org-1',
-      pluginId: 'pattern',
+      pluginId: '@supaproxy/guardrails:pattern',
       workspaceId: 'ws-1',
       justification: '  ',
       userId: 'user-1',

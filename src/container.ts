@@ -57,6 +57,8 @@ import { GetWorkspaceSummaryUseCase } from './application/workspace/GetWorkspace
 import { GetDashboardUseCase } from './application/workspace/GetDashboardUseCase.js'
 import { GetActivityUseCase } from './application/workspace/GetActivityUseCase.js'
 import { DeleteConnectionUseCase } from './application/workspace/DeleteConnectionUseCase.js'
+import { DeleteWorkspaceUseCase } from './application/workspace/DeleteWorkspaceUseCase.js'
+import { PublishWorkspaceUseCase } from './application/workspace/PublishWorkspaceUseCase.js'
 import { GetConnectionsUseCase } from './application/workspace/GetConnectionsUseCase.js'
 import { GetKnowledgeUseCase } from './application/workspace/GetKnowledgeUseCase.js'
 import { GetComplianceUseCase } from './application/workspace/GetComplianceUseCase.js'
@@ -147,6 +149,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const getDashboardUseCase = new GetDashboardUseCase(conversationRepo)
   const getActivityUseCase = new GetActivityUseCase(workspaceRepo)
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
+  const deleteWorkspaceUseCase = new DeleteWorkspaceUseCase(workspaceRepo)
+  const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
   const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
@@ -270,9 +274,9 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   // List all available guardrails: core (from catalogues) + installed (from DB)
   async function listAvailableGuardrails(orgId: string) {
-    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
-    const toCore = (p: { id: string; name: string; description: string; stage: string; configSchema: Info['configSchema'] }): Info => ({
-      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', configSchema: p.configSchema,
+    type Info = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; icon?: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+    const toCore = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: Info['configSchema'] }): Info => ({
+      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', icon: p.icon, configSchema: p.configSchema,
     })
 
     const core: Info[] = [
@@ -288,6 +292,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
       description: ig.plugin_metadata.description,
       stage: ig.plugin_metadata.stage,
       source: 'marketplace' as const,
+      icon: ig.plugin_metadata.icon,
       configSchema: ig.plugin_metadata.configSchema,
     }))
 
@@ -350,7 +355,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   // Build routes
   const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
@@ -363,7 +368,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const managePoliciesUseCase = new ManagePoliciesUseCase(guardrailPolicyRepo)
   const getSecurityOverviewUseCase = new GetSecurityOverviewUseCase(guardrailPolicyRepo)
   const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
-  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, requireAuth })
+  const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, listAvailableGuardrails, requireAuth })
 
   // Installed guardrails (marketplace)
   const installGuardrailUseCase = new InstallGuardrailUseCase(installedGuardrailRepo, pluginLoader, corePluginIds)

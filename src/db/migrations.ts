@@ -653,6 +653,30 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 23,
+    name: 'namespace plugin IDs',
+    up: async (pool) => {
+      // Widen plugin_id columns to accommodate namespaced IDs (e.g. @supaproxy/guardrails:pattern)
+      await pool.execute(`ALTER TABLE guardrail_events MODIFY COLUMN plugin_id VARCHAR(128) NOT NULL`);
+      await pool.execute(`ALTER TABLE guardrail_policies MODIFY COLUMN plugin_id VARCHAR(128) NOT NULL`);
+
+      // Migrate existing short IDs to namespaced format
+      const renames: [string, string][] = [
+        ['pattern', '@supaproxy/guardrails:pattern'],
+        ['llm', '@supaproxy/guardrails:llm'],
+        ['write-guard', '@supaproxy/guardrails:write-guard'],
+        ['injection-sanitiser', '@supaproxy/guardrails:injection-sanitiser'],
+      ];
+
+      for (const [oldId, newId] of renames) {
+        await pool.execute(`UPDATE workspace_guardrails SET guardrail_id = ? WHERE guardrail_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE guardrail_events SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE guardrail_policies SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE installed_guardrails SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {

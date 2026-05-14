@@ -162,4 +162,6 @@ export interface WorkspaceRepository {
   findDefaultByOrg(orgId: string): Promise<WorkspaceData | null>
   listRoutingSummaries(orgId: string): Promise<WorkspaceRoutingSummary[]>
   setDefault(id: string): Promise<void>
+  unsetDefault(id: string): Promise<void>
+  deleteWorkspace(id: string): Promise<void>
 }

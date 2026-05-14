@@ -23,6 +23,7 @@ export interface PolicyComplianceRow {
   workspace_name: string
   enabled: boolean
   has_override: boolean
+  is_default: boolean
 }
 
 export interface SecurityOverviewStats {
@@ -42,7 +43,7 @@ export interface GuardrailPolicyRepository {
   listByOrg(orgId: string): Promise<GuardrailPolicyData[]>
   findByOrgAndPlugin(orgId: string, pluginId: string): Promise<GuardrailPolicyData | null>
   upsert(data: GuardrailPolicyData): Promise<void>
-  getComplianceForPolicy(policyId: string, pluginId: string, orgId: string): Promise<PolicyComplianceRow[]>
+  getComplianceForPolicy(policyId: string, pluginId: string, orgId: string, search?: string): Promise<PolicyComplianceRow[]>
   findOverride(policyId: string, workspaceId: string): Promise<GuardrailPolicyOverrideData | null>
   createOverride(data: GuardrailPolicyOverrideData): Promise<void>
   deleteOverride(policyId: string, workspaceId: string): Promise<void>

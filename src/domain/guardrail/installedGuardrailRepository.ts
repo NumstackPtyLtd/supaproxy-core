@@ -4,6 +4,7 @@ export interface PluginMetadata {
   author: string
   version: string
   stage: string
+  icon?: string
   configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> }
 }
 

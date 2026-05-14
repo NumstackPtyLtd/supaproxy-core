@@ -10,6 +10,7 @@ interface IdRow extends RowDataPacket { id: string }
 interface ValueRow extends RowDataPacket { value: string }
 interface KeyValueRow extends RowDataPacket { key_name: string; value: string }
 interface UserListRow extends RowDataPacket { id: string; name: string; email: string; org_role: string; created_at: string }
+interface CountRow extends RowDataPacket { total: number }
 
 export class MysqlOrganisationRepository implements OrganisationRepository {
   constructor(private readonly pool: mysql.Pool) {}
@@ -59,11 +60,29 @@ export class MysqlOrganisationRepository implements OrganisationRepository {
     )
   }
 
-  async listUsers(orgId: string): Promise<Array<{ id: string; name: string; email: string; org_role: string; created_at: string }>> {
-    const [rows] = await this.pool.execute<UserListRow[]>(
-      'SELECT id, name, email, org_role, created_at FROM users WHERE org_id = ? ORDER BY created_at', [orgId]
-    )
-    return rows
+  async listUsers(orgId: string, params?: { search?: string; limit?: number; offset?: number }): Promise<{ users: Array<{ id: string; name: string; email: string; org_role: string; created_at: string }>; total: number }> {
+    const conditions = ['org_id = ?']
+    const values: string[] = [orgId]
+
+    if (params?.search) {
+      conditions.push('(name LIKE ? OR email LIKE ?)')
+      const term = `%${params.search}%`
+      values.push(term, term)
+    }
+
+    const where = conditions.join(' AND ')
+    const limit = params?.limit ?? 50
+    const offset = params?.offset ?? 0
+
+    const [[countResult], [rows]] = await Promise.all([
+      this.pool.execute<CountRow[]>(`SELECT COUNT(*) AS total FROM users WHERE ${where}`, values),
+      this.pool.execute<UserListRow[]>(
+        `SELECT id, name, email, org_role, created_at FROM users WHERE ${where} ORDER BY created_at LIMIT ? OFFSET ?`,
+        [...values, String(limit), String(offset)],
+      ),
+    ])
+
+    return { users: rows, total: (countResult[0] as { total: number })?.total ?? 0 }
   }
 
   async listSettings(orgId: string): Promise<OrgSettingData[]> {
