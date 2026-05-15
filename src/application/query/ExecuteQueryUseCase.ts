@@ -17,6 +17,8 @@ import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PR
 import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { PreQueryGuardService } from './PreQueryGuardService.js'
+import { RetrieveKnowledgeUseCase } from '../knowledge/RetrieveKnowledgeUseCase.js'
+import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { safeJsonParse } from '../../shared/json.js'
 import pino from 'pino'
 
@@ -91,6 +93,7 @@ export class ExecuteQueryUseCase {
     private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
     private readonly guardrailEventRepo?: GuardrailEventRepository,
     private readonly preQueryGuard?: PreQueryGuardService,
+    private readonly retrieveKnowledge?: RetrieveKnowledgeForWorkspaceUseCase,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -147,6 +150,7 @@ export class ExecuteQueryUseCase {
     let screeningAction: string | null = null
     let screeningCategories: string[] | null = null
     let screeningMs: number | null = null
+    let knowledgeChunksUsed = 0
     let queryToForward = query
 
     const guardrails = await this.resolveGuardrails(workspaceId)
@@ -216,6 +220,19 @@ export class ExecuteQueryUseCase {
         systemPrompt = `${basePrompt}\n\n${scopeClause}`
       }
 
+      // Retrieve relevant knowledge and append to system prompt
+      if (this.retrieveKnowledge) {
+        try {
+          const retrieval = await this.retrieveKnowledge.execute(workspaceId, queryToForward)
+          if (retrieval.chunks.length > 0) {
+            systemPrompt += RetrieveKnowledgeUseCase.formatContext(retrieval.chunks)
+            knowledgeChunksUsed = retrieval.chunks.length
+          }
+        } catch (err) {
+          log.warn({ err, workspaceId }, 'Knowledge retrieval failed, continuing without context')
+        }
+      }
+
       const result = await this.runAgentLoop(queryToForward, provider, {
         model: workspace.model,
         systemPrompt,
@@ -233,7 +250,7 @@ export class ExecuteQueryUseCase {
       // Cost is accumulated per-round from the provider's usage.cost_usd
 
       const auditLogId = generateId()
-      await this.writeAuditLog(auditLogId, workspaceId, conversationId, query, result, meta, { screeningAction, screeningCategories, screeningMs })
+      await this.writeAuditLog(auditLogId, workspaceId, conversationId, query, result, meta, { screeningAction, screeningCategories, screeningMs }, knowledgeChunksUsed)
       await this.recordMessages(conversationId, queryToForward, result.answer, auditLogId)
 
       log.info({
@@ -466,6 +483,7 @@ export class ExecuteQueryUseCase {
     result: { toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null },
     meta: QueryMeta,
     screening?: { screeningAction: string | null; screeningCategories: string[] | null; screeningMs: number | null },
+    knowledgeChunks?: number,
   ): Promise<void> {
     try {
       const data: AuditLogData = {
@@ -487,6 +505,7 @@ export class ExecuteQueryUseCase {
         input_screening_action: screening?.screeningAction || null,
         input_screening_categories: screening?.screeningCategories ? JSON.stringify(screening.screeningCategories) : null,
         input_screening_ms: screening?.screeningMs || null,
+        knowledge_chunks_used: knowledgeChunks || 0,
       }
       await this.auditRepo.create(data)
     } catch (err) {

@@ -24,6 +24,12 @@ import { MysqlIntegrationRepository } from './infrastructure/persistence/mysql/M
 import { MysqlEntryPointRepository } from './infrastructure/persistence/mysql/MysqlEntryPointRepository.js'
 import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoader.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
+import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
+import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
+import { ProviderEmbeddingService } from './infrastructure/ai/ProviderEmbeddingService.js'
+import { IndexKnowledgeUseCase } from './application/knowledge/IndexKnowledgeUseCase.js'
+import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
+import { EmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
 import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
@@ -132,6 +138,12 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const queueService = new BullMqService(REDIS_HOST, REDIS_PORT)
   const integrationTester = new ConsumerIntegrationTester(consumerRegistry)
   const posterRegistry = new ConsumerPosterRegistryImpl()
+
+  // Knowledge infrastructure
+  const knowledgeChunkRepo = new MysqlKnowledgeChunkRepository(pool)
+  const vectorStore = new LanceDBVectorStore(process.env.LANCEDB_PATH || './data/lancedb')
+  const embeddingFactory = new EmbeddingServiceFactory(orgRepo)
+  const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
 
   // Middleware
   const requireAuth = createRequireAuth(tokenService)
@@ -354,7 +366,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const guardrailEventRepo = new MysqlGuardrailEventRepository(pool)
   const preQueryGuardDeps = new PreQueryGuardDepsImpl(pool, REDIS_HOST, REDIS_PORT)
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard, retrieveKnowledge)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
