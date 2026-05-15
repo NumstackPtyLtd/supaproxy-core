@@ -783,6 +783,27 @@ const migrations: Migration[] = [
       }
     },
   },
+  {
+    version: 29,
+    name: 'create_knowledge_chunks_table',
+    up: async (pool) => {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS knowledge_chunks (
+          id VARCHAR(64) PRIMARY KEY,
+          source_id VARCHAR(64) NOT NULL,
+          workspace_id VARCHAR(64) NOT NULL,
+          text TEXT NOT NULL,
+          chunk_index INT NOT NULL,
+          content_hash VARCHAR(64) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (source_id) REFERENCES knowledge_sources(id) ON DELETE CASCADE,
+          FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+          INDEX idx_chunks_source (source_id),
+          INDEX idx_chunks_workspace (workspace_id)
+        )
+      `);
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
