@@ -141,7 +141,8 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
 
   // Knowledge infrastructure
   const knowledgeChunkRepo = new MysqlKnowledgeChunkRepository(pool)
-  const vectorStore = new LanceDBVectorStore(process.env.LANCEDB_PATH || './data/lancedb')
+  // Vector store: LanceDB by default, swappable via the VectorStore port interface
+  const vectorStore: import('./application/ports/VectorStore.js').VectorStore = new LanceDBVectorStore(process.env.VECTOR_STORE_PATH || './data/vectors')
   const embeddingFactory = new EmbeddingServiceFactory(orgRepo)
   const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
   const indexKnowledge = new IndexKnowledgeForWorkspaceUseCase(knowledgeChunkRepo, vectorStore, workspaceRepo, embeddingFactory)

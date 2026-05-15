@@ -17,10 +17,9 @@ interface IndexResult {
   chunksIndexed: number;
 }
 
-const CHUNK_SIZE = 500;
-const CHUNK_OVERLAP = 50;
+import { DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_OVERLAP } from '../../defaults.js';
 
-function chunkText(text: string, chunkSize = CHUNK_SIZE, overlap = CHUNK_OVERLAP): string[] {
+function chunkText(text: string, chunkSize = DEFAULT_CHUNK_SIZE, overlap = DEFAULT_CHUNK_OVERLAP): string[] {
   const words = text.split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return [];
   if (words.length <= chunkSize) return [words.join(' ')];

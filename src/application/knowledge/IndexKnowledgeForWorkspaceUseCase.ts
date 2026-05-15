@@ -29,7 +29,7 @@ export class IndexKnowledgeForWorkspaceUseCase {
     if (!workspace?.org_id) throw new ConfigurationError('Workspace has no organisation');
 
     const embeddingService = await this.embeddingFactory.forOrg(workspace.org_id);
-    if (!embeddingService) throw new ConfigurationError('No embedding API key configured. Set openai_api_key or ai_api_key in organisation settings.');
+    if (!embeddingService) throw new ConfigurationError('No embedding API key configured. Set embedding_api_key or ai_api_key in organisation settings.');
 
     const useCase = new IndexKnowledgeUseCase(this.chunkRepo, this.vectorStore, embeddingService);
     return useCase.execute({
