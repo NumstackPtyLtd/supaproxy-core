@@ -10,9 +10,9 @@ export class EmbeddingServiceFactory {
   constructor(private readonly orgRepo: OrganisationRepository) {}
 
   async forOrg(orgId: string): Promise<EmbeddingService | null> {
-    const settings = await this.orgRepo.findSettings(orgId);
-    const apiKey = settings.find(s => s.key === 'openai_api_key')?.value
-      || settings.find(s => s.key === 'ai_api_key')?.value;
+    const openaiKey = await this.orgRepo.findSetting(orgId, 'openai_api_key');
+    const fallbackKey = await this.orgRepo.findSetting(orgId, 'ai_api_key');
+    const apiKey = openaiKey?.value || fallbackKey?.value;
 
     if (!apiKey) return null;
 

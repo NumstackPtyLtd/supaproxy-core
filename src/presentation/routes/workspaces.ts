@@ -167,19 +167,20 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       return c.json({ error: 'Knowledge indexing not configured' }, 500)
     }
 
-    const body = await parseBody(c, z.object({
+    const parsed = await parseBody(c, z.object({
       sourceId: z.string().min(1),
       name: z.string().min(1),
       type: z.string().min(1),
       content: z.string().min(1),
     }))
+    if (!parsed.success) return parsed.response
 
     const result = await deps.indexKnowledgeUseCase.execute({
-      sourceId: body.sourceId,
+      sourceId: parsed.data.sourceId,
       workspaceId,
-      type: body.type,
-      name: body.name,
-      content: body.content,
+      type: parsed.data.type,
+      name: parsed.data.name,
+      content: parsed.data.content,
     })
 
     return c.json({ indexed: true, chunksIndexed: result.chunksIndexed })
