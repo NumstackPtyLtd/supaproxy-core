@@ -27,7 +27,7 @@ import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsI
 import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
 import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
 import { ProviderEmbeddingService } from './infrastructure/ai/ProviderEmbeddingService.js'
-import { IndexKnowledgeUseCase } from './application/knowledge/IndexKnowledgeUseCase.js'
+import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { EmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
 import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
@@ -144,6 +144,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const vectorStore = new LanceDBVectorStore(process.env.LANCEDB_PATH || './data/lancedb')
   const embeddingFactory = new EmbeddingServiceFactory(orgRepo)
   const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
+  const indexKnowledge = new IndexKnowledgeForWorkspaceUseCase(knowledgeChunkRepo, vectorStore, workspaceRepo, embeddingFactory)
 
   // Middleware
   const requireAuth = createRequireAuth(tokenService)
@@ -374,7 +375,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   // Build routes
   const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth, indexKnowledgeUseCase: indexKnowledge })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })

@@ -11,6 +11,7 @@ import type { GetActivityUseCase } from '../../application/workspace/GetActivity
 import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
 import type { GetConnectionsUseCase } from '../../application/workspace/GetConnectionsUseCase.js'
 import type { GetKnowledgeUseCase } from '../../application/workspace/GetKnowledgeUseCase.js'
+import type { IndexKnowledgeForWorkspaceUseCase } from '../../application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
 import type { DeleteWorkspaceUseCase } from '../../application/workspace/DeleteWorkspaceUseCase.js'
 import type { PublishWorkspaceUseCase } from '../../application/workspace/PublishWorkspaceUseCase.js'
@@ -57,6 +58,7 @@ interface WorkspaceRouteDeps {
   deleteConnectionUseCase: DeleteConnectionUseCase
   getConnectionsUseCase: GetConnectionsUseCase
   getKnowledgeUseCase: GetKnowledgeUseCase
+  indexKnowledgeUseCase?: IndexKnowledgeForWorkspaceUseCase
   getComplianceUseCase: GetComplianceUseCase
   deleteWorkspaceUseCase: DeleteWorkspaceUseCase
   publishWorkspaceUseCase: PublishWorkspaceUseCase
@@ -154,6 +156,33 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     await guardWorkspace(c.req.param('id'), user.org_id)
     const result = await deps.getKnowledgeUseCase.execute(c.req.param('id'))
     return c.json(result)
+  })
+
+  workspaces.post('/api/workspaces/:id/knowledge/index', async (c) => {
+    const user = c.get('user') as AuthUser
+    const workspaceId = c.req.param('id')
+    await guardWorkspace(workspaceId, user.org_id)
+
+    if (!deps.indexKnowledgeUseCase) {
+      return c.json({ error: 'Knowledge indexing not configured' }, 500)
+    }
+
+    const body = await parseBody(c, z.object({
+      sourceId: z.string().min(1),
+      name: z.string().min(1),
+      type: z.string().min(1),
+      content: z.string().min(1),
+    }))
+
+    const result = await deps.indexKnowledgeUseCase.execute({
+      sourceId: body.sourceId,
+      workspaceId,
+      type: body.type,
+      name: body.name,
+      content: body.content,
+    })
+
+    return c.json({ indexed: true, chunksIndexed: result.chunksIndexed })
   })
 
   workspaces.get('/api/workspaces/:id/compliance', async (c) => {
