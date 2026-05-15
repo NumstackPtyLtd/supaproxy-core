@@ -23,6 +23,7 @@ import type { TenantService } from '../../application/ports/TenantService.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
+import { generateId } from '../../domain/shared/EntityId.js'
 import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
 
 const log = pino({ name: 'routes/workspaces' })
@@ -158,32 +159,49 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     return c.json(result)
   })
 
-  workspaces.post('/api/workspaces/:id/knowledge/index', async (c) => {
+  workspaces.post('/api/workspaces/:id/knowledge', async (c) => {
     const user = c.get('user') as AuthUser
     const workspaceId = c.req.param('id')
     await guardWorkspace(workspaceId, user.org_id)
 
-    if (!deps.indexKnowledgeUseCase) {
-      return c.json({ error: 'Knowledge indexing not configured' }, 500)
-    }
-
     const parsed = await parseBody(c, z.object({
-      sourceId: z.string().min(1),
-      name: z.string().min(1),
-      type: z.string().min(1),
+      name: z.string().min(1).max(255),
+      type: z.enum(['inline', 'url', 'confluence', 'file']),
       content: z.string().min(1),
     }))
     if (!parsed.success) return parsed.response
 
-    const result = await deps.indexKnowledgeUseCase.execute({
-      sourceId: parsed.data.sourceId,
-      workspaceId,
-      type: parsed.data.type,
-      name: parsed.data.name,
-      content: parsed.data.content,
-    })
+    const { name, type, content } = parsed.data
+    const sourceId = generateId()
 
-    return c.json({ indexed: true, chunksIndexed: result.chunksIndexed })
+    // 1. Create the knowledge source record
+    await deps.workspaceRepo.createKnowledgeSource(sourceId, workspaceId, type, name, JSON.stringify({ content }))
+
+    // 2. Index if embedding service is available
+    let chunksIndexed = 0
+    if (deps.indexKnowledgeUseCase) {
+      try {
+        const result = await deps.indexKnowledgeUseCase.execute({ sourceId, workspaceId, type, name, content })
+        chunksIndexed = result.chunksIndexed
+        await deps.workspaceRepo.updateKnowledgeSourceStatus(sourceId, 'synced', chunksIndexed)
+      } catch (err) {
+        log.warn({ err, sourceId }, 'Knowledge indexing failed')
+        await deps.workspaceRepo.updateKnowledgeSourceStatus(sourceId, 'error', 0)
+      }
+    }
+
+    return c.json({ id: sourceId, chunksIndexed }, 201)
+  })
+
+  workspaces.delete('/api/workspaces/:id/knowledge/:sourceId', async (c) => {
+    const user = c.get('user') as AuthUser
+    const workspaceId = c.req.param('id')
+    await guardWorkspace(workspaceId, user.org_id)
+
+    const sourceId = c.req.param('sourceId')
+    await deps.workspaceRepo.deleteKnowledgeSource(sourceId)
+
+    return c.json({ deleted: true })
   })
 
   workspaces.get('/api/workspaces/:id/compliance', async (c) => {

@@ -223,6 +223,24 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
     return rows
   }
 
+  async createKnowledgeSource(id: string, workspaceId: string, type: string, name: string, config: string): Promise<void> {
+    await this.pool.execute(
+      'INSERT INTO knowledge_sources (id, workspace_id, type, name, config) VALUES (?, ?, ?, ?, ?)',
+      [id, workspaceId, type, name, config],
+    )
+  }
+
+  async updateKnowledgeSourceStatus(id: string, status: string, chunks: number): Promise<void> {
+    await this.pool.execute(
+      'UPDATE knowledge_sources SET status = ?, chunks = ?, last_synced_at = NOW() WHERE id = ?',
+      [status, String(chunks), id],
+    )
+  }
+
+  async deleteKnowledgeSource(id: string): Promise<void> {
+    await this.pool.execute('DELETE FROM knowledge_sources WHERE id = ?', [id])
+  }
+
   async findGuardrails(workspaceId: string): Promise<GuardrailData[]> {
     const [rows] = await this.pool.execute<GuardrailRow[]>(
       'SELECT id, rule_type, enabled, config FROM guardrails WHERE workspace_id = ?', [workspaceId]
