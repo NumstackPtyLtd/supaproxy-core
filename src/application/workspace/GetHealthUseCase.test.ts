@@ -15,13 +15,12 @@ describe('GetHealthUseCase', () => {
     expect(wsRepo.getActiveWorkspaceCount).not.toHaveBeenCalled()
   })
 
-  it('executeAuthenticated returns full details', async () => {
+  it('executeAuthenticated returns full details with ai_api_key', async () => {
     const orgRepo = mockOrgRepo()
     const wsRepo = mockWorkspaceRepo()
     const uc = new GetHealthUseCase(orgRepo, wsRepo)
 
     vi.mocked(orgRepo.getSettingValue).mockResolvedValue('sk-key-value')
-    vi.mocked(orgRepo.findById).mockResolvedValue({ id: 'org-1', name: 'Test Org', slug: 'test-org', created_at: '2024-01-01' })
     vi.mocked(wsRepo.getActiveWorkspaceCount).mockResolvedValue(3)
     vi.mocked(wsRepo.getConnectedConnectionCount).mockResolvedValue(2)
     vi.mocked(wsRepo.getActiveConsumerCount).mockResolvedValue(1)
@@ -33,8 +32,34 @@ describe('GetHealthUseCase', () => {
       setup_complete: true,
       workspaces: 3,
       ai_configured: true,
+      embedding_available: false,
       connections: 2,
       consumers: 1,
     })
+  })
+
+  it('detects provider-specific keys via registry', async () => {
+    const orgRepo = mockOrgRepo()
+    const wsRepo = mockWorkspaceRepo()
+    const mockRegistry = {
+      types: () => ['openai'],
+      get: () => ({ supportsEmbedding: true }),
+      list: () => [{ supportsEmbedding: true }],
+    }
+    const uc = new GetHealthUseCase(orgRepo, wsRepo, mockRegistry as any)
+
+    // No general key, but openai_api_key exists
+    vi.mocked(orgRepo.getSettingValue).mockImplementation(async (key: string) => {
+      if (key === 'openai_api_key') return 'sk-openai'
+      return null
+    })
+    vi.mocked(wsRepo.getActiveWorkspaceCount).mockResolvedValue(1)
+    vi.mocked(wsRepo.getConnectedConnectionCount).mockResolvedValue(0)
+    vi.mocked(wsRepo.getActiveConsumerCount).mockResolvedValue(0)
+
+    const result = await uc.executeAuthenticated()
+
+    expect(result.ai_configured).toBe(true)
+    expect(result.embedding_available).toBe(true)
   })
 })
