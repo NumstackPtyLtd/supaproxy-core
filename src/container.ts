@@ -171,7 +171,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const deleteWorkspaceUseCase = new DeleteWorkspaceUseCase(workspaceRepo)
   const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
-  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo)
+  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo, embeddingFactory)
   const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
   const integrationRepo = new MysqlIntegrationRepository(pool)
   const entryPointRepo = new MysqlEntryPointRepository(pool)
