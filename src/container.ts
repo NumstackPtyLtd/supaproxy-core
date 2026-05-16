@@ -179,7 +179,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const pluginLoader = new DynamicPluginLoader()
   const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
-  const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo)
+  const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo, providerRegistry)
   const getHealthUseCase = new GetHealthUseCase(orgRepo, workspaceRepo, providerRegistry)
 
   const listConversationsUseCase = new ListConversationsUseCase(conversationRepo)

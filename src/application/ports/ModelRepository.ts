@@ -2,6 +2,7 @@ export interface ModelData {
   id: string
   label: string
   is_default: boolean
+  provider?: string
 }
 
 export interface ModelRepository {
