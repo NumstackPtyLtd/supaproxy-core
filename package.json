@@ -28,7 +28,7 @@
     "@supaproxy/connections": "^0.2.1",
     "@supaproxy/consumers": "^0.4.1",
     "@supaproxy/guardrails": "^0.6.0",
-    "@supaproxy/providers": "0.1.2",
+    "@supaproxy/providers": "link:/Users/Elvis/workspace/supaproxyhq/supaproxy-providers",
     "apache-arrow": "^18.1.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.74.1",
