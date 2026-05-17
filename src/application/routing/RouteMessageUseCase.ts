@@ -5,10 +5,9 @@ import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
-import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
-import { NotFoundError } from '../../domain/shared/errors.js'
-import { SESSION_TTL_SECONDS, CONSUMER_TYPE_SYSTEM } from '../../defaults.js'
-import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt, ROUTING_DIRECTIVE_REGEX, ROUTING_DIRECTIVE_CLEAN_REGEX, formatRoutingIndicator, isRedirectOffer } from '../../prompts.js'
+import { WorkspaceMatcher } from './WorkspaceMatcher.js'
+import { SESSION_TTL_SECONDS } from '../../defaults.js'
+import { ROUTING_DIRECTIVE_REGEX, ROUTING_DIRECTIVE_CLEAN_REGEX, formatRoutingIndicator, isRedirectOffer } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'route-message' })
@@ -31,7 +30,7 @@ interface RouteMessageOutput {
 }
 
 export class RouteMessageUseCase {
-  private readonly promptBuilder = new ReceptionistPromptBuilder()
+  private readonly matcher: WorkspaceMatcher
 
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
@@ -40,7 +39,9 @@ export class RouteMessageUseCase {
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
     private readonly conversationUseCase: ManageConversationUseCase,
-  ) {}
+  ) {
+    this.matcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQueryUseCase)
+  }
 
   async execute(input: RouteMessageInput): Promise<RouteMessageOutput> {
     const sessionKey = buildSessionKey(input.consumerType, input.entryPoint, input.userId)
@@ -59,7 +60,7 @@ export class RouteMessageUseCase {
       // If the AI previously offered a redirect, ask the receptionist if the user accepted
       if (existingSession.pendingRedirect) {
         log.info({ sessionKey, query: input.query }, 'Pending redirect, checking intent via AI')
-        const wantsRedirect = await this.checkRedirectIntent(input.query, input.orgId)
+        const wantsRedirect = await this.matcher.checkRedirectIntent(input.query, input.orgId)
         log.info({ sessionKey, wantsRedirect }, 'Redirect intent result')
         if (wantsRedirect) {
           await this.sessionStore.delete(sessionKey)
@@ -112,72 +113,22 @@ export class RouteMessageUseCase {
     return this.routeViaReceptionist(input, sessionKey)
   }
 
-  private async checkRedirectIntent(query: string, orgId: string): Promise<boolean> {
-    try {
-      const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
-      if (!defaultWs) return false
-
-      const prompt = buildRedirectIntentPrompt(query)
-      const result = await this.executeQueryUseCase.execute(defaultWs.id, prompt, {
-        consumerType: CONSUMER_TYPE_SYSTEM,
-        systemPromptOverride: REDIRECT_INTENT_SYSTEM,
-        skipTools: true,
-      })
-      return result.answer.toLowerCase().trim().startsWith('yes')
-    } catch (err) {
-      log.warn({ error: (err as Error).message }, 'Redirect intent check failed, defaulting to no')
-      return false
-    }
-  }
-
   private async routeViaReceptionist(input: RouteMessageInput, sessionKey: string): Promise<RouteMessageOutput> {
-    const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
-    if (!defaultWs) {
-      throw new NotFoundError('Default workspace', input.orgId)
-    }
+    const receptionistResult = await this.matcher.runReceptionist(input, sessionKey)
 
-    const org = await this.orgRepo.findById(input.orgId)
-    if (!org) {
-      throw new NotFoundError('Organisation', input.orgId)
-    }
-
-    const workspaces = await this.workspaceRepo.listRoutingSummaries(input.orgId)
-
-    // If there's only #general (no specialised workspaces), route directly there
-    if (workspaces.length === 0) {
-      await this.createSession(sessionKey, defaultWs.id, null)
-
-      const result = await this.executeQueryUseCase.execute(defaultWs.id, input.query, {
-        consumerType: input.consumerType,
-        channel: input.entryPoint,
-        userId: input.userId,
-        userName: input.userName,
-        sessionId: sessionKey,
-      })
-
+    // If no specialised workspaces, session stays on #general
+    if (receptionistResult.workspaces.length === 0) {
+      await this.createSession(sessionKey, receptionistResult.defaultWorkspaceId, null)
       return {
-        answer: result.answer,
-        conversationId: result.conversationId,
-        workspaceId: defaultWs.id,
+        answer: receptionistResult.answer,
+        conversationId: receptionistResult.conversationId,
+        workspaceId: receptionistResult.defaultWorkspaceId,
         routed: false,
       }
     }
 
-    // Build receptionist prompt and run through #general with no tools
-    const systemPrompt = this.promptBuilder.build(org.name, workspaces)
-
-    const result = await this.executeQueryUseCase.execute(defaultWs.id, input.query, {
-      consumerType: input.consumerType,
-      channel: input.entryPoint,
-      userId: input.userId,
-      userName: input.userName,
-      sessionId: sessionKey,
-      systemPromptOverride: systemPrompt,
-      skipTools: true,
-    })
-
     // Parse routing directive from the response
-    const routeMatch = result.answer.match(ROUTING_DIRECTIVE_REGEX)
+    const routeMatch = receptionistResult.answer.match(ROUTING_DIRECTIVE_REGEX)
 
     if (routeMatch) {
       const targetWorkspaceId = routeMatch[1]
@@ -187,45 +138,46 @@ export class RouteMessageUseCase {
       const targetWs = await this.workspaceRepo.findActiveById(targetWorkspaceId)
       if (!targetWs) {
         log.warn({ targetWorkspaceId }, 'Receptionist routed to non-existent workspace, staying in #general')
-        await this.createSession(sessionKey, defaultWs.id, null)
+        await this.createSession(sessionKey, receptionistResult.defaultWorkspaceId, null)
 
         return {
-          answer: this.cleanRoutingDirective(result.answer),
-          conversationId: result.conversationId,
-          workspaceId: defaultWs.id,
+          answer: this.cleanRoutingDirective(receptionistResult.answer),
+          conversationId: receptionistResult.conversationId,
+          workspaceId: receptionistResult.defaultWorkspaceId,
           routed: false,
         }
       }
 
       // Create session pointing to the target workspace
       // Store #general conversation ID so we can log all messages there too
+      const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
       await this.sessionStore.set(sessionKey, {
         workspaceId: targetWorkspaceId,
         lastMessageAt: Date.now(),
-        routedFrom: defaultWs.name,
-        routedFromConversationId: result.conversationId,
-        generalConversationId: result.conversationId,
+        routedFrom: defaultWs?.name || null,
+        routedFromConversationId: receptionistResult.conversationId,
+        generalConversationId: receptionistResult.conversationId,
       }, SESSION_TTL_SECONDS)
 
       // Record routing metadata on the conversation
       await this.conversationRepo.updateRouting(
-        result.conversationId, defaultWs.name, targetWs.name, routeReason,
+        receptionistResult.conversationId, defaultWs?.name || '', targetWs.name, routeReason,
       )
 
       // Clean the routing directive from the visible answer and add routing indicator
-      const cleanAnswer = this.cleanRoutingDirective(result.answer)
+      const cleanAnswer = this.cleanRoutingDirective(receptionistResult.answer)
       const answerWithIndicator = `${cleanAnswer}${formatRoutingIndicator(targetWs.name)}`
 
       log.info({
         orgId: input.orgId,
-        from: defaultWs.id,
+        from: receptionistResult.defaultWorkspaceId,
         to: targetWorkspaceId,
         reason: routeReason,
       }, 'Message routed')
 
       return {
         answer: answerWithIndicator,
-        conversationId: result.conversationId,
+        conversationId: receptionistResult.conversationId,
         workspaceId: targetWorkspaceId,
         routed: true,
         routedTo: targetWs.name,
@@ -233,12 +185,12 @@ export class RouteMessageUseCase {
     }
 
     // No routing directive: receptionist is still talking
-    await this.createSession(sessionKey, defaultWs.id, null)
+    await this.createSession(sessionKey, receptionistResult.defaultWorkspaceId, null)
 
     return {
-      answer: result.answer,
-      conversationId: result.conversationId,
-      workspaceId: defaultWs.id,
+      answer: receptionistResult.answer,
+      conversationId: receptionistResult.conversationId,
+      workspaceId: receptionistResult.defaultWorkspaceId,
       routed: false,
     }
   }

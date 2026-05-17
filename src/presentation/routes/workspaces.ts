@@ -23,8 +23,9 @@ import type { TenantService } from '../../application/ports/TenantService.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
-import { generateId } from '../../domain/shared/EntityId.js'
-import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH, DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT } from '../../defaults.js'
+import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
+import { createWorkspaceKnowledgeRoutes } from './workspace-knowledge.js'
+import { createWorkspaceActivityRoutes } from './workspace-activity.js'
 
 const log = pino({ name: 'routes/workspaces' })
 
@@ -80,11 +81,42 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
   workspaces.use('/api/teams', deps.requireAuth)
   workspaces.use('/api/connections/*', deps.requireAuth)
 
+  // Helper: verify workspace belongs to user's org (delegates to tenant service)
+  async function guardWorkspace(workspaceId: string, userOrgId: string) {
+    const ws = await deps.workspaceRepo.findById(workspaceId)
+    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
+  }
+
+  // ── Mount sub-routes ──
+
+  const knowledgeRoutes = createWorkspaceKnowledgeRoutes({
+    getKnowledgeUseCase: deps.getKnowledgeUseCase,
+    indexKnowledgeUseCase: deps.indexKnowledgeUseCase,
+    workspaceRepo: deps.workspaceRepo,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace)
+
+  const activityRoutes = createWorkspaceActivityRoutes({
+    getActivityUseCase: deps.getActivityUseCase,
+    getComplianceUseCase: deps.getComplianceUseCase,
+    guardrailEventRepo: deps.guardrailEventRepo,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace)
+
+  workspaces.route('/', knowledgeRoutes)
+  workspaces.route('/', activityRoutes)
+
+  // ── Teams ──
+
   workspaces.get('/api/teams', async (c) => {
     const user = c.get('user') as AuthUser
     const teams = await deps.orgRepo.listTeams(user.org_id)
     return c.json({ teams })
   })
+
+  // ── CRUD ──
 
   workspaces.post('/api/workspaces', async (c) => {
     const result = await parseBody(c, createWorkspaceSchema)
@@ -107,12 +139,6 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       throw err
     }
   })
-
-  // Helper: verify workspace belongs to user's org (delegates to tenant service)
-  async function guardWorkspace(workspaceId: string, userOrgId: string) {
-    const ws = await deps.workspaceRepo.findById(workspaceId)
-    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-  }
 
   workspaces.get('/api/workspaces', async (c) => {
     const user = c.get('user') as AuthUser
@@ -152,94 +178,6 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
     return c.json({ consumers })
   })
 
-  workspaces.get('/api/workspaces/:id/knowledge', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getKnowledgeUseCase.execute(c.req.param('id'))
-    return c.json(result)
-  })
-
-  workspaces.post('/api/workspaces/:id/knowledge', async (c) => {
-    const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    const parsed = await parseBody(c, z.object({
-      name: z.string().min(1).max(255),
-      type: z.enum(['inline', 'url', 'confluence', 'file']),
-      content: z.string().min(1),
-    }))
-    if (!parsed.success) return parsed.response
-
-    const { name, type, content } = parsed.data
-    const sourceId = generateId()
-
-    // 1. Create the knowledge source record
-    await deps.workspaceRepo.createKnowledgeSource(sourceId, workspaceId, type, name, JSON.stringify({ content }))
-
-    // 2. Index if embedding service is available
-    let chunksIndexed = 0
-    if (deps.indexKnowledgeUseCase) {
-      try {
-        const result = await deps.indexKnowledgeUseCase.execute({ sourceId, workspaceId, type, name, content })
-        chunksIndexed = result.chunksIndexed
-        await deps.workspaceRepo.updateKnowledgeSourceStatus(sourceId, 'synced', chunksIndexed)
-      } catch (err) {
-        log.warn({ err, sourceId }, 'Knowledge indexing failed')
-        await deps.workspaceRepo.updateKnowledgeSourceStatus(sourceId, 'error', 0)
-      }
-    }
-
-    return c.json({ id: sourceId, chunksIndexed }, 201)
-  })
-
-  workspaces.delete('/api/workspaces/:id/knowledge/:sourceId', async (c) => {
-    const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    const sourceId = c.req.param('sourceId')
-    await deps.workspaceRepo.deleteKnowledgeSource(sourceId)
-
-    return c.json({ deleted: true })
-  })
-
-  workspaces.get('/api/workspaces/:id/compliance', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-
-    const eventType = c.req.query('event_type')
-    const eventStatus = c.req.query('status')
-    const search = c.req.query('search')
-    const page = c.req.query('page')
-    const limit = c.req.query('limit')
-
-    const hasFilter = eventType || eventStatus || search || page || limit
-    const validEventType = eventType === 'execution_blocked' || eventType === 'retrieval_stripped' ? eventType as 'execution_blocked' | 'retrieval_stripped' : undefined
-    const validStatus = eventStatus === 'open' || eventStatus === 'flagged' || eventStatus === 'dismissed' ? eventStatus as 'open' | 'flagged' | 'dismissed' : undefined
-    const eventFilter = hasFilter ? {
-      event_type: validEventType,
-      status: validStatus,
-      search: search || undefined,
-      limit: limit ? Math.min(Math.max(parseInt(limit, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT,
-      offset: page ? (Math.max(parseInt(page, 10) || 0, 0)) * (limit ? Math.min(Math.max(parseInt(limit, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT) : 0,
-    } : undefined
-
-    const result = await deps.getComplianceUseCase.execute(c.req.param('id'), eventFilter)
-    return c.json(result)
-  })
-
-  workspaces.patch('/api/workspaces/:id/guardrail-events/:eventId/status', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const body = await c.req.json<{ status: string }>()
-    if (body.status !== 'open' && body.status !== 'flagged' && body.status !== 'dismissed') {
-      return c.json({ error: 'invalid_status' }, 400)
-    }
-    await deps.guardrailEventRepo.updateStatus(c.req.param('eventId'), body.status)
-    return c.json({ status: body.status })
-  })
-
   workspaces.get('/api/workspaces/:id', async (c) => {
     const user = c.get('user') as AuthUser
     try {
@@ -265,15 +203,6 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
-
-  workspaces.get('/api/workspaces/:id/activity', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
-    const offset = parseInt(c.req.query('offset') || '0')
-    const result = await deps.getActivityUseCase.execute(c.req.param('id'), limit, offset)
-    return c.json({ activity: result.rows, total: result.total })
   })
 
   workspaces.get('/api/workspaces/:id/dashboard', async (c) => {
