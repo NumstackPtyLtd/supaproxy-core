@@ -1,9 +1,9 @@
 /**
- * Public API for supaproxy-server.
+ * Public API for @supaproxy/core.
  *
  * This is what the cloud overlay imports:
  *
- *   import { createContainer, createApp, startConsumers, startWorkers, getPool, runMigrations } from 'supaproxy-server'
+ *   import { createContainer, createApp, startConsumers, startWorkers, getPool, runMigrations } from '@supaproxy/core/server'
  *
  * The open-source index.ts uses these same functions directly.
  */

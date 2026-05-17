@@ -13,8 +13,8 @@ Thanks for your interest in contributing! This guide will help you get started.
 ### Getting started
 
 ```bash
-git clone https://github.com/NumstackPtyLtd/supaproxy-server.git
-cd supaproxy-server
+git clone https://github.com/NumstackPtyLtd/supaproxy-core.git
+cd supaproxy-core
 pnpm install
 
 # Configure environment (must be done before Docker -- MySQL reads DB_PASSWORD from .env)
@@ -149,4 +149,4 @@ The `.claude/` directory contains Claude Code configuration -- skills (dev autom
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/NumstackPtyLtd/supaproxy-server/discussions) or file an issue.
+Open a [GitHub Discussion](https://github.com/NumstackPtyLtd/supaproxy-core/discussions) or file an issue.

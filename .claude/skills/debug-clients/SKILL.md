@@ -95,18 +95,18 @@ The server reads consumer tokens from `org_settings` at startup (`index.ts`). If
 ```bash
 # Restart and verify consumer started
 pkill -f "tsx.*index.ts" 2>/dev/null; sleep 2
-REPO_ROOT=$(git rev-parse --show-toplevel) && cd "$REPO_ROOT" && nohup npx tsx src/index.ts > /tmp/supaproxy-server.log 2>&1 &
+REPO_ROOT=$(git rev-parse --show-toplevel) && cd "$REPO_ROOT" && nohup npx tsx src/index.ts > /tmp/supaproxy-core.log 2>&1 &
 sleep 5
 
 # Check which consumers started
-strings /tmp/supaproxy-server.log | grep -i "consumer\|started\|failed\|token"
+strings /tmp/supaproxy-core.log | grep -i "consumer\|started\|failed\|token"
 ```
 
 ## Step 5: Check server logs for message handling
 
 ```bash
 # Tail recent logs for the consumer type
-strings /tmp/supaproxy-server.log | grep -i "<consumer_type>\|mention\|message\|query\|error" | tail -20
+strings /tmp/supaproxy-core.log | grep -i "<consumer_type>\|mention\|message\|query\|error" | tail -20
 ```
 
 Look for:

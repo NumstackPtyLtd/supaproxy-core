@@ -67,7 +67,7 @@ If tools are registered but querying says "No tools available":
 
 ```bash
 # Check server logs for MCP connection errors
-strings /tmp/supaproxy-server.log | grep -i "mcp\|tools\|connection" | tail -20
+strings /tmp/supaproxy-core.log | grep -i "mcp\|tools\|connection" | tail -20
 ```
 
 The agent (`core/agent.ts`) connects to MCP fresh on every query. Common issues:
