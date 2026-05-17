@@ -1,5 +1,4 @@
 import type mysql from 'mysql2/promise'
-import type { RowDataPacket } from 'mysql2'
 import type {
   WorkspaceRepository, WorkspaceData, ConnectionData, ConnectionToolData,
   ConsumerData, KnowledgeSourceData, GuardrailData, PermissionData,
@@ -7,24 +6,14 @@ import type {
   WorkspaceRoutingSummary,
 } from '../../../domain/workspace/repository.js'
 import { STATUS_ACTIVE, STATUS_ARCHIVED, STATUS_CONNECTED, STATUS_DISCONNECTED } from '../../../defaults.js'
-
-interface IdRow extends RowDataPacket { id: string }
-interface CountRow extends RowDataPacket { c: number }
-interface TotalRow extends RowDataPacket { total: number }
-interface WsRow extends RowDataPacket, WorkspaceData {}
-interface WsListRow extends RowDataPacket, WorkspaceListItemData {}
-interface ConnRow extends RowDataPacket, ConnectionData {}
-interface ConnConfigRow extends RowDataPacket { name: string; type: string; config: string }
-interface ToolRow extends RowDataPacket, ConnectionToolData {}
-interface ConsumerRow extends RowDataPacket, ConsumerData {}
-interface KnowledgeRow extends RowDataPacket, KnowledgeSourceData {}
-interface GuardrailRow extends RowDataPacket, GuardrailData {}
-interface PermissionRow extends RowDataPacket, PermissionData {}
-interface StatsRow extends RowDataPacket, WorkspaceStatsData {}
-interface ActivityRow extends RowDataPacket, ActivityLogData {}
-interface BoundConsumerRow extends RowDataPacket { workspace_id: string; workspace_name: string }
-interface RoutingSummaryRow extends RowDataPacket { id: string; name: string; system_prompt: string | null; tool_names: string | null }
-interface ConsumersByTypeRow extends RowDataPacket { workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }
+import {
+  type IdRow, type CountRow, type TotalRow, type WsRow, type WsListRow,
+  type ConnRow, type ConnConfigRow, type ToolRow, type ConsumerRow,
+  type KnowledgeRow, type GuardrailRow, type PermissionRow, type StatsRow,
+  type ActivityRow, type BoundConsumerRow, type RoutingSummaryRow,
+  type ConsumersByTypeRow,
+  mapRoutingSummaryRow,
+} from './WorkspaceRowMappers.js'
 
 export class MysqlWorkspaceRepository implements WorkspaceRepository {
   constructor(private readonly pool: mysql.Pool) {}
@@ -345,12 +334,7 @@ export class MysqlWorkspaceRepository implements WorkspaceRepository {
        GROUP BY w.id`,
       [orgId]
     )
-    return rows.map(r => ({
-      id: r.id,
-      name: r.name,
-      system_prompt: r.system_prompt,
-      tool_names: r.tool_names ? r.tool_names.split(',') : [],
-    }))
+    return rows.map(mapRoutingSummaryRow)
   }
 
   async setDefault(id: string): Promise<void> {
