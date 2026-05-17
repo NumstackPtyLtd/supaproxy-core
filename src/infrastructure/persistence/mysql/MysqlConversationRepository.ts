@@ -1,36 +1,20 @@
 import type mysql from 'mysql2/promise'
-import type { RowDataPacket } from 'mysql2'
 import type {
   ConversationRepository, ConversationData, ConversationWithStatsData,
   MessageWithAuditData, ConversationStatsData, ConversationFilterData,
   ColdTransitionData, ConversationAggregateData,
 } from '../../../domain/conversation/repository.js'
 import { STATUS_OPEN, STATUS_CLOSED, STATUS_PENDING } from '../../../defaults.js'
-
-interface ConvRow extends RowDataPacket, ConversationData {}
-interface ConvWithStatsRow extends RowDataPacket, ConversationWithStatsData {}
-interface MsgRow extends RowDataPacket { role: string; content: string }
-interface MsgAuditRow extends RowDataPacket, MessageWithAuditData {}
-interface StatsRow extends RowDataPacket, ConversationStatsData {}
-interface FilterRow extends RowDataPacket { status: string | null; consumer_type: string | null; category: string | null; resolution_status: string | null }
-interface ColdRow extends RowDataPacket, ColdTransitionData {}
-interface IdRow extends RowDataPacket { id: string }
-interface TotalRow extends RowDataPacket { total: number }
-interface SeqRow extends RowDataPacket { next_seq: number }
-interface AggRow extends RowDataPacket { ti: number; to2: number; cost: number; dur: number; qcount: number }
-interface TimestampRow extends RowDataPacket { first_message_at: string | null; closed_at: string | null; message_count: number }
-interface ModelRow extends RowDataPacket { model: string }
-interface ProviderInfoRow extends RowDataPacket { model: string; provider_type: string | null }
-interface TicketRow extends RowDataPacket { open_count: number | null; cold_count: number | null; closed_today: number | null; closed_week: number | null }
-interface SentimentRow extends RowDataPacket { sentiment_score: number; cnt: number }
-interface CompStatsRow extends RowDataPacket { compliance_violations: string | null; conversation_id: string; created_at: string }
-interface GapStatsRow extends RowDataPacket { knowledge_gaps: string | null; created_at: string }
-interface GapWorkspaceRow extends RowDataPacket { knowledge_gaps: string | null; conversation_id: string; user_name: string | null; last_activity_at: string | null }
-interface ViolationWorkspaceRow extends RowDataPacket { compliance_violations: string | null; conversation_id: string; user_name: string | null; last_activity_at: string | null }
-interface ResRow extends RowDataPacket { resolution_status: string; cnt: number }
-interface CatRow extends RowDataPacket { category: string; cnt: number }
-interface ChanRow extends RowDataPacket { consumer_type: string; cnt: number }
-interface CostRow extends RowDataPacket { cost_today: number; cost_week: number; cost_month: number; q_today: number; q_week: number; q_month: number }
+import {
+  type ConvRow, type ConvWithStatsRow, type MsgRow, type MsgAuditRow,
+  type StatsRow, type FilterRow, type ColdRow, type IdRow, type TotalRow,
+  type SeqRow, type AggRow, type TimestampRow, type ModelRow, type ProviderInfoRow,
+  type TicketRow, type SentimentRow, type CompStatsRow, type GapStatsRow,
+  type GapWorkspaceRow, type ViolationWorkspaceRow, type ResRow, type CatRow,
+  type ChanRow, type CostRow,
+  mapAggregateRow, mapTicketRow, mapSentimentRow, mapResolutionRow,
+  mapCategoryRow, mapChannelRow, mapFilterRows,
+} from './ConversationRowMappers.js'
 
 export class MysqlConversationRepository implements ConversationRepository {
   constructor(private readonly pool: mysql.Pool) {}
@@ -123,14 +107,7 @@ export class MysqlConversationRepository implements ConversationRepository {
       WHERE c.workspace_id = ?
     `, [workspaceId])
 
-    const filters: ConversationFilterData = { status: [], consumer: [], category: [], resolution: [] }
-    for (const r of filterRows) {
-      if (r.status && !filters.status.includes(r.status)) filters.status.push(r.status)
-      if (r.consumer_type && !filters.consumer.includes(r.consumer_type)) filters.consumer.push(r.consumer_type)
-      if (r.category && !filters.category.includes(r.category)) filters.category.push(r.category)
-      if (r.resolution_status && !filters.resolution.includes(r.resolution_status)) filters.resolution.push(r.resolution_status)
-    }
-    return filters
+    return mapFilterRows(filterRows)
   }
 
   async findMessages(conversationId: string): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
@@ -213,7 +190,7 @@ export class MysqlConversationRepository implements ConversationRepository {
               COALESCE(SUM(cost_usd), 0) as cost, COALESCE(SUM(duration_ms), 0) as dur, COUNT(*) as qcount
        FROM audit_logs WHERE conversation_id = ?`, [conversationId]
     )
-    return { total_tokens_input: rows[0].ti, total_tokens_output: rows[0].to2, total_cost_usd: rows[0].cost, total_duration_ms: rows[0].dur, query_count: rows[0].qcount }
+    return mapAggregateRow(rows[0])
   }
 
   async getTimestamps(conversationId: string): Promise<{ first_message_at: string | null; closed_at: string | null; message_count: number } | null> {
@@ -276,8 +253,7 @@ export class MysqlConversationRepository implements ConversationRepository {
         SUM(status = '${STATUS_CLOSED}' AND closed_at > NOW() - INTERVAL 7 DAY) as closed_week
       FROM conversations WHERE workspace_id = ?
     `, [workspaceId])
-    const t = rows[0] || {}
-    return { open: Number(t.open_count) || 0, cold: Number(t.cold_count) || 0, closed_today: Number(t.closed_today) || 0, closed_week: Number(t.closed_week) || 0 }
+    return mapTicketRow(rows[0] || {} as TicketRow)
   }
 
   async getSentimentDistribution(workspaceId: string): Promise<Array<{ score: number; count: number }>> {
@@ -287,7 +263,7 @@ export class MysqlConversationRepository implements ConversationRepository {
       WHERE c.workspace_id = ? AND cs.stats_status = 'complete' AND cs.sentiment_score IS NOT NULL
       GROUP BY cs.sentiment_score
     `, [workspaceId])
-    return rows.map(r => ({ score: r.sentiment_score, count: r.cnt }))
+    return rows.map(mapSentimentRow)
   }
 
   async getComplianceStats(workspaceId: string, limit: number): Promise<Array<{ compliance_violations: string | null; conversation_id: string; created_at: string }>> {
@@ -337,7 +313,7 @@ export class MysqlConversationRepository implements ConversationRepository {
       WHERE c.workspace_id = ? AND cs.stats_status = 'complete'
       GROUP BY cs.resolution_status
     `, [workspaceId])
-    return rows.map(r => ({ status: r.resolution_status, count: r.cnt }))
+    return rows.map(mapResolutionRow)
   }
 
   async getCategoryDistribution(workspaceId: string): Promise<Array<{ category: string; count: number }>> {
@@ -347,7 +323,7 @@ export class MysqlConversationRepository implements ConversationRepository {
       WHERE c.workspace_id = ? AND cs.stats_status = 'complete' AND cs.category IS NOT NULL
       GROUP BY cs.category ORDER BY cnt DESC
     `, [workspaceId])
-    return rows.map(r => ({ category: r.category, count: r.cnt }))
+    return rows.map(mapCategoryRow)
   }
 
   async getChannelDistribution(workspaceId: string): Promise<Array<{ consumer_type: string; count: number }>> {
@@ -355,7 +331,7 @@ export class MysqlConversationRepository implements ConversationRepository {
       SELECT consumer_type, COUNT(*) as cnt FROM conversations WHERE workspace_id = ?
       GROUP BY consumer_type ORDER BY cnt DESC
     `, [workspaceId])
-    return rows.map(r => ({ consumer_type: r.consumer_type, count: r.cnt }))
+    return rows.map(mapChannelRow)
   }
 
   async getCostAndUsage(workspaceId: string): Promise<{ cost_today: number; cost_week: number; cost_month: number; q_today: number; q_week: number; q_month: number }> {
