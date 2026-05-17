@@ -1,6 +1,6 @@
 # SupaProxy
 
-[![CI](https://github.com/NumstackPtyLtd/supaproxy-server/actions/workflows/ci.yml/badge.svg)](https://github.com/NumstackPtyLtd/supaproxy-server/actions/workflows/ci.yml)
+[![CI](https://github.com/NumstackPtyLtd/supaproxy-core/actions/workflows/ci.yml/badge.svg)](https://github.com/NumstackPtyLtd/supaproxy-core/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -24,8 +24,8 @@ SupaProxy sits between your teams and your AI models. You bring the LLM (Anthrop
 Requires Docker.
 
 ```bash
-git clone https://github.com/NumstackPtyLtd/supaproxy-server.git
-cd supaproxy-server
+git clone https://github.com/NumstackPtyLtd/supaproxy-core.git
+cd supaproxy-core
 ./init.sh
 ```
 
@@ -39,8 +39,8 @@ This generates secrets, builds containers, and starts the API server:
 ### Local dev (server on host, only MySQL/Redis in Docker)
 
 ```bash
-git clone https://github.com/NumstackPtyLtd/supaproxy-server.git
-cd supaproxy-server
+git clone https://github.com/NumstackPtyLtd/supaproxy-core.git
+cd supaproxy-core
 pnpm install
 
 # Configure environment (must be done before Docker; MySQL reads DB_PASSWORD from .env)

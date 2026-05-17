@@ -87,7 +87,7 @@ Rules:
 
 | Repo | Visibility | Purpose |
 |---|---|---|
-| supaproxy-server (this) | Public (MIT) | Engine: API server |
+| supaproxy-core (this) | Public (MIT) | Core: domain logic, use cases, routes |
 | supaproxy-sdk | Public (MIT) | TypeScript SDK (`@supaproxy/sdk` on npm) |
 | supaproxy-dashboard | Private | Astro + React frontend |
 | supaproxy-docs | Private | Mintlify documentation site |

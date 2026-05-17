@@ -23,7 +23,7 @@ description: >
 
 ```bash
 pkill -f "tsx.*index.ts" 2>/dev/null; sleep 1
-REPO_ROOT=$(git rev-parse --show-toplevel) && cd "$REPO_ROOT" && nohup npx tsx src/index.ts > /tmp/supaproxy-server.log 2>&1 &
+REPO_ROOT=$(git rev-parse --show-toplevel) && cd "$REPO_ROOT" && nohup npx tsx src/index.ts > /tmp/supaproxy-core.log 2>&1 &
 sleep 5
 curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/health
 # Must be 200
@@ -33,7 +33,7 @@ If you don't know the repo root, find it with: `git rev-parse --show-toplevel`
 
 After restart, verify consumers started (if tokens are configured):
 ```bash
-strings /tmp/supaproxy-server.log | grep -i "consumer\|started\|failed\|token"
+strings /tmp/supaproxy-core.log | grep -i "consumer\|started\|failed\|token"
 ```
 
 ### 2. Verify MySQL (if DB-related changes)
@@ -59,7 +59,7 @@ Tell the user which servers were restarted and their health status.
 DO NOT tell the user the URL is ready. Read the error output:
 
 ```bash
-cat /tmp/supaproxy-server.log
+cat /tmp/supaproxy-core.log
 ```
 
 Fix the issue, restart again, and only then report.

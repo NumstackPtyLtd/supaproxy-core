@@ -526,7 +526,7 @@ docs.doc('/api/openapi.json', {
     title: 'SupaProxy API',
     version: '0.1.0',
     description: 'AI operations engine. Route any LLM to any team through one governed layer.',
-    license: { name: 'MIT', url: 'https://github.com/NumstackPtyLtd/supaproxy-server/blob/main/LICENSE' },
+    license: { name: 'MIT', url: 'https://github.com/NumstackPtyLtd/supaproxy-core/blob/main/LICENSE' },
   },
   servers: [{ url: 'http://localhost:3001', description: 'Local development' }],
   tags: [
