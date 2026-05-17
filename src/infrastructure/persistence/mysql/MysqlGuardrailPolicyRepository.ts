@@ -6,6 +6,7 @@ import type {
   PolicyComplianceRow,
   SecurityOverviewStats,
 } from '../../../domain/guardrail/policyRepository.js'
+import { DEFAULT_SECURITY_TOP_WORKSPACES, DEFAULT_SECURITY_RECENT_EVENTS } from '../../../defaults.js'
 
 interface PolicyRow extends mysql.RowDataPacket {
   id: string
@@ -196,8 +197,8 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
          WHERE w.org_id = ? AND ge.created_at >= ${dateCutoff}
          GROUP BY ge.workspace_id, w.name
          ORDER BY event_count DESC
-         LIMIT 5`,
-        [orgId],
+         LIMIT ?`,
+        [orgId, String(DEFAULT_SECURITY_TOP_WORKSPACES)],
       ),
       this.pool.execute<FlaggedRow[]>(
         `SELECT ge.id, ge.workspace_id, w.name AS workspace_name, ge.event_type, ge.plugin_id, ge.status, ge.created_at
@@ -205,8 +206,8 @@ export class MysqlGuardrailPolicyRepository implements GuardrailPolicyRepository
          JOIN workspaces w ON w.id = ge.workspace_id
          WHERE w.org_id = ? AND ge.status = 'flagged'
          ORDER BY ge.created_at DESC
-         LIMIT 10`,
-        [orgId],
+         LIMIT ?`,
+        [orgId, String(DEFAULT_SECURITY_RECENT_EVENTS)],
       ),
       this.pool.execute<CountRow[]>(
         `SELECT COUNT(*) AS total FROM workspaces WHERE org_id = ? AND status != 'archived'`,

@@ -11,6 +11,10 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
+import { DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT } from '../../defaults.js'
+import pino from 'pino'
+
+const log = pino({ name: 'routes/org' })
 
 const updateOrgSchema = z.object({ name: z.string().min(1).max(255) })
 const updateSettingSchema = z.object({ value: z.string().max(5000) })
@@ -90,14 +94,15 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     if (!parsed.success) return parsed.response
 
     const provider = deps.providerRegistry?.get(parsed.data.type)
-    if (!provider) return c.json({ error: 'Unknown provider type' }, 400)
-    if (!provider.testConnection) return c.json({ error: 'Provider does not support connection testing' }, 400)
+    if (!provider) return c.json({ error: 'unknown_provider_type' }, 400)
+    if (!provider.testConnection) return c.json({ error: 'provider_no_connection_test' }, 400)
 
     try {
       const result = await provider.testConnection(parsed.data.apiKey)
       return c.json(result)
     } catch (err) {
-      return c.json({ ok: false, chat: false, embedding: false, error: (err as Error).message }, 400)
+      log.error({ err, type: parsed.data.type }, 'Provider connection test failed')
+      return c.json({ ok: false, chat: false, embedding: false, error: 'provider_test_failed' }, 400)
     }
   })
 
@@ -109,21 +114,22 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     if (!parsed.success) return parsed.response
 
     const provider = deps.providerRegistry?.get(parsed.data.type)
-    if (!provider) return c.json({ error: 'Unknown provider type' }, 400)
-    if (!provider.listModels) return c.json({ error: 'Provider does not support model listing' }, 400)
+    if (!provider) return c.json({ error: 'unknown_provider_type' }, 400)
+    if (!provider.listModels) return c.json({ error: 'provider_no_model_list' }, 400)
 
     try {
       const models = await provider.listModels(parsed.data.apiKey)
       return c.json({ models })
     } catch (err) {
-      return c.json({ error: (err as Error).message }, 400)
+      log.error({ err, type: parsed.data.type }, 'Provider model list failed')
+      return c.json({ error: 'provider_model_list_failed' }, 400)
     }
   })
 
   org.get('/api/org/users', async (c) => {
     const user = c.get('user') as AuthUser
     const search = c.req.query('search') || undefined
-    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || 50, 1), 200) : 50
+    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
     const page = parseInt(c.req.query('page') || '0', 10)
     const result = await deps.listOrgUsersUseCase.execute(user.org_id, { search, limit, offset: page * limit })
     return c.json(result)

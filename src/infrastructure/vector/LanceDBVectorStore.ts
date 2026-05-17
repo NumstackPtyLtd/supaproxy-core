@@ -1,5 +1,8 @@
 import * as lancedb from '@lancedb/lancedb';
 import type { VectorStore, VectorRecord, VectorSearchResult } from '../../application/ports/VectorStore.js';
+import pino from 'pino';
+
+const log = pino({ name: 'vector-store' });
 
 /**
  * LanceDB-backed vector store.
@@ -48,8 +51,8 @@ export class LanceDBVectorStore implements VectorStore {
       for (const sourceId of sourceIds) {
         try {
           await table.delete(`source_id = '${sourceId}'`);
-        } catch {
-          // Table might be empty or source might not exist
+        } catch (err) {
+          log.warn({ err }, 'Failed to delete vectors');
         }
       }
       await table.add(rows);
@@ -71,13 +74,26 @@ export class LanceDBVectorStore implements VectorStore {
       .limit(limit)
       .toArray();
 
-    return results.map(r => ({
-      id: r.id as string,
-      text: r.text as string,
-      sourceId: r.source_id as string,
-      score: r._distance != null ? 1 / (1 + (r._distance as number)) : 0,
-      metadata: r.metadata_json ? JSON.parse(r.metadata_json as string) : undefined,
-    }));
+    const mapped: VectorSearchResult[] = [];
+    for (const r of results) {
+      let metadata: Record<string, unknown> | undefined;
+      if (r.metadata_json) {
+        try {
+          metadata = JSON.parse(r.metadata_json as string);
+        } catch (err) {
+          log.warn({ err, id: r.id }, 'Skipping vector record with invalid metadata JSON');
+          continue;
+        }
+      }
+      mapped.push({
+        id: r.id as string,
+        text: r.text as string,
+        sourceId: r.source_id as string,
+        score: r._distance != null ? 1 / (1 + (r._distance as number)) : 0,
+        metadata,
+      });
+    }
+    return mapped;
   }
 
   async deleteBySource(workspaceId: string, sourceId: string): Promise<void> {
@@ -90,8 +106,8 @@ export class LanceDBVectorStore implements VectorStore {
     const table = await db.openTable(name);
     try {
       await table.delete(`source_id = '${sourceId}'`);
-    } catch {
-      // Source might not exist in the table
+    } catch (err) {
+      log.warn({ err }, 'Failed to delete vectors by source');
     }
   }
 

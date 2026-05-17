@@ -2,6 +2,7 @@ import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js'
 import { safeJsonParse } from '../../shared/json.js'
+import { DEFAULT_KNOWLEDGE_GAPS_LIMIT } from '../../defaults.js'
 
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
 
@@ -15,7 +16,7 @@ export class GetKnowledgeUseCase {
   async execute(workspaceId: string) {
     const [knowledge, gapRows] = await Promise.all([
       this.workspaceRepo.findKnowledge(workspaceId),
-      this.conversationRepo.getKnowledgeGapsByWorkspace(workspaceId, 20),
+      this.conversationRepo.getKnowledgeGapsByWorkspace(workspaceId, DEFAULT_KNOWLEDGE_GAPS_LIMIT),
     ])
 
     const gaps: Array<KnowledgeGapItem & { conversation_id: string; user_name: string | null; timestamp: string | null }> = []

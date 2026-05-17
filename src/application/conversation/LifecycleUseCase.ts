@@ -100,7 +100,13 @@ export class LifecycleUseCase {
       if (text.startsWith('```')) {
         text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
       }
-      const parsed = JSON.parse(text)
+      let parsed: Record<string, unknown>
+      try {
+        parsed = JSON.parse(text)
+      } catch (parseErr) {
+        log.error({ conversationId, error: (parseErr as Error).message }, 'Failed to parse stats analysis JSON')
+        parsed = { sentiment_score: 3, resolution_status: 'unresolved', summary: '', category: 'other', compliance_violations: [], knowledge_gaps: [], fraud_indicators: [], tools_used: [] }
+      }
 
       await this.conversationRepo.updateStatsComplete(statsId, {
         sentimentScore: parsed.sentiment_score || 3,

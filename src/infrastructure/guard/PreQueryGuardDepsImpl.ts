@@ -1,6 +1,9 @@
 import type mysql from 'mysql2/promise'
 import type { PreQueryGuardDeps, GuardrailConfig } from '../../application/query/PreQueryGuardService.js'
 import Redis from 'ioredis'
+import pino from 'pino'
+
+const log = pino({ name: 'pre-query-guard' })
 
 interface SpendRow extends mysql.RowDataPacket {
   total: number
@@ -64,7 +67,8 @@ export class PreQueryGuardDepsImpl implements PreQueryGuardDeps {
       }
       // We incremented for the current request; return count - 1 to reflect "before this request"
       return count - 1
-    } catch {
+    } catch (err) {
+      log.warn({ err }, 'Redis query count failed, defaulting to 0')
       return 0
     }
   }

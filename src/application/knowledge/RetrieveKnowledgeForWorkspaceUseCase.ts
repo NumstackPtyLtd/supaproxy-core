@@ -2,6 +2,7 @@ import type { VectorStore, VectorSearchResult } from '../ports/VectorStore.js';
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js';
 import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js';
 import { RetrieveKnowledgeUseCase } from './RetrieveKnowledgeUseCase.js';
+import { DEFAULT_RETRIEVAL_LIMIT } from '../../defaults.js';
 import pino from 'pino';
 
 const log = pino({ name: 'retrieve-knowledge' });
@@ -17,7 +18,7 @@ export class RetrieveKnowledgeForWorkspaceUseCase {
     private readonly embeddingFactory: EmbeddingServiceFactory,
   ) {}
 
-  async execute(workspaceId: string, query: string, limit = 5): Promise<{ chunks: VectorSearchResult[]; query: string }> {
+  async execute(workspaceId: string, query: string, limit = DEFAULT_RETRIEVAL_LIMIT): Promise<{ chunks: VectorSearchResult[]; query: string }> {
     const workspace = await this.workspaceRepo.findById(workspaceId);
     if (!workspace?.org_id) return { chunks: [], query };
 
