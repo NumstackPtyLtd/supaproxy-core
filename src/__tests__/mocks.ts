@@ -17,6 +17,8 @@ import type { GuardrailEventRepository } from '../domain/guardrail/repository.js
 import type { GuardrailPolicyRepository } from '../domain/guardrail/policyRepository.js'
 import type { InstalledGuardrailRepository } from '../domain/guardrail/installedGuardrailRepository.js'
 import type { TenantService } from '../application/ports/TenantService.js'
+import type { ManageConversationUseCase } from '../application/conversation/ManageConversationUseCase.js'
+import type { registry as ProviderRegistryInstance, ProviderPlugin } from '@supaproxy/providers'
 
 // ── Stub data ──
 
@@ -347,4 +349,28 @@ export function mockEntryPointRepo(): EntryPointRepository {
     delete: vi.fn().mockResolvedValue(undefined),
     findByOrg: vi.fn().mockResolvedValue([]),
   }
+}
+
+export function mockManageConversationUseCase(): Pick<ManageConversationUseCase, 'recordMessage' | 'getHistory' | 'findOrCreate' | 'setRouting'> {
+  return {
+    recordMessage: vi.fn().mockResolvedValue(undefined),
+    getHistory: vi.fn().mockResolvedValue([]),
+    findOrCreate: vi.fn().mockResolvedValue('conv-1'),
+    setRouting: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+export function mockProviderRegistry(
+  plugins: Array<Pick<ProviderPlugin, 'type' | 'models'> & Partial<ProviderPlugin>> = [],
+): typeof ProviderRegistryInstance {
+  const fullPlugins = plugins as ProviderPlugin[]
+  return {
+    plugins: new Map(fullPlugins.map(p => [p.type, p])),
+    register: vi.fn(),
+    get: vi.fn().mockImplementation((type: string) => fullPlugins.find(p => p.type === type)),
+    has: vi.fn().mockImplementation((type: string) => fullPlugins.some(p => p.type === type)),
+    types: vi.fn().mockReturnValue(fullPlugins.map(p => p.type)),
+    list: vi.fn().mockReturnValue(fullPlugins),
+    schemas: vi.fn().mockReturnValue([]),
+  } as unknown as typeof ProviderRegistryInstance
 }

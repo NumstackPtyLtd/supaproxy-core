@@ -1,18 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockModelRepo, mockOrgRepo } from '../../__tests__/mocks.js'
+import { mockModelRepo, mockOrgRepo, mockProviderRegistry } from '../../__tests__/mocks.js'
 import { GetModelsUseCase } from './GetModelsUseCase.js'
 
 describe('GetModelsUseCase', () => {
   it('returns registry models merged with DB models', async () => {
     const modelRepo = mockModelRepo()
     const orgRepo = mockOrgRepo()
-    const mockRegistry = {
-      list: () => [
-        { type: 'anthropic', models: [{ id: 'claude-sonnet', label: 'Claude Sonnet', default: true }] },
-        { type: 'openai', models: [{ id: 'gpt-4o', label: 'GPT-4o', default: true }] },
-      ],
-    }
-    const uc = new GetModelsUseCase(modelRepo, orgRepo, mockRegistry as any)
+    const registry = mockProviderRegistry([
+      { type: 'anthropic', models: [{ id: 'claude-sonnet', label: 'Claude Sonnet', default: true }] },
+      { type: 'openai', models: [{ id: 'gpt-4o', label: 'GPT-4o', default: true }] },
+    ])
+    const uc = new GetModelsUseCase(modelRepo, orgRepo, registry)
 
     vi.mocked(orgRepo.getSettingValue).mockResolvedValue(null)
     vi.mocked(modelRepo.listAll).mockResolvedValue([
@@ -30,12 +28,10 @@ describe('GetModelsUseCase', () => {
   it('deduplicates registry and DB models', async () => {
     const modelRepo = mockModelRepo()
     const orgRepo = mockOrgRepo()
-    const mockRegistry = {
-      list: () => [
-        { type: 'anthropic', models: [{ id: 'claude-sonnet', label: 'Claude Sonnet' }] },
-      ],
-    }
-    const uc = new GetModelsUseCase(modelRepo, orgRepo, mockRegistry as any)
+    const registry = mockProviderRegistry([
+      { type: 'anthropic', models: [{ id: 'claude-sonnet', label: 'Claude Sonnet' }] },
+    ])
+    const uc = new GetModelsUseCase(modelRepo, orgRepo, registry)
 
     vi.mocked(orgRepo.getSettingValue).mockResolvedValue(null)
     vi.mocked(modelRepo.listAll).mockResolvedValue([
@@ -51,15 +47,13 @@ describe('GetModelsUseCase', () => {
   it('marks default model from org settings', async () => {
     const modelRepo = mockModelRepo()
     const orgRepo = mockOrgRepo()
-    const mockRegistry = {
-      list: () => [
-        { type: 'openai', models: [
-          { id: 'gpt-4o', label: 'GPT-4o' },
-          { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-        ] },
-      ],
-    }
-    const uc = new GetModelsUseCase(modelRepo, orgRepo, mockRegistry as any)
+    const registry = mockProviderRegistry([
+      { type: 'openai', models: [
+        { id: 'gpt-4o', label: 'GPT-4o' },
+        { id: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+      ] },
+    ])
+    const uc = new GetModelsUseCase(modelRepo, orgRepo, registry)
 
     vi.mocked(orgRepo.getSettingValue).mockResolvedValue('gpt-4o-mini')
     vi.mocked(modelRepo.listAll).mockResolvedValue([])

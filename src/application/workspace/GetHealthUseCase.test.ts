@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockOrgRepo, mockWorkspaceRepo } from '../../__tests__/mocks.js'
+import { mockOrgRepo, mockWorkspaceRepo, mockProviderRegistry } from '../../__tests__/mocks.js'
 import { GetHealthUseCase } from './GetHealthUseCase.js'
 
 describe('GetHealthUseCase', () => {
@@ -41,12 +41,10 @@ describe('GetHealthUseCase', () => {
   it('detects provider-specific keys via registry', async () => {
     const orgRepo = mockOrgRepo()
     const wsRepo = mockWorkspaceRepo()
-    const mockRegistry = {
-      types: () => ['openai'],
-      get: () => ({ supportsEmbedding: true }),
-      list: () => [{ supportsEmbedding: true }],
-    }
-    const uc = new GetHealthUseCase(orgRepo, wsRepo, mockRegistry as any)
+    const registry = mockProviderRegistry([
+      { type: 'openai', models: [], supportsEmbedding: true },
+    ])
+    const uc = new GetHealthUseCase(orgRepo, wsRepo, registry)
 
     // No general key, but openai_api_key exists
     vi.mocked(orgRepo.getSettingValue).mockImplementation(async (key: string) => {
