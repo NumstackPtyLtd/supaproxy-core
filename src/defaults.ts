@@ -101,3 +101,7 @@ export const DEFAULT_CHUNK_OVERLAP = 50
 export const DEFAULT_RETRIEVAL_LIMIT = 5
 export const DEFAULT_RETRIEVAL_MIN_SCORE = 0.3
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536
+
+// ── Stats analysis fallbacks ──
+
+export const DEFAULT_SENTIMENT_SCORE = 3

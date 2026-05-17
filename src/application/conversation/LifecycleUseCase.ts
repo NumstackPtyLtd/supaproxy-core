@@ -4,7 +4,7 @@ import type { QueueService } from '../ports/QueueService.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { ConsumerPosterRegistry, ColdMessageTarget } from '../ports/ConsumerPoster.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, DEFAULT_STATS_ANALYSIS_MAX_TOKENS } from '../../defaults.js'
+import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, DEFAULT_STATS_ANALYSIS_MAX_TOKENS, DEFAULT_SENTIMENT_SCORE } from '../../defaults.js'
 import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE, buildAnalysisPrompt } from '../../prompts.js'
 import pino from 'pino'
 
@@ -105,11 +105,11 @@ export class LifecycleUseCase {
         parsed = JSON.parse(text)
       } catch (parseErr) {
         log.error({ conversationId, error: (parseErr as Error).message }, 'Failed to parse stats analysis JSON')
-        parsed = { sentiment_score: 3, resolution_status: 'unresolved', summary: '', category: 'other', compliance_violations: [], knowledge_gaps: [], fraud_indicators: [], tools_used: [] }
+        parsed = { sentiment_score: DEFAULT_SENTIMENT_SCORE, resolution_status: 'unresolved', summary: '', category: 'other', compliance_violations: [], knowledge_gaps: [], fraud_indicators: [], tools_used: [] }
       }
 
       await this.conversationRepo.updateStatsComplete(statsId, {
-        sentimentScore: (parsed.sentiment_score as number) || 3,
+        sentimentScore: (parsed.sentiment_score as number) || DEFAULT_SENTIMENT_SCORE,
         resolutionStatus: (parsed.resolution_status as string) || 'unresolved',
         complianceViolations: JSON.stringify(parsed.compliance_violations || []),
         knowledgeGaps: JSON.stringify(parsed.knowledge_gaps || []),
