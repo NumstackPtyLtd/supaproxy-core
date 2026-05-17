@@ -12,4 +12,5 @@ var/
 _git/
 OSS_ROADMAP.md
 DEV.md
+.pnpmfile.cjs
 apps/web/
