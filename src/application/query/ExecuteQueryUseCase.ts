@@ -1,32 +1,31 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
-import type { AuditLogRepository, AuditLogData } from '../../domain/audit/repository.js'
-import type { AIToolSpec, AIMessage, AIContentBlock, ProviderPlugin } from '@supaproxy/providers'
+import type { AuditLogRepository } from '../../domain/audit/repository.js'
+import type { ProviderPlugin } from '@supaproxy/providers'
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { GuardrailPlugin } from '@supaproxy/guardrails'
 import type { ExecutionRailRegistry } from '@supaproxy/guardrails'
 import type { RetrievalRailRegistry } from '@supaproxy/guardrails'
-import type { GuardrailEventRepository, GuardrailEventData } from '../../domain/guardrail/repository.js'
+import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { McpClientFactory, McpConnection } from '../ports/McpClient.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import { runGuardrailChain } from '../ports/guardrailChain.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ConfigurationError } from '../../domain/shared/errors.js'
-import { IS_PRODUCTION } from '../../config.js'
-import { DEFAULT_MAX_RESPONSE_TOKENS, DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
+import { DEFAULT_MAX_TOOL_ROUNDS, DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, ERROR_CODES } from '../../prompts.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { PreQueryGuardService } from './PreQueryGuardService.js'
 import { RetrieveKnowledgeUseCase } from '../knowledge/RetrieveKnowledgeUseCase.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { safeJsonParse } from '../../shared/json.js'
+import { ToolCallProcessor } from './ToolCallProcessor.js'
+import type { ToolEntry } from './ToolCallProcessor.js'
+import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, recordMessages } from './AgentLoopHelpers.js'
+import type { QueryMeta, QueryResult } from './AgentLoopHelpers.js'
 import pino from 'pino'
 
 const log = pino({ name: 'execute-query' })
-
-const NO_RESPONSE_MESSAGE = '(no response)'
-const MAX_ROUNDS_MESSAGE = 'Ran out of tool-call rounds. Please simplify your question.'
-
 
 interface McpServerConfig {
   transport?: string
@@ -37,49 +36,9 @@ interface McpServerConfig {
   env?: Record<string, string>
 }
 
-interface ToolEntry {
-  name: string
-  connection: string
-  spec: AIToolSpec
-  isWrite: boolean
-  callFn: (args: Record<string, unknown>) => Promise<{ content: Array<{ type: string; text?: string }>; isError: boolean }>
-}
-
-interface ToolCallRecord {
-  name: string
-  connection: string
-  args: Record<string, unknown>
-  duration_ms: number
-}
-
-interface QueryResult {
-  answer: string
-  toolsCalled: string[]
-  connectionsHit: string[]
-  tokensInput: number
-  tokensOutput: number
-  costUsd: number
-  durationMs: number
-  error: string | null
-  conversationId: string
-  sessionId: string
-}
-
-interface QueryMeta {
-  consumerType: string
-  channel?: string
-  userId?: string
-  userName?: string
-  conversationId?: string
-  sessionId?: string
-  systemPromptOverride?: string
-  skipTools?: boolean
-  routedFrom?: string
-  routedFromConversationId?: string
-  priorHistory?: Array<{ role: 'user' | 'assistant'; content: string }>
-}
-
 export class ExecuteQueryUseCase {
+  private readonly toolCallProcessor: ToolCallProcessor
+
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly orgRepo: OrganisationRepository,
@@ -94,7 +53,9 @@ export class ExecuteQueryUseCase {
     private readonly guardrailEventRepo?: GuardrailEventRepository,
     private readonly preQueryGuard?: PreQueryGuardService,
     private readonly retrieveKnowledge?: RetrieveKnowledgeForWorkspaceUseCase,
-  ) {}
+  ) {
+    this.toolCallProcessor = new ToolCallProcessor(guardrailEventRepo)
+  }
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
     const startTime = Date.now()
@@ -123,7 +84,7 @@ export class ExecuteQueryUseCase {
       provider = resolved.provider
       apiKey = resolved.apiKey
     } catch {
-      return this.buildResult({
+      return buildQueryResult({
         answer: ERROR_CODES.NO_AI_PROVIDER,
         error: ERROR_CODES.NO_AI_PROVIDER,
         durationMs: Date.now() - startTime,
@@ -136,7 +97,7 @@ export class ExecuteQueryUseCase {
     if (this.preQueryGuard) {
       const guard = await this.preQueryGuard.checkQuery(workspaceId, meta.userId, query)
       if (!guard.allowed) {
-        return this.buildResult({
+        return buildQueryResult({
           answer: guard.reason || 'This query was blocked by a compliance policy.',
           error: guard.code || 'pre_query_blocked',
           durationMs: Date.now() - startTime,
@@ -170,9 +131,9 @@ export class ExecuteQueryUseCase {
         log.info({ workspace: workspaceId, annotations: chain.annotations }, 'Query blocked by guardrail')
 
         const auditLogId = generateId()
-        await this.writeAuditLog(auditLogId, workspaceId, conversationId, query, this.buildInternalResult({ error: 'input_blocked', durationMs: Date.now() - startTime }), meta, { screeningAction, screeningCategories, screeningMs })
+        await this.writeAuditLog(auditLogId, workspaceId, conversationId, query, buildEmptyResult({ error: 'input_blocked', durationMs: Date.now() - startTime }), meta, { screeningAction, screeningCategories, screeningMs })
 
-        return this.buildResult({
+        return buildQueryResult({
           answer: chain.reason || 'This query was blocked by your organisation\'s input policy.',
           error: 'input_blocked',
           durationMs: Date.now() - startTime,
@@ -233,7 +194,7 @@ export class ExecuteQueryUseCase {
         }
       }
 
-      const result = await this.runAgentLoop(queryToForward, provider, {
+      const result = await runAgentLoop(queryToForward, provider, {
         model: workspace.model,
         systemPrompt,
         maxToolRounds: workspace.max_tool_rounds || DEFAULT_MAX_TOOL_ROUNDS,
@@ -244,14 +205,14 @@ export class ExecuteQueryUseCase {
         conversationId,
         executionRails,
         retrievalRails,
-      })
+      }, this.toolCallProcessor)
 
       result.durationMs = Date.now() - startTime
       // Cost is accumulated per-round from the provider's usage.cost_usd
 
       const auditLogId = generateId()
       await this.writeAuditLog(auditLogId, workspaceId, conversationId, query, result, meta, { screeningAction, screeningCategories, screeningMs }, knowledgeChunksUsed)
-      await this.recordMessages(conversationId, queryToForward, result.answer, auditLogId)
+      await recordMessages(this.conversationUseCase, conversationId, queryToForward, result.answer, auditLogId)
 
       log.info({
         workspace: workspaceId,
@@ -336,209 +297,21 @@ export class ExecuteQueryUseCase {
     return { tools, mcpConnections }
   }
 
-  private async runAgentLoop(query: string, provider: ProviderPlugin, config: {
-    model: string
-    systemPrompt: string
-    maxToolRounds: number
-    tools: ToolEntry[]
-    history: Array<{ role: 'user' | 'assistant'; content: string }>
-    apiKey: string
-    workspaceId: string
-    conversationId: string
-    executionRails: ExecutionRailRegistry | null
-    retrievalRails: RetrievalRailRegistry | null
-  }): Promise<{ answer: string; toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null }> {
-    const result = { answer: '', toolsCalled: [] as ToolCallRecord[], connectionsHit: [] as string[], tokensInput: 0, tokensOutput: 0, costUsd: 0, durationMs: 0, error: null as string | null }
-
-    const messages: AIMessage[] = [
-      ...config.history.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
-      { role: 'user' as const, content: query },
-    ]
-
-    provider.setApiKey(config.apiKey)
-
-    try {
-      for (let round = 0; round < config.maxToolRounds; round++) {
-        const toolSpecs = config.tools.map(t => t.spec)
-        const response = await provider.createMessage({
-          model: config.model,
-          maxTokens: DEFAULT_MAX_RESPONSE_TOKENS,
-          system: config.systemPrompt,
-          apiKey: config.apiKey,
-          tools: toolSpecs,
-          messages,
-        })
-
-        result.tokensInput += response.usage.input_tokens
-        result.tokensOutput += response.usage.output_tokens
-        result.costUsd += response.usage.cost_usd
-
-        const textParts: string[] = []
-        const toolUses: AIContentBlock[] = []
-
-        for (const block of response.content) {
-          if (block.type === 'text' && block.text) textParts.push(block.text)
-          if (block.type === 'tool_use') toolUses.push(block)
-        }
-
-        if (toolUses.length === 0) {
-          result.answer = textParts.join('\n') || NO_RESPONSE_MESSAGE
-          break
-        }
-
-        messages.push({ role: 'assistant', content: response.content })
-        const toolResults: AIContentBlock[] = []
-
-        for (const tu of toolUses) {
-          const toolDef = config.tools.find(t => t.name === tu.name)
-          const connName = toolDef?.connection || 'unknown'
-          const toolStart = Date.now()
-
-          // Execution rail: validate tool call before executing
-          if (config.executionRails && toolDef) {
-            const railResult = await config.executionRails.validate({
-              toolName: tu.name!,
-              toolArgs: tu.input as Record<string, unknown>,
-              originalQuery: query,
-              workspaceId: config.workspaceId,
-              isWrite: toolDef.isWrite,
-            })
-            if (!railResult.allowed) {
-              log.info({ tool: tu.name, reason: railResult.reason }, 'Tool call blocked by execution rail')
-              toolResults.push({ type: 'tool_result', id: tu.id, text: `Tool call blocked: ${railResult.reason}` })
-              const plugin = railResult.pluginId ? config.executionRails!.list().find(p => p.id === railResult.pluginId) : undefined
-              this.writeGuardrailEvent({
-                id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
-                event_type: 'execution_blocked', plugin_id: railResult.pluginId || 'unknown',
-                context: { tool_name: tu.name!, tool_args: JSON.stringify(tu.input).substring(0, 500), connection_name: connName, original_query: query },
-                outcome: { reason: railResult.reason || null },
-                display: plugin?.eventDisplay || [],
-                actions: plugin?.eventActions || [],
-                status: 'open',
-              })
-              continue
-            }
-          }
-
-          try {
-            const callResult = await toolDef!.callFn(tu.input as Record<string, unknown>)
-            let resultText = callResult.content
-              .filter(c => c.type === 'text')
-              .map(c => c.text || '')
-              .join('\n')
-
-            // Retrieval rail: sanitise tool output before feeding back to LLM
-            if (config.retrievalRails) {
-              const sanitised = await config.retrievalRails.sanitise(resultText)
-              if (sanitised.stripped.length > 0) {
-                const plugin = sanitised.pluginId ? config.retrievalRails!.list().find(p => p.id === sanitised.pluginId) : undefined
-                this.writeGuardrailEvent({
-                  id: generateId(), workspace_id: config.workspaceId, conversation_id: config.conversationId,
-                  event_type: 'retrieval_stripped', plugin_id: sanitised.pluginId || 'unknown',
-                  context: { tool_name: tu.name!, connection_name: connName, original_query: query },
-                  outcome: { original_content: resultText.substring(0, 1000), stripped_content: sanitised.stripped.join(', ').substring(0, 500) },
-                  display: plugin?.eventDisplay || [],
-                  actions: plugin?.eventActions || [],
-                  status: 'open',
-                })
-              }
-              resultText = sanitised.content
-            }
-
-            toolResults.push({ type: 'tool_result', id: tu.id, text: resultText })
-            if (!result.connectionsHit.includes(connName)) result.connectionsHit.push(connName)
-            result.toolsCalled.push({ name: tu.name!, connection: connName, args: tu.input as Record<string, unknown>, duration_ms: Date.now() - toolStart })
-          } catch (err) {
-            toolResults.push({ type: 'tool_result', id: tu.id, text: `Tool error: ${(err as Error).message}` })
-          }
-        }
-
-        messages.push({ role: 'user', content: toolResults })
-      }
-
-      if (!result.answer) {
-        result.answer = MAX_ROUNDS_MESSAGE
-      }
-    } catch (err) {
-      const message = (err as Error).message
-      result.error = message
-      result.answer = IS_PRODUCTION
-        ? "Something went wrong. Please try again or contact your administrator."
-        : `Something went wrong: ${message}`
-      log.error({ error: message }, 'Agent loop failed')
-    }
-
-    return result
-  }
-
-  private buildInternalResult(overrides: Partial<{ toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null }> = {}) {
-    return { toolsCalled: [] as ToolCallRecord[], connectionsHit: [] as string[], tokensInput: 0, tokensOutput: 0, costUsd: 0, durationMs: 0, error: null as string | null, ...overrides }
-  }
-
   private async writeAuditLog(
     auditLogId: string,
     workspaceId: string,
     conversationId: string,
     query: string,
-    result: { toolsCalled: ToolCallRecord[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null },
+    result: { toolsCalled: { name: string; connection: string; args: Record<string, unknown>; duration_ms: number }[]; connectionsHit: string[]; tokensInput: number; tokensOutput: number; costUsd: number; durationMs: number; error: string | null },
     meta: QueryMeta,
     screening?: { screeningAction: string | null; screeningCategories: string[] | null; screeningMs: number | null },
     knowledgeChunks?: number,
   ): Promise<void> {
     try {
-      const data: AuditLogData = {
-        id: auditLogId,
-        workspace_id: workspaceId,
-        conversation_id: conversationId,
-        consumer_type: meta.consumerType,
-        channel: meta.channel || null,
-        user_id: meta.userId || null,
-        user_name: meta.userName || null,
-        query,
-        tools_called: JSON.stringify(result.toolsCalled.map(t => t.name)),
-        connections_hit: JSON.stringify(result.connectionsHit),
-        tokens_input: result.tokensInput,
-        tokens_output: result.tokensOutput,
-        cost_usd: result.costUsd,
-        duration_ms: result.durationMs,
-        error: result.error,
-        input_screening_action: screening?.screeningAction || null,
-        input_screening_categories: screening?.screeningCategories ? JSON.stringify(screening.screeningCategories) : null,
-        input_screening_ms: screening?.screeningMs || null,
-        knowledge_chunks_used: knowledgeChunks || 0,
-      }
+      const data = buildAuditLogData(auditLogId, workspaceId, conversationId, query, result, meta, screening, knowledgeChunks)
       await this.auditRepo.create(data)
     } catch (err) {
       log.error({ error: (err as Error).message }, 'Failed to write audit log')
-    }
-  }
-
-  private writeGuardrailEvent(data: GuardrailEventData): void {
-    if (!this.guardrailEventRepo) return
-    this.guardrailEventRepo.create(data).catch(err => {
-      log.error({ error: (err as Error).message }, 'Failed to write guardrail event')
-    })
-  }
-
-  private async recordMessages(conversationId: string, query: string, answer: string, auditLogId: string): Promise<void> {
-    try {
-      await this.conversationUseCase.recordMessage(conversationId, 'user', query)
-      await this.conversationUseCase.recordMessage(conversationId, 'assistant', answer, auditLogId)
-    } catch (err) {
-      log.error({ error: (err as Error).message }, 'Failed to record conversation messages')
-    }
-  }
-
-  private buildResult(partial: Partial<QueryResult> & { answer: string; conversationId: string; sessionId: string }): QueryResult {
-    return {
-      toolsCalled: [],
-      connectionsHit: [],
-      tokensInput: 0,
-      tokensOutput: 0,
-      costUsd: 0,
-      durationMs: 0,
-      error: null,
-      ...partial,
     }
   }
 }
