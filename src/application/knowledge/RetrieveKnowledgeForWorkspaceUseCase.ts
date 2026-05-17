@@ -1,6 +1,6 @@
 import type { VectorStore, VectorSearchResult } from '../ports/VectorStore.js';
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js';
-import type { EmbeddingServiceFactory } from '../../infrastructure/ai/EmbeddingServiceFactory.js';
+import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js';
 import { RetrieveKnowledgeUseCase } from './RetrieveKnowledgeUseCase.js';
 import pino from 'pino';
 

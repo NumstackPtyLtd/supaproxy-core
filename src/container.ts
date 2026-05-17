@@ -29,7 +29,7 @@ import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.j
 import { ProviderEmbeddingService } from './infrastructure/ai/ProviderEmbeddingService.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
-import { EmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
+import { ProviderEmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
 import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
@@ -143,7 +143,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const knowledgeChunkRepo = new MysqlKnowledgeChunkRepository(pool)
   // Vector store: LanceDB by default, swappable via the VectorStore port interface
   const vectorStore: import('./application/ports/VectorStore.js').VectorStore = new LanceDBVectorStore(process.env.VECTOR_STORE_PATH || './data/vectors')
-  const embeddingFactory = new EmbeddingServiceFactory(orgRepo, providerRegistry)
+  const embeddingFactory = new ProviderEmbeddingServiceFactory(orgRepo, providerRegistry)
   const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
   const indexKnowledge = new IndexKnowledgeForWorkspaceUseCase(knowledgeChunkRepo, vectorStore, workspaceRepo, embeddingFactory)
 

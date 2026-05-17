@@ -1,6 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
-import type { EmbeddingServiceFactory } from '../../infrastructure/ai/EmbeddingServiceFactory.js'
+import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js'
 import { safeJsonParse } from '../../shared/json.js'
 
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }

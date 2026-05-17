@@ -1,5 +1,6 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js';
 import type { EmbeddingService } from '../../application/ports/EmbeddingService.js';
+import type { EmbeddingServiceFactory } from '../../application/ports/EmbeddingServiceFactory.js';
 import type { registry as ProviderRegistryType } from '@supaproxy/providers';
 import { ProviderEmbeddingService } from './ProviderEmbeddingService.js';
 
@@ -8,7 +9,7 @@ import { ProviderEmbeddingService } from './ProviderEmbeddingService.js';
  * Finds the first provider that supports embedding and has an API key.
  * Provider-agnostic: works with any provider plugin that implements embed().
  */
-export class EmbeddingServiceFactory {
+export class ProviderEmbeddingServiceFactory implements EmbeddingServiceFactory {
   constructor(
     private readonly orgRepo: OrganisationRepository,
     private readonly providerRegistry: typeof ProviderRegistryType,

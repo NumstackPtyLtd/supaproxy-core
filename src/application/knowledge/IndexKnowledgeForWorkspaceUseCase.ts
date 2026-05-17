@@ -1,7 +1,7 @@
 import type { KnowledgeChunkRepository } from '../../domain/knowledge/repository.js';
 import type { VectorStore } from '../ports/VectorStore.js';
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js';
-import type { EmbeddingServiceFactory } from '../../infrastructure/ai/EmbeddingServiceFactory.js';
+import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js';
 import { IndexKnowledgeUseCase } from './IndexKnowledgeUseCase.js';
 import { ConfigurationError } from '../../domain/shared/errors.js';
 
