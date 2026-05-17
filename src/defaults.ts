@@ -89,3 +89,11 @@ export const JWT_EXPIRY = '24h'
 // BullMQ worker concurrency
 export const COLD_MESSAGE_CONCURRENCY = 3
 export const STATS_WORKER_CONCURRENCY = 2
+
+// ── Knowledge retrieval ──
+
+export const DEFAULT_CHUNK_SIZE = 500
+export const DEFAULT_CHUNK_OVERLAP = 50
+export const DEFAULT_RETRIEVAL_LIMIT = 5
+export const DEFAULT_RETRIEVAL_MIN_SCORE = 0.3
+export const DEFAULT_EMBEDDING_DIMENSIONS = 1536

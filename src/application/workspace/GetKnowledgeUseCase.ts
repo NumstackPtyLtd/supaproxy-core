@@ -1,5 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import type { EmbeddingServiceFactory } from '../../infrastructure/ai/EmbeddingServiceFactory.js'
 import { safeJsonParse } from '../../shared/json.js'
 
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
@@ -8,6 +9,7 @@ export class GetKnowledgeUseCase {
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly conversationRepo: ConversationRepository,
+    private readonly embeddingFactory?: EmbeddingServiceFactory,
   ) {}
 
   async execute(workspaceId: string) {
@@ -24,6 +26,16 @@ export class GetKnowledgeUseCase {
       }
     }
 
-    return { knowledge, gaps }
+    // Check if embedding is available for this workspace's org
+    let embeddingAvailable = false
+    if (this.embeddingFactory) {
+      const workspace = await this.workspaceRepo.findById(workspaceId)
+      if (workspace?.org_id) {
+        const svc = await this.embeddingFactory.forOrg(workspace.org_id)
+        embeddingAvailable = svc !== null
+      }
+    }
+
+    return { knowledge, gaps, embeddingAvailable }
   }
 }

@@ -5,6 +5,7 @@ import type { UpdateOrgUseCase } from '../../application/organisation/UpdateOrgU
 import type { GetOrgSettingsUseCase } from '../../application/organisation/GetOrgSettingsUseCase.js'
 import type { UpdateOrgSettingUseCase } from '../../application/organisation/UpdateOrgSettingUseCase.js'
 import type { TestIntegrationUseCase } from '../../application/organisation/TestIntegrationUseCase.js'
+import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
@@ -23,6 +24,7 @@ interface OrgRouteDeps {
   testIntegrationUseCase: TestIntegrationUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
   orgRepo: OrganisationRepository
+  providerRegistry?: typeof ProviderRegistryType
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
@@ -77,6 +79,44 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     } catch (err) {
       if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       return c.json({ error: 'integration_test_failed' }, 400)
+    }
+  })
+
+  org.post('/api/org/providers/test', async (c) => {
+    const parsed = await parseBody(c, z.object({
+      type: z.string().min(1),
+      apiKey: z.string().min(1),
+    }))
+    if (!parsed.success) return parsed.response
+
+    const provider = deps.providerRegistry?.get(parsed.data.type)
+    if (!provider) return c.json({ error: 'Unknown provider type' }, 400)
+    if (!provider.testConnection) return c.json({ error: 'Provider does not support connection testing' }, 400)
+
+    try {
+      const result = await provider.testConnection(parsed.data.apiKey)
+      return c.json(result)
+    } catch (err) {
+      return c.json({ ok: false, chat: false, embedding: false, error: (err as Error).message }, 400)
+    }
+  })
+
+  org.post('/api/org/providers/models', async (c) => {
+    const parsed = await parseBody(c, z.object({
+      type: z.string().min(1),
+      apiKey: z.string().min(1),
+    }))
+    if (!parsed.success) return parsed.response
+
+    const provider = deps.providerRegistry?.get(parsed.data.type)
+    if (!provider) return c.json({ error: 'Unknown provider type' }, 400)
+    if (!provider.listModels) return c.json({ error: 'Provider does not support model listing' }, 400)
+
+    try {
+      const models = await provider.listModels(parsed.data.apiKey)
+      return c.json({ models })
+    } catch (err) {
+      return c.json({ error: (err as Error).message }, 400)
     }
   })
 

@@ -146,6 +146,9 @@ export interface WorkspaceRepository {
   findConsumersByType(type: string): Promise<Array<{ workspace_id: string; config: string; model: string; system_prompt: string | null; max_tool_rounds: number }>>
 
   findKnowledge(workspaceId: string): Promise<KnowledgeSourceData[]>
+  createKnowledgeSource(id: string, workspaceId: string, type: string, name: string, config: string): Promise<void>
+  updateKnowledgeSourceStatus(id: string, status: string, chunks: number): Promise<void>
+  deleteKnowledgeSource(id: string): Promise<void>
   findGuardrails(workspaceId: string): Promise<GuardrailData[]>
   findEnabledGuardrailConfigs(workspaceId: string): Promise<Array<{ guardrail_id: string; config: string | null }>>
   enableGuardrail(id: string, workspaceId: string, guardrailId: string, config?: string): Promise<void>

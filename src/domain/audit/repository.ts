@@ -17,6 +17,7 @@ export interface AuditLogData {
   input_screening_action: string | null
   input_screening_categories: string | null
   input_screening_ms: number | null
+  knowledge_chunks_used: number
 }
 
 export interface AuditLogRepository {
