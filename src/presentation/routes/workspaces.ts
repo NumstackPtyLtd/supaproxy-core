@@ -24,7 +24,7 @@ import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
+import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH, DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT } from '../../defaults.js'
 
 const log = pino({ name: 'routes/workspaces' })
 
@@ -221,8 +221,8 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
       event_type: validEventType,
       status: validStatus,
       search: search || undefined,
-      limit: limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20,
-      offset: page ? (Math.max(parseInt(page, 10) || 0, 0)) * (limit ? Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100) : 20) : 0,
+      limit: limit ? Math.min(Math.max(parseInt(limit, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT,
+      offset: page ? (Math.max(parseInt(page, 10) || 0, 0)) * (limit ? Math.min(Math.max(parseInt(limit, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT) : 0,
     } : undefined
 
     const result = await deps.getComplianceUseCase.execute(c.req.param('id'), eventFilter)
@@ -270,7 +270,7 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
   workspaces.get('/api/workspaces/:id/activity', async (c) => {
     const user = c.get('user') as AuthUser
     await guardWorkspace(c.req.param('id'), user.org_id)
-    const limit = parseInt(c.req.query('limit') || '20')
+    const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
     const offset = parseInt(c.req.query('offset') || '0')
     const result = await deps.getActivityUseCase.execute(c.req.param('id'), limit, offset)
     return c.json({ activity: result.rows, total: result.total })

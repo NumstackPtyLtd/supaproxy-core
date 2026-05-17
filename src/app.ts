@@ -29,7 +29,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
 
   app.onError((err, c) => {
     log.error({ error: err.message, stack: err.stack }, 'Unhandled error')
-    return c.json({ error: 'Internal Server Error' }, 500)
+    return c.json({ error: 'internal_error' }, 500)
   })
 
   // Health check
@@ -87,7 +87,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
 
     const result = verifyWebhook(mode, token, challenge, verifyToken)
     if (result) return c.text(result)
-    return c.text('Forbidden', 403)
+    return c.json({ error: 'forbidden' }, 403)
   })
 
   app.post('/api/webhooks/whatsapp', async (c) => {

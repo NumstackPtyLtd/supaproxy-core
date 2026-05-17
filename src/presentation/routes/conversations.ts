@@ -7,6 +7,7 @@ import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
+import { DEFAULT_PAGINATION_LIMIT } from '../../defaults.js'
 
 const log = pino({ name: 'routes/conversations' })
 
@@ -33,7 +34,7 @@ export function createConversationRoutes(deps: ConversationRouteDeps) {
     const user = c.get('user') as AuthUser
     const wsId = c.req.param('id')
     await guardWorkspace(wsId, user.org_id)
-    const limit = parseInt(c.req.query('limit') || '20')
+    const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
     const offset = parseInt(c.req.query('offset') || '0')
     const filters = {
       status: c.req.query('status'),

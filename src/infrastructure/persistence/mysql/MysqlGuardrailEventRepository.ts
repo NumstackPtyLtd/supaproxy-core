@@ -1,5 +1,6 @@
 import type mysql from 'mysql2/promise'
 import type { GuardrailEventRepository, GuardrailEventData, GuardrailEventFilter, EventStatus } from '../../../domain/guardrail/repository.js'
+import { DEFAULT_PAGINATION_LIMIT } from '../../../defaults.js'
 
 interface GuardrailEventRow extends mysql.RowDataPacket {
   id: string
@@ -29,7 +30,7 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
     )
   }
 
-  async findByWorkspace(workspaceId: string, limit = 50): Promise<GuardrailEventData[]> {
+  async findByWorkspace(workspaceId: string, limit = DEFAULT_PAGINATION_LIMIT): Promise<GuardrailEventData[]> {
     const [rows] = await this.pool.execute<GuardrailEventRow[]>(
       `SELECT * FROM guardrail_events WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
       [workspaceId, String(limit)],
@@ -40,7 +41,7 @@ export class MysqlGuardrailEventRepository implements GuardrailEventRepository {
   async findByWorkspaceFiltered(workspaceId: string, filter: GuardrailEventFilter): Promise<{ events: GuardrailEventData[]; total: number }> {
     const { conditions, params } = this.buildWhere(workspaceId, filter)
     const where = conditions.join(' AND ')
-    const limit = filter.limit ?? 20
+    const limit = filter.limit ?? DEFAULT_PAGINATION_LIMIT
     const offset = filter.offset ?? 0
 
     const [[countResult], [rows]] = await Promise.all([

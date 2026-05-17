@@ -26,6 +26,10 @@ export const DEFAULT_STATS_ANALYSIS_MAX_TOKENS = 1024
 // ── Pagination ──
 
 export const DEFAULT_PAGINATION_LIMIT = 20
+export const MAX_PAGINATION_LIMIT = 100
+export const DEFAULT_KNOWLEDGE_GAPS_LIMIT = 20
+export const DEFAULT_SECURITY_TOP_WORKSPACES = 5
+export const DEFAULT_SECURITY_RECENT_EVENTS = 10
 
 // ── Query validation ──
 
@@ -97,3 +101,7 @@ export const DEFAULT_CHUNK_OVERLAP = 50
 export const DEFAULT_RETRIEVAL_LIMIT = 5
 export const DEFAULT_RETRIEVAL_MIN_SCORE = 0.3
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536
+
+// ── Stats analysis fallbacks ──
+
+export const DEFAULT_SENTIMENT_SCORE = 3

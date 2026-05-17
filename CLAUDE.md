@@ -1,5 +1,7 @@
 # SupaProxy
 
+Central governance hub: [supaproxy](https://github.com/NumstackPtyLtd/supaproxy)
+
 Open-source AI operations engine. Hono API server.
 
 ## Architecture (DDD + Clean Architecture)
