@@ -76,10 +76,10 @@ export class LanceDBVectorStore implements VectorStore {
 
     const mapped: VectorSearchResult[] = [];
     for (const r of results) {
-      let metadata: Record<string, unknown> | undefined;
+      let metadata: Record<string, string> | undefined;
       if (r.metadata_json) {
         try {
-          metadata = JSON.parse(r.metadata_json as string);
+          metadata = JSON.parse(r.metadata_json as string) as Record<string, string>;
         } catch (err) {
           log.warn({ err, id: r.id }, 'Skipping vector record with invalid metadata JSON');
           continue;

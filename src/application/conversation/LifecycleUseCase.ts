@@ -109,8 +109,8 @@ export class LifecycleUseCase {
       }
 
       await this.conversationRepo.updateStatsComplete(statsId, {
-        sentimentScore: parsed.sentiment_score || 3,
-        resolutionStatus: parsed.resolution_status || 'unresolved',
+        sentimentScore: (parsed.sentiment_score as number) || 3,
+        resolutionStatus: (parsed.resolution_status as string) || 'unresolved',
         complianceViolations: JSON.stringify(parsed.compliance_violations || []),
         knowledgeGaps: JSON.stringify(parsed.knowledge_gaps || []),
         fraudIndicators: JSON.stringify(parsed.fraud_indicators || []),
@@ -121,8 +121,8 @@ export class LifecycleUseCase {
         totalDurationMs: aggregate.total_duration_ms,
         messageCount: timestamps?.message_count || messages.length,
         durationSeconds: durationSec,
-        summary: parsed.summary || '',
-        category: parsed.category || 'other',
+        summary: (parsed.summary as string) || '',
+        category: (parsed.category as string) || 'other',
       })
 
       log.info({ conversationId, sentiment: parsed.sentiment_score, resolution: parsed.resolution_status }, 'Conversation stats generated')
