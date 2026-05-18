@@ -24,7 +24,6 @@ import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoade
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
 import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
 import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
-import { ProviderEmbeddingService } from './infrastructure/ai/ProviderEmbeddingService.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { ProviderEmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'

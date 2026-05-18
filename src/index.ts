@@ -44,7 +44,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
     createUser: (id, orgId, email, name, hash, role) => orgRepo.createUser(id, orgId, email, name, hash, role),
     createTeam: (id, orgId, name) => orgRepo.createTeam(id, orgId, name),
     createWorkspace: (id, orgId, teamId, name, model, systemPrompt) =>
-      wsRepo.create(id, orgId, teamId, name, model, systemPrompt),
+      wsRepo.create({ id, orgId, teamId, name, model, systemPrompt }),
   },
   options: {
     jwtSecret: JWT_SECRET,
