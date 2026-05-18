@@ -1,5 +1,5 @@
 import type mysql from 'mysql2/promise'
-import { JWT_SECRET, DASHBOARD_URL, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT } from './config.js'
+import { REDIS_HOST, REDIS_PORT } from './config.js'
 
 // Infrastructure
 import { MysqlOrganisationRepository } from './infrastructure/persistence/mysql/MysqlOrganisationRepository.js'
@@ -7,8 +7,6 @@ import { MysqlWorkspaceRepository } from './infrastructure/persistence/mysql/Mys
 import { MysqlConversationRepository } from './infrastructure/persistence/mysql/MysqlConversationRepository.js'
 import { MysqlAuditLogRepository } from './infrastructure/persistence/mysql/MysqlAuditLogRepository.js'
 import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlModelRepository.js'
-import { BcryptPasswordService } from './infrastructure/auth/BcryptPasswordService.js'
-import { JwtTokenService } from './infrastructure/auth/JwtTokenService.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
 import { createGuardrailResolver } from './GuardrailResolver.js'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
@@ -26,7 +24,6 @@ import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoade
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
 import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
 import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
-import { ProviderEmbeddingService } from './infrastructure/ai/ProviderEmbeddingService.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { ProviderEmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
@@ -44,9 +41,6 @@ import pino from 'pino'
 
 const log = pino({ name: 'container' })
 
-// Application - Auth
-import { SignupUseCase } from './application/auth/SignupUseCase.js'
-import { LoginUseCase } from './application/auth/LoginUseCase.js'
 
 // Application - Organisation
 import { GetOrgUseCase } from './application/organisation/GetOrgUseCase.js'
@@ -105,8 +99,7 @@ import { ManageIntegrationUseCase } from './application/integration/ManageIntegr
 import { ManageEntryPointUseCase } from './application/integration/ManageEntryPointUseCase.js'
 
 // Presentation
-import { createRequireAuth } from './presentation/middleware/auth.js'
-import { createAuthRoutes } from './presentation/routes/auth.js'
+import type { Hono } from 'hono'
 import { createOrgRoutes } from './presentation/routes/org.js'
 import { createWorkspaceRoutes } from './presentation/routes/workspaces.js'
 import { createConversationRoutes } from './presentation/routes/conversations.js'
@@ -119,10 +112,15 @@ import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 import { createInstalledGuardrailRoutes } from './presentation/routes/installedGuardrails.js'
 
-export function createContainer(pool: mysql.Pool, options?: { tenantService?: TenantService }) {
-  // Tenant service: defaults to NoOp (single-tenant) for open-source.
-  // Cloud deployment passes a multi-tenant implementation.
-  const tenantService: TenantService = options?.tenantService ?? new NoOpTenantService()
+interface ContainerOptions {
+  tenantService?: TenantService
+  authRoutes: Hono
+  requireAuth: (c: any, next: any) => Promise<any>
+}
+
+export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
+  const tenantService: TenantService = options.tenantService ?? new NoOpTenantService()
+  const { authRoutes, requireAuth } = options
 
   // Infrastructure singletons
   const orgRepo = new MysqlOrganisationRepository(pool)
@@ -130,8 +128,6 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const conversationRepo = new MysqlConversationRepository(pool)
   const auditRepo = new MysqlAuditLogRepository(pool)
   const modelRepo = new MysqlModelRepository(pool)
-  const passwordService = new BcryptPasswordService()
-  const tokenService = new JwtTokenService(JWT_SECRET)
   // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
@@ -148,12 +144,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
   const indexKnowledge = new IndexKnowledgeForWorkspaceUseCase(knowledgeChunkRepo, vectorStore, workspaceRepo, embeddingFactory)
 
-  // Middleware
-  const requireAuth = createRequireAuth(tokenService)
-
   // Application use cases
-  const signupUseCase = new SignupUseCase(orgRepo, workspaceRepo, passwordService, tokenService, tenantService)
-  const loginUseCase = new LoginUseCase(orgRepo, passwordService, tokenService)
   const getOrgUseCase = new GetOrgUseCase(orgRepo)
   const updateOrgUseCase = new UpdateOrgUseCase(orgRepo)
   const getOrgSettingsUseCase = new GetOrgSettingsUseCase(orgRepo)
@@ -261,8 +252,7 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
-  // Build routes
-  const authRoutes = createAuthRoutes({ signupUseCase, loginUseCase, tokenService, dashboardUrl: DASHBOARD_URL, isProduction: IS_PRODUCTION, cookieDomain: COOKIE_DOMAIN })
+  // Build routes (auth routes injected from outside)
   const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth, providerRegistry })
   const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth, indexKnowledgeUseCase: indexKnowledge })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
@@ -290,12 +280,11 @@ export function createContainer(pool: mysql.Pool, options?: { tenantService?: Te
   const container = {
     // Infrastructure
     orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo, promptTemplateRepo,
-    passwordService, tokenService, providerRegistry, mcpFactory, promptResolver,
+    providerRegistry, mcpFactory, promptResolver,
     queueService, integrationTester, posterRegistry, consumerRegistry, tenantService,
     // Middleware
     requireAuth,
     // Use cases
-    signupUseCase, loginUseCase,
     getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase,
     createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase,
     getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase,

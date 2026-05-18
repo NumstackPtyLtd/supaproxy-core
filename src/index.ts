@@ -15,7 +15,12 @@ import { runMigrations } from './db/migrations.js'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
-import { PORT, DASHBOARD_URL } from './config.js'
+import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN } from './config.js'
+import { createAuthRoutes } from '@supaproxy/auth'
+import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
+import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
+import { MysqlOrganisationRepository } from './infrastructure/persistence/mysql/MysqlOrganisationRepository.js'
+import { MysqlWorkspaceRepository } from './infrastructure/persistence/mysql/MysqlWorkspaceRepository.js'
 
 const log = pino({ name: 'supaproxy' })
 
@@ -28,8 +33,32 @@ process.on('unhandledRejection', (reason) => {
 const pool = getPool()
 await runMigrations(pool)
 
-// --- Composition root (single-tenant, no options needed) ---
-const container = createContainer(pool)
+// --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
+const orgRepo = new MysqlOrganisationRepository(pool)
+const wsRepo = new MysqlWorkspaceRepository(pool)
+
+const { routes: authRoutes, requireAuth } = createAuthRoutes({
+  repo: {
+    findUserByEmail: (email) => orgRepo.findUserByEmail(email),
+    createOrg: (id, name, slug) => orgRepo.create(id, name, slug),
+    createUser: (id, orgId, email, name, hash, role) => orgRepo.createUser(id, orgId, email, name, hash, role),
+    createTeam: (id, orgId, name) => orgRepo.createTeam(id, orgId, name),
+    createWorkspace: (id, orgId, teamId, name, model, systemPrompt) =>
+      wsRepo.create({ id, orgId, teamId, name, model, systemPrompt }),
+  },
+  options: {
+    jwtSecret: JWT_SECRET,
+    isProduction: IS_PRODUCTION,
+    cookieDomain: COOKIE_DOMAIN,
+    dashboardUrl: DASHBOARD_URL,
+  },
+  generateId,
+  generateWorkspaceId: () => generateWorkspaceId(),
+  defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
+})
+
+// --- Composition root ---
+const container = createContainer(pool, { authRoutes: authRoutes as any, requireAuth })
 
 // --- App ---
 const app = createApp(container)

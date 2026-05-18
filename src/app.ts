@@ -7,7 +7,6 @@
  */
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { getCookie } from 'hono/cookie'
 import pino from 'pino'
 import type { Container } from './container.js'
 import { CORS_ORIGINS } from './config.js'
@@ -33,18 +32,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   })
 
   // Health check
-  app.get('/health', async (c) => {
-    try {
-      const token = getCookie(c, 'supaproxy_session')
-      const payload = token ? container.tokenService.verify(token) : null
-      if (!payload) return c.json({ status: 'ok' })
-      const result = await container.getHealthUseCase.executeAuthenticated()
-      return c.json(result)
-    } catch (err) {
-      log.error({ error: (err as Error).message }, 'Health check failed')
-      return c.json({ status: 'error' }, 500)
-    }
-  })
+  app.get('/health', (c) => c.json({ status: 'ok' }))
 
   // Models
   app.get('/api/models', async (c) => {
