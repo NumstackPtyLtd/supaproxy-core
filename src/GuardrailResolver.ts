@@ -1,21 +1,24 @@
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue, type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import type { WorkspaceRepository } from './domain/workspace/repository.js'
 import type { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
-import type { MysqlInstalledGuardrailRepository } from './infrastructure/persistence/mysql/MysqlInstalledGuardrailRepository.js'
 import pino from 'pino'
 
 const log = pino({ name: 'guardrail-resolver' })
 
+export type GuardrailInfo = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; icon?: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+
 /**
  * Resolves guardrail plugins, execution rails, and retrieval rails
  * for a given workspace based on enabled configs and org policies.
+ *
+ * Core only returns statically registered plugins. Cloud extends
+ * listAvailableGuardrails with dynamically installed marketplace plugins.
  */
 export function createGuardrailResolver(deps: {
   workspaceRepo: WorkspaceRepository
   guardrailPolicyRepo: MysqlGuardrailPolicyRepository
-  installedGuardrailRepo: MysqlInstalledGuardrailRepository
 }) {
-  const { workspaceRepo, guardrailPolicyRepo, installedGuardrailRepo } = deps
+  const { workspaceRepo, guardrailPolicyRepo } = deps
 
   async function getEnforcedPluginIds(workspaceId: string): Promise<string[]> {
     const ws = await workspaceRepo.findById(workspaceId)
@@ -99,31 +102,16 @@ export function createGuardrailResolver(deps: {
     ...retrievalCatalogue.list().map(p => p.id),
   ])
 
-  type GuardrailInfo = { id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; icon?: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }
+  const toCore = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: GuardrailInfo['configSchema'] }): GuardrailInfo => ({
+    id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', icon: p.icon, configSchema: p.configSchema,
+  })
 
-  async function listAvailableGuardrails(orgId: string): Promise<GuardrailInfo[]> {
-    const toCore = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: GuardrailInfo['configSchema'] }): GuardrailInfo => ({
-      id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', icon: p.icon, configSchema: p.configSchema,
-    })
-
-    const core: GuardrailInfo[] = [
+  async function listAvailableGuardrails(_orgId: string): Promise<GuardrailInfo[]> {
+    return [
       ...guardrailRegistry.list().map(toCore),
       ...executionCatalogue.list().map(toCore),
       ...retrievalCatalogue.list().map(toCore),
     ]
-
-    const installed = await installedGuardrailRepo.findByOrg(orgId)
-    const marketplace: GuardrailInfo[] = installed.map(ig => ({
-      id: ig.plugin_id,
-      name: ig.plugin_metadata.name,
-      description: ig.plugin_metadata.description,
-      stage: ig.plugin_metadata.stage,
-      source: 'marketplace' as const,
-      icon: ig.plugin_metadata.icon,
-      configSchema: ig.plugin_metadata.configSchema,
-    }))
-
-    return [...core, ...marketplace]
   }
 
   return { resolveGuardrails, resolveExecutionRails, resolveRetrievalRails, listAvailableGuardrails, corePluginIds }

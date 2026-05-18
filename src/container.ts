@@ -17,10 +17,8 @@ import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js
 import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
 import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
 import { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
-import { MysqlInstalledGuardrailRepository } from './infrastructure/persistence/mysql/MysqlInstalledGuardrailRepository.js'
 import { MysqlIntegrationRepository } from './infrastructure/persistence/mysql/MysqlIntegrationRepository.js'
 import { MysqlEntryPointRepository } from './infrastructure/persistence/mysql/MysqlEntryPointRepository.js'
-import { DynamicPluginLoader } from './infrastructure/plugins/DynamicPluginLoader.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
 import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
 import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
@@ -93,8 +91,6 @@ import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
 import { ManagePoliciesUseCase } from './application/guardrail/ManagePoliciesUseCase.js'
 import { GetSecurityOverviewUseCase } from './application/guardrail/GetSecurityOverviewUseCase.js'
 import { CreatePolicyOverrideUseCase } from './application/guardrail/CreatePolicyOverrideUseCase.js'
-import { InstallGuardrailUseCase } from './application/guardrail/InstallGuardrailUseCase.js'
-import { UninstallGuardrailUseCase } from './application/guardrail/UninstallGuardrailUseCase.js'
 import { ManageIntegrationUseCase } from './application/integration/ManageIntegrationUseCase.js'
 import { ManageEntryPointUseCase } from './application/integration/ManageEntryPointUseCase.js'
 
@@ -110,7 +106,6 @@ import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
-import { createInstalledGuardrailRoutes } from './presentation/routes/installedGuardrails.js'
 
 interface ContainerOptions {
   tenantService?: TenantService
@@ -167,8 +162,6 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
   const integrationRepo = new MysqlIntegrationRepository(pool)
   const entryPointRepo = new MysqlEntryPointRepository(pool)
-  const installedGuardrailRepo = new MysqlInstalledGuardrailRepository(pool)
-  const pluginLoader = new DynamicPluginLoader()
   const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo, providerRegistry)
@@ -238,7 +231,7 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
   // Guardrails: resolved per workspace at query time from package catalogues.
-  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo, installedGuardrailRepo })
+  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo })
   const { resolveGuardrails, resolveExecutionRails, resolveRetrievalRails, listAvailableGuardrails, corePluginIds } = guardrails
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
@@ -269,12 +262,9 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const createPolicyOverrideUseCase = new CreatePolicyOverrideUseCase(guardrailPolicyRepo)
   const guardrailPolicyRoutes = createGuardrailPolicyRoutes({ managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase, listAvailableGuardrails, requireAuth })
 
-  // Installed guardrails (marketplace)
+  // Integrations (entry points)
   const manageIntegrationUseCase = new ManageIntegrationUseCase(integrationRepo)
   const manageEntryPointUseCase = new ManageEntryPointUseCase(integrationRepo, entryPointRepo)
-  const installGuardrailUseCase = new InstallGuardrailUseCase(installedGuardrailRepo, pluginLoader, corePluginIds)
-  const uninstallGuardrailUseCase = new UninstallGuardrailUseCase(installedGuardrailRepo, corePluginIds)
-  const installedGuardrailRoutes = createInstalledGuardrailRoutes({ installGuardrailUseCase, uninstallGuardrailUseCase, installedGuardrailRepo, requireAuth })
   const integrationRoutes = createIntegrationRoutes({ manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo, requireAuth })
 
   const container = {
@@ -294,10 +284,9 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
     executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
     managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
-    installGuardrailUseCase, uninstallGuardrailUseCase,
     manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, installedGuardrailRoutes, integrationRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, integrationRoutes,
   }
 
   return container
