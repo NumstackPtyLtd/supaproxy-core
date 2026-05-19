@@ -36,11 +36,11 @@ dependencies:
     specifier: link:/Users/Elvis/workspace/supaproxyhq/supaproxy-consumers
     version: link:../supaproxy-consumers
   '@supaproxy/guardrails':
-    specifier: ^0.7.2
-    version: 0.7.2
+    specifier: ^0.7.3
+    version: 0.7.3
   '@supaproxy/providers':
-    specifier: ^0.2.3
-    version: 0.2.3(@anthropic-ai/sdk@0.90.0)(openai@6.35.0)
+    specifier: link:/Users/Elvis/workspace/supaproxyhq/supaproxy-providers
+    version: link:../supaproxy-providers
   apache-arrow:
     specifier: ^18.1.0
     version: 18.1.0
@@ -983,24 +983,8 @@ packages:
       pino: 9.14.0
     dev: false
 
-  /@supaproxy/guardrails@0.7.2:
-    resolution: {integrity: sha512-sF/sUnj1I1gkozUU8Fp94GuhQkhcGWQOfHs4dzaZipNipZZaszIw08UE5+ZKFKdfkEPS0Bjy1eIlyjbmA1t+Bw==}
-    dev: false
-
-  /@supaproxy/providers@0.2.3(@anthropic-ai/sdk@0.90.0)(openai@6.35.0):
-    resolution: {integrity: sha512-j6j2cHV5wSz5OhuRgmhVGyzm8gKUI6+0hI+W1KC2/IYetfNRfNpSX+KnHnRO4HW7eUkVCBayne9WMIPVJQqQeQ==}
-    peerDependencies:
-      '@anthropic-ai/sdk': '>=0.30.0'
-      openai: '>=4.0.0'
-    peerDependenciesMeta:
-      '@anthropic-ai/sdk':
-        optional: true
-      openai:
-        optional: true
-    dependencies:
-      '@anthropic-ai/sdk': 0.90.0(zod@3.25.76)
-      openai: 6.35.0(zod@3.25.76)
-      pino: 9.14.0
+  /@supaproxy/guardrails@0.7.3:
+    resolution: {integrity: sha512-tDjK57oQ6z5mmICq8UhsnuRtIP5egm+xAf2Si/7bWhiheAA9KHN+U+D8UZBvAeQDDG2nt/nKnu9mvQyIaQ7aPQ==}
     dev: false
 
   /@swc/helpers@0.5.21:

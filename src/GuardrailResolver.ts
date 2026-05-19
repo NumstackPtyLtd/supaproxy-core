@@ -2,7 +2,7 @@ import { type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } fr
 import type { WorkspaceRepository } from './domain/workspace/repository.js'
 import type { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
 
-interface PluginRegistry<T = any> {
+export interface PluginRegistry<T = any> {
   list(): T[]
   has(id: string): boolean
   get(id: string): T

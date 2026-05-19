@@ -20,7 +20,7 @@ interface GuardrailPolicyRouteDeps {
   managePoliciesUseCase: ManagePoliciesUseCase
   getSecurityOverviewUseCase: GetSecurityOverviewUseCase
   createPolicyOverrideUseCase: CreatePolicyOverrideUseCase
-  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace' }>>
+  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; icon?: string; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>>
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 

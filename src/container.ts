@@ -8,7 +8,7 @@ import { MysqlConversationRepository } from './infrastructure/persistence/mysql/
 import { MysqlAuditLogRepository } from './infrastructure/persistence/mysql/MysqlAuditLogRepository.js'
 import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlModelRepository.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
-import { createGuardrailResolver } from './GuardrailResolver.js'
+import { createGuardrailResolver, type PluginRegistry } from './GuardrailResolver.js'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
@@ -106,12 +106,6 @@ import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
-
-interface PluginRegistry {
-  list(): any[]
-  has(id: string): boolean
-  get(id: string): any
-}
 
 interface ContainerOptions {
   tenantService?: TenantService
