@@ -226,7 +226,7 @@ describe('ExecuteQueryUseCase', () => {
 
   it('blocks query when guardrail returns block action', async () => {
     const guardrail: GuardrailPlugin = {
-      id: '@supaproxy/guardrails:pattern',
+      id: 'pattern-guard',
       name: 'test-guard',
       description: 'Test',
       version: '0.1.0',
@@ -254,7 +254,7 @@ describe('ExecuteQueryUseCase', () => {
 
   it('uses modified query when guardrail modifies input', async () => {
     const guardrail: GuardrailPlugin = {
-      id: '@supaproxy/guardrails:pattern',
+      id: 'pattern-guard',
       name: 'sanitiser',
       description: 'Sanitise',
       version: '0.1.0',
@@ -545,7 +545,7 @@ describe('ExecuteQueryUseCase', () => {
       expect(eventRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           event_type: 'execution_blocked',
-          plugin_id: '@supaproxy/guardrails:write-guard',
+          plugin_id: 'write-guard',
           context: expect.objectContaining({ tool_name: 'delete_account', original_query: 'What is my balance?' }),
           outcome: expect.objectContaining({ reason: expect.stringContaining('write operation') }),
           display: expect.any(Array),
@@ -681,7 +681,7 @@ describe('ExecuteQueryUseCase', () => {
       expect(eventRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           event_type: 'retrieval_stripped',
-          plugin_id: '@supaproxy/guardrails:injection-sanitiser',
+          plugin_id: 'injection-sanitiser',
           context: expect.objectContaining({ tool_name: 'search', original_query: 'Search for data' }),
           outcome: expect.objectContaining({
             original_content: expect.stringContaining('Ignore previous instructions'),

@@ -8,7 +8,7 @@ import { MysqlConversationRepository } from './infrastructure/persistence/mysql/
 import { MysqlAuditLogRepository } from './infrastructure/persistence/mysql/MysqlAuditLogRepository.js'
 import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlModelRepository.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
-import { createGuardrailResolver } from './GuardrailResolver.js'
+import { createGuardrailResolver, type PluginRegistry } from './GuardrailResolver.js'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
 import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
@@ -111,6 +111,9 @@ interface ContainerOptions {
   tenantService?: TenantService
   authRoutes: Hono
   requireAuth: (c: any, next: any) => Promise<any>
+  guardrailRegistry: PluginRegistry
+  executionCatalogue: PluginRegistry
+  retrievalCatalogue: PluginRegistry
 }
 
 export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
@@ -231,7 +234,7 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
   // Guardrails: resolved per workspace at query time from package catalogues.
-  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo })
+  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo, guardrailRegistry: options.guardrailRegistry, executionCatalogue: options.executionCatalogue, retrievalCatalogue: options.retrievalCatalogue })
   const { resolveGuardrails, resolveExecutionRails, resolveRetrievalRails, listAvailableGuardrails, corePluginIds } = guardrails
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
