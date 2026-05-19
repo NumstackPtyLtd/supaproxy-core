@@ -17,6 +17,7 @@ import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
 import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN } from './config.js'
 import { createAuthRoutes } from '@supaproxy/auth'
+import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
 import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
 import { MysqlOrganisationRepository } from './infrastructure/persistence/mysql/MysqlOrganisationRepository.js'
@@ -58,7 +59,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(pool, { authRoutes: authRoutes as any, requireAuth })
+const container = createContainer(pool, { authRoutes: authRoutes as any, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)

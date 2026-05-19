@@ -107,10 +107,19 @@ import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 
+interface PluginRegistry {
+  list(): any[]
+  has(id: string): boolean
+  get(id: string): any
+}
+
 interface ContainerOptions {
   tenantService?: TenantService
   authRoutes: Hono
   requireAuth: (c: any, next: any) => Promise<any>
+  guardrailRegistry: PluginRegistry
+  executionCatalogue: PluginRegistry
+  retrievalCatalogue: PluginRegistry
 }
 
 export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
@@ -231,7 +240,7 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const connectConsumerUseCase = new ConnectConsumerUseCase(workspaceRepo, consumerTypeHandlers)
 
   // Guardrails: resolved per workspace at query time from package catalogues.
-  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo })
+  const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo, guardrailRegistry: options.guardrailRegistry, executionCatalogue: options.executionCatalogue, retrievalCatalogue: options.retrievalCatalogue })
   const { resolveGuardrails, resolveExecutionRails, resolveRetrievalRails, listAvailableGuardrails, corePluginIds } = guardrails
 
   const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)

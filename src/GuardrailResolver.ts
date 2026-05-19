@@ -1,6 +1,12 @@
-import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue, type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
+import { type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import type { WorkspaceRepository } from './domain/workspace/repository.js'
 import type { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
+
+interface PluginRegistry<T = any> {
+  list(): T[]
+  has(id: string): boolean
+  get(id: string): T
+}
 import pino from 'pino'
 
 const log = pino({ name: 'guardrail-resolver' })
@@ -17,8 +23,11 @@ export type GuardrailInfo = { id: string; name: string; description: string; sta
 export function createGuardrailResolver(deps: {
   workspaceRepo: WorkspaceRepository
   guardrailPolicyRepo: MysqlGuardrailPolicyRepository
+  guardrailRegistry: PluginRegistry
+  executionCatalogue: PluginRegistry
+  retrievalCatalogue: PluginRegistry
 }) {
-  const { workspaceRepo, guardrailPolicyRepo } = deps
+  const { workspaceRepo, guardrailPolicyRepo, guardrailRegistry, executionCatalogue, retrievalCatalogue } = deps
 
   async function getEnforcedPluginIds(workspaceId: string): Promise<string[]> {
     const ws = await workspaceRepo.findById(workspaceId)
@@ -102,15 +111,15 @@ export function createGuardrailResolver(deps: {
     ...retrievalCatalogue.list().map(p => p.id),
   ])
 
-  const toCore = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: GuardrailInfo['configSchema'] }): GuardrailInfo => ({
-    id: p.id, name: p.name, description: p.description, stage: p.stage, source: 'core', icon: p.icon, configSchema: p.configSchema,
+  const toInfo = (p: { id: string; name: string; description: string; stage: string; icon?: string; configSchema: GuardrailInfo['configSchema'] }): GuardrailInfo => ({
+    id: p.id, name: p.name, description: p.description, stage: p.stage, source: corePluginIds.has(p.id) ? 'core' : 'marketplace', icon: p.icon, configSchema: p.configSchema,
   })
 
   async function listAvailableGuardrails(_orgId: string): Promise<GuardrailInfo[]> {
     return [
-      ...guardrailRegistry.list().map(toCore),
-      ...executionCatalogue.list().map(toCore),
-      ...retrievalCatalogue.list().map(toCore),
+      ...guardrailRegistry.list().map(toInfo),
+      ...executionCatalogue.list().map(toInfo),
+      ...retrievalCatalogue.list().map(toInfo),
     ]
   }
 
