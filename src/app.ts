@@ -50,6 +50,22 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
     return c.json({ providers: container.providerRegistry.schemas() })
   })
 
+  // Guardrail icon assets (served from @supaproxy/guardrails package)
+  app.get('/api/guardrails/:pluginId/icon', async (c) => {
+    const pluginId = c.req.param('pluginId')
+    if (pluginId.includes('..') || pluginId.includes('/')) return c.notFound()
+    try {
+      const { createRequire } = await import('module')
+      const require = createRequire(import.meta.url)
+      const pkgDir = require.resolve('@supaproxy/guardrails').replace(/dist\/index\.js$/, '')
+      const { readFile } = await import('fs/promises')
+      const data = await readFile(`${pkgDir}assets/${pluginId}.png`)
+      return new Response(data, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } })
+    } catch {
+      return c.notFound()
+    }
+  })
+
   // Route modules
   app.route('/', container.authRoutes)
   app.route('/', container.orgRoutes)
