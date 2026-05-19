@@ -804,6 +804,25 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 30,
+    name: 'url-safe guardrail plugin IDs',
+    up: async (pool) => {
+      const renames: [string, string][] = [
+        ['@supaproxy/guardrails:pattern', 'pattern-guard'],
+        ['@supaproxy/guardrails:llm', 'llm-guard'],
+        ['@supaproxy/guardrails:write-guard', 'write-guard'],
+        ['@supaproxy/guardrails:injection-sanitiser', 'injection-sanitiser'],
+      ];
+
+      for (const [oldId, newId] of renames) {
+        await pool.execute(`UPDATE workspace_guardrails SET guardrail_id = ? WHERE guardrail_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE guardrail_events SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE guardrail_policies SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+        await pool.execute(`UPDATE installed_guardrails SET plugin_id = ? WHERE plugin_id = ?`, [newId, oldId]);
+      }
+    },
+  },
 ];
 
 interface SchemaMigrationRow extends mysql.RowDataPacket {
