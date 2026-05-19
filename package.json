@@ -27,7 +27,7 @@
     "@supaproxy/auth": "^1.0.0",
     "@supaproxy/connections": "^0.2.1",
     "@supaproxy/consumers": "^0.4.1",
-    "@supaproxy/guardrails": "^0.7.3",
+    "@supaproxy/guardrails": "^0.7.5",
     "@supaproxy/providers": "^0.2.3",
     "apache-arrow": "^18.1.0",
     "bcrypt": "^6.0.0",
