@@ -225,6 +225,9 @@ export function mockQueueService(): QueueService {
     retryAllFailed: vi.fn().mockResolvedValue(0),
     drainQueue: vi.fn().mockResolvedValue(undefined),
     listQueueNames: vi.fn().mockReturnValue(['lifecycle', 'cold-messages', 'conversation-stats']),
+    queueExists: vi.fn().mockReturnValue(true),
+    startWorkers: vi.fn().mockResolvedValue(undefined),
+    stopWorkers: vi.fn().mockResolvedValue(undefined),
   }
 }
 
