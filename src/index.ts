@@ -21,6 +21,7 @@ import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
 import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
 import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
 import { createBullMqQueue } from '@supaproxy/bullmq'
+import { createLanceDBVectors } from '@supaproxy/lancedb'
 
 const log = pino({ name: 'supaproxy' })
 
@@ -38,6 +39,9 @@ const infra = createMysqlInfra(pool)
 
 // --- Queue adapter (default: @supaproxy/bullmq) ---
 const queueService = createBullMqQueue(REDIS_HOST, REDIS_PORT)
+
+// --- Vector store adapter (default: @supaproxy/lancedb) ---
+const vectorStore = createLanceDBVectors(process.env.VECTOR_STORE_PATH ?? './data/vectors')
 
 // --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
 const { routes: authRoutes, requireAuth } = createAuthRoutes({
@@ -61,7 +65,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(infra, { pool, queueService, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
+const container = createContainer(infra, { pool, queueService, vectorStore, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)
