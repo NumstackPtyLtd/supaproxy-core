@@ -14,12 +14,13 @@ import { getPool } from './db/pool.js'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
-import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN } from './config.js'
+import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT } from './config.js'
 import { createAuthRoutes } from '@supaproxy/auth'
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
 import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
 import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
+import { createBullMqQueue } from '@supaproxy/bullmq'
 
 const log = pino({ name: 'supaproxy' })
 
@@ -34,6 +35,9 @@ await runMigrations(pool)
 
 // --- Database adapter (default: @supaproxy/mysql) ---
 const infra = createMysqlInfra(pool)
+
+// --- Queue adapter (default: @supaproxy/bullmq) ---
+const queueService = createBullMqQueue(REDIS_HOST, REDIS_PORT)
 
 // --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
 const { routes: authRoutes, requireAuth } = createAuthRoutes({
@@ -57,7 +61,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(infra, { pool, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
+const container = createContainer(infra, { pool, queueService, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)
