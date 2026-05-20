@@ -6,7 +6,7 @@ import type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
 import { registry as providerRegistry } from '@supaproxy/providers'
 import { createGuardrailResolver, type PluginRegistry } from './GuardrailResolver.js'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
-import { BullMqService } from './infrastructure/queue/BullMqService.js'
+import type { QueueService } from './application/ports/QueueService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
@@ -99,6 +99,7 @@ import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPoli
 
 interface ContainerOptions {
   pool: import('mysql2/promise').Pool
+  queueService: QueueService
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -116,7 +117,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
-  const queueService = new BullMqService(REDIS_HOST, REDIS_PORT)
+  const { queueService } = options
   const integrationTester = new ConsumerIntegrationTester(consumerRegistry)
   const posterRegistry = new ConsumerPosterRegistryImpl()
 
