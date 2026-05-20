@@ -223,7 +223,6 @@ All code changes follow red-green-refactor. Tests are written BEFORE implementat
 - **Every infrastructure adapter has a test.** No exceptions for adapters with testable logic.
 - **All tests must pass before committing.** Run `npx vitest run` before every commit.
 - **Mock at boundaries.** Use mock factories from `src/__tests__/mocks.ts`.
-- **Run `/tdd` for the full TDD workflow guide.**
 
 ### Clean Code
 
@@ -258,25 +257,11 @@ All code changes follow red-green-refactor. Tests are written BEFORE implementat
 - **Cookie `secure: true` in production.**
 - **Error responses must not leak internals.**
 
-## Skills
-
-| Skill | Purpose |
-|---|---|
-| `/tdd` | TDD workflow: red-green-refactor cycle, test patterns, mock helpers |
-| `/add-api-route` | Scaffold a new endpoint: repository method, use case, route handler |
-| `/add-consumer` | Add a new consumer type with DDD architecture |
-| `/audit-code` | Full codebase scan: DDD violations, SOLID, types, errors, security |
-| `/prod-ready` | Pre-deploy: cookies, error leaks, missing auth, layer violations |
-| `/no-defaults` | Env var enforcement: no fallback patterns |
-| `/debug-mcp` | Diagnose MCP connection failures |
-| `/debug-clients` | Diagnose consumer connectivity |
-| `/restart-servers` | Restart Hono dev server and verify health |
-
 ## Contributing
 
 ### Adding a new endpoint
 
-Run `/add-api-route` or follow this pattern:
+Follow this pattern:
 
 1. **Domain**: add method to the relevant repository interface in `domain/`
 2. **Adapter**: implement the method in `@supaproxy/mysql` (and any other adapter packages)
@@ -303,7 +288,7 @@ Run `/add-api-route` or follow this pattern:
 
 ### Adding a new consumer
 
-Run `/add-consumer` or:
+To add a new consumer:
 1. Create `infrastructure/consumers/{Name}Consumer.ts`
 2. Accept the container as a dependency
 3. Use `container.executeQueryUseCase` for queries, `container.conversationRepo` for lookups
