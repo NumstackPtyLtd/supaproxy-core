@@ -34,7 +34,7 @@ const REPO_KEYS: (keyof DatabaseAdapter)[] = [
  * Method signatures that each repository must expose.
  * This is the minimum set of methods the core expects to call.
  */
-const REQUIRED_METHODS: Record<keyof DatabaseAdapter, string[]> = {
+const REQUIRED_METHODS: Record<string, string[]> = {
   orgRepo: ['findById', 'create', 'updateName', 'findUserByEmail', 'createUser', 'listSettings', 'upsertSetting', 'listTeams', 'createTeam', 'getFirstOrgId'],
   workspaceRepo: ['findById', 'create', 'update', 'listNonArchived', 'findConnections', 'createConnection', 'findTools', 'createTools', 'findConsumers', 'createConsumer', 'findKnowledge', 'findGuardrails', 'enableGuardrail', 'getStats', 'getActiveWorkspaceCount'],
   conversationRepo: ['findById', 'findLatestByThread', 'create', 'updateStatus', 'closeConversation', 'listWithStats', 'findMessages', 'recordMessage', 'findStats', 'createStats', 'updateStatsComplete', 'getAggregateData'],
@@ -47,6 +47,8 @@ const REQUIRED_METHODS: Record<keyof DatabaseAdapter, string[]> = {
   entryPointRepo: ['findByIntegration', 'findByChannel', 'findById', 'create', 'update', 'delete'],
   knowledgeChunkRepo: ['createChunks', 'findBySource', 'findByWorkspace', 'deleteBySource', 'deleteByWorkspace', 'countBySource'],
 }
+
+const REQUIRED_TOP_LEVEL_METHODS = ['getMonthlySpend', 'getWorkspaceGuardrailConfig']
 
 export function validateDatabaseAdapter(adapter: DatabaseAdapter) {
   describe('DatabaseAdapter contract', () => {
@@ -67,6 +69,15 @@ export function validateDatabaseAdapter(adapter: DatabaseAdapter) {
         }
       })
     }
+
+    describe('top-level methods', () => {
+      for (const method of REQUIRED_TOP_LEVEL_METHODS) {
+        it(`has method: ${method}`, () => {
+          const fn = (adapter as unknown as Record<string, unknown>)[method]
+          expect(typeof fn, `adapter.${method} should be a function`).toBe('function')
+        })
+      }
+    })
   })
 }
 

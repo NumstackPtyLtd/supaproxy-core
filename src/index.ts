@@ -10,16 +10,15 @@
 import 'dotenv/config'
 import { serve } from '@hono/node-server'
 import pino from 'pino'
-import { getPool } from './db/pool.js'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
-import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT } from './config.js'
+import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } from './config.js'
 import { createAuthRoutes } from '@supaproxy/auth'
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
 import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
-import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
+import { createMysqlInfra, runMigrations, createPool } from '@supaproxy/mysql'
 import { createBullMqQueue } from '@supaproxy/bullmq'
 import { createLanceDBVectors } from '@supaproxy/lancedb'
 import { createRedisSession } from '@supaproxy/redis'
@@ -32,7 +31,7 @@ process.on('unhandledRejection', (reason) => {
 })
 
 // --- Init ---
-const pool = getPool()
+const pool = createPool({ host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD, database: DB_NAME })
 await runMigrations(pool)
 
 // --- Database adapter (default: @supaproxy/mysql) ---
@@ -69,7 +68,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(infra, { pool, queueService, vectorStore, sessionStore, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
+const container = createContainer(infra, { queueService, vectorStore, sessionStore, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)

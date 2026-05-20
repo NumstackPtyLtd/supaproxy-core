@@ -65,4 +65,10 @@ export interface DatabaseAdapter {
 
   /** Knowledge chunk storage for RAG pipelines */
   knowledgeChunkRepo: KnowledgeChunkRepository
+
+  /** Monthly cost for a workspace (sum of audit_logs.cost_usd for current month) */
+  getMonthlySpend(workspaceId: string): Promise<number>
+
+  /** Merged guardrail config for a workspace (cost cap, rate limit, blocked topics) */
+  getWorkspaceGuardrailConfig(workspaceId: string): Promise<import('../query/PreQueryGuardService.js').GuardrailConfig | null>
 }
