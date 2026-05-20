@@ -83,7 +83,8 @@ export class ExecuteQueryUseCase {
       const resolved = await this.resolveProvider(workspace.provider_type)
       provider = resolved.provider
       apiKey = resolved.apiKey
-    } catch {
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, 'Failed to resolve AI provider')
       return buildQueryResult({
         answer: ERROR_CODES.NO_AI_PROVIDER,
         error: ERROR_CODES.NO_AI_PROVIDER,
@@ -230,7 +231,7 @@ export class ExecuteQueryUseCase {
       }
     } finally {
       for (const conn of mcpConnections) {
-        try { await conn.close() } catch { /* ignore */ }
+        try { await conn.close() } catch (err) { log.warn({ error: (err as Error).message }, 'Failed to close MCP connection') }
       }
     }
   }

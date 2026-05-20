@@ -2,6 +2,7 @@ import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { McpClientFactory } from '../ports/McpClient.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
+import { STATUS_CONNECTED, STATUS_SAVED } from '../../defaults.js'
 
 interface SaveMcpInput {
   workspaceId: string
@@ -59,7 +60,7 @@ export class SaveMcpConnectionUseCase {
       return this.discoverAndSaveTools(connId, input.url, input.headers)
     }
 
-    return { status: 'saved', message: 'Connection saved. Tools will be discovered on the first query.' }
+    return { status: STATUS_SAVED, message: 'Connection saved. Tools will be discovered on the first query.' }
   }
 
   private async discoverAndSaveTools(connId: string, url: string, headers?: Record<string, string>): Promise<SaveMcpOutput> {
@@ -78,13 +79,13 @@ export class SaveMcpConnectionUseCase {
             }))
           )
         }
-        await this.workspaceRepo.updateConnectionStatus(connId, 'connected')
-        return { status: 'saved', message: `Connected, ${connection.tools.length} tools discovered.`, tools: connection.tools.length }
+        await this.workspaceRepo.updateConnectionStatus(connId, STATUS_CONNECTED)
+        return { status: STATUS_SAVED, message: `Connected, ${connection.tools.length} tools discovered.`, tools: connection.tools.length }
       } finally {
         await connection.close()
       }
     } catch (err) {
-      return { status: 'saved', message: `Saved but could not discover tools: ${(err as Error).message}`, tools: 0 }
+      return { status: STATUS_SAVED, message: `Saved but could not discover tools: ${(err as Error).message}`, tools: 0 }
     }
   }
 }

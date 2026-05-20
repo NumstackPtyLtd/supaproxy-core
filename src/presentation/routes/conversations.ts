@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import pino from 'pino'
+import { STATUS_CLOSED } from '../../defaults.js'
 import type { ListConversationsUseCase } from '../../application/conversation/ListConversationsUseCase.js'
 import type { GetConversationDetailUseCase } from '../../application/conversation/GetConversationDetailUseCase.js'
 import type { CloseConversationUseCase } from '../../application/conversation/CloseConversationUseCase.js'
@@ -65,7 +66,7 @@ export function createConversationRoutes(deps: ConversationRouteDeps) {
     try {
       await deps.closeConversationUseCase.execute(c.req.param('cid'))
       log.info({ conversationId: c.req.param('cid') }, 'Conversation closed manually, analysis queued')
-      return c.json({ status: 'closed', message: 'closed' })
+      return c.json({ status: STATUS_CLOSED, message: STATUS_CLOSED })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err

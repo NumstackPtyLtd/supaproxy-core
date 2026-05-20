@@ -25,7 +25,7 @@ export class GetHealthUseCase {
 
   async executeAuthenticated(): Promise<HealthOutput> {
     // Check all registered provider types for API keys
-    const providerTypes = this.providerRegistry?.types() || ['anthropic', 'openai']
+    const providerTypes = this.providerRegistry?.types() || []
     let aiConfigured = false
     let embeddingAvailable = false
 
