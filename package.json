@@ -67,6 +67,12 @@
     "typescript": "^5.8.0",
     "vitest": "^3.1.0"
   },
+  "files": [
+    "src"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@9.15.0",
   "repository": {
     "type": "git",
