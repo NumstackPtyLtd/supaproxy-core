@@ -11,7 +11,6 @@ import 'dotenv/config'
 import { serve } from '@hono/node-server'
 import pino from 'pino'
 import { getPool } from './db/pool.js'
-import { runMigrations } from './db/migrations.js'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
@@ -20,8 +19,7 @@ import { createAuthRoutes } from '@supaproxy/auth'
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
 import { DEFAULT_SYSTEM_PROMPT } from './defaults.js'
-import { MysqlOrganisationRepository } from './infrastructure/persistence/mysql/MysqlOrganisationRepository.js'
-import { MysqlWorkspaceRepository } from './infrastructure/persistence/mysql/MysqlWorkspaceRepository.js'
+import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
 
 const log = pino({ name: 'supaproxy' })
 
@@ -34,18 +32,18 @@ process.on('unhandledRejection', (reason) => {
 const pool = getPool()
 await runMigrations(pool)
 
-// --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
-const orgRepo = new MysqlOrganisationRepository(pool)
-const wsRepo = new MysqlWorkspaceRepository(pool)
+// --- Database adapter (default: @supaproxy/mysql) ---
+const infra = createMysqlInfra(pool)
 
+// --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
 const { routes: authRoutes, requireAuth } = createAuthRoutes({
   repo: {
-    findUserByEmail: (email) => orgRepo.findUserByEmail(email),
-    createOrg: (id, name, slug) => orgRepo.create(id, name, slug),
-    createUser: (id, orgId, email, name, hash, role) => orgRepo.createUser(id, orgId, email, name, hash, role),
-    createTeam: (id, orgId, name) => orgRepo.createTeam(id, orgId, name),
+    findUserByEmail: (email) => infra.orgRepo.findUserByEmail(email),
+    createOrg: (id, name, slug) => infra.orgRepo.create(id, name, slug),
+    createUser: (id, orgId, email, name, hash, role) => infra.orgRepo.createUser(id, orgId, email, name, hash, role),
+    createTeam: (id, orgId, name) => infra.orgRepo.createTeam(id, orgId, name),
     createWorkspace: (id, orgId, teamId, name, model, systemPrompt) =>
-      wsRepo.create({ id, orgId, teamId, name, model, systemPrompt }),
+      infra.workspaceRepo.create({ id, orgId, teamId, name, model, systemPrompt }),
   },
   options: {
     jwtSecret: JWT_SECRET,
@@ -59,7 +57,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(pool, { authRoutes: authRoutes as any, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
+const container = createContainer(infra, { pool, authRoutes: authRoutes as any, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)

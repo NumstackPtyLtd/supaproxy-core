@@ -5,7 +5,18 @@
   "type": "module",
   "exports": {
     "./server": "./src/server.ts",
-    "./domain/errors": "./src/domain/shared/errors.ts"
+    "./domain/errors": "./src/domain/shared/errors.ts",
+    "./domain/organisation": "./src/domain/organisation/repository.ts",
+    "./domain/workspace": "./src/domain/workspace/repository.ts",
+    "./domain/conversation": "./src/domain/conversation/repository.ts",
+    "./domain/audit": "./src/domain/audit/repository.ts",
+    "./domain/guardrail": "./src/domain/guardrail/repository.ts",
+    "./domain/guardrail-policy": "./src/domain/guardrail/policyRepository.ts",
+    "./domain/integration": "./src/domain/integration/repository.ts",
+    "./domain/knowledge": "./src/domain/knowledge/repository.ts",
+    "./domain/prompt": "./src/domain/prompt/repository.ts",
+    "./ports/model": "./src/application/ports/ModelRepository.ts",
+    "./defaults": "./src/defaults.ts"
   },
   "description": "AI operations engine. Route any LLM to any team through one governed layer.",
   "scripts": {
@@ -25,6 +36,7 @@
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@slack/bolt": "^4.2.0",
     "@supaproxy/auth": "^1.0.0",
+    "@supaproxy/mysql": "link:../supaproxy-mysql",
     "@supaproxy/connections": "^0.2.1",
     "@supaproxy/consumers": "^0.4.1",
     "@supaproxy/guardrails": "^0.7.5",
