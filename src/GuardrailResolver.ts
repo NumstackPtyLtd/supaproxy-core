@@ -1,6 +1,6 @@
 import { type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import type { WorkspaceRepository } from './domain/workspace/repository.js'
-import type { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
+import type { GuardrailPolicyRepository } from './domain/guardrail/policyRepository.js'
 
 export interface PluginRegistry<T = any> {
   list(): T[]
@@ -22,7 +22,7 @@ export type GuardrailInfo = { id: string; name: string; description: string; sta
  */
 export function createGuardrailResolver(deps: {
   workspaceRepo: WorkspaceRepository
-  guardrailPolicyRepo: MysqlGuardrailPolicyRepository
+  guardrailPolicyRepo: GuardrailPolicyRepository
   guardrailRegistry: PluginRegistry
   executionCatalogue: PluginRegistry
   retrievalCatalogue: PluginRegistry

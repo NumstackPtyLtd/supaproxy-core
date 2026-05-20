@@ -1,12 +1,8 @@
-import type mysql from 'mysql2/promise'
 import { REDIS_HOST, REDIS_PORT } from './config.js'
 
-// Infrastructure
-import { MysqlOrganisationRepository } from './infrastructure/persistence/mysql/MysqlOrganisationRepository.js'
-import { MysqlWorkspaceRepository } from './infrastructure/persistence/mysql/MysqlWorkspaceRepository.js'
-import { MysqlConversationRepository } from './infrastructure/persistence/mysql/MysqlConversationRepository.js'
-import { MysqlAuditLogRepository } from './infrastructure/persistence/mysql/MysqlAuditLogRepository.js'
-import { MysqlModelRepository } from './infrastructure/persistence/mysql/MysqlModelRepository.js'
+import type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
+
+// Infrastructure (non-MySQL)
 import { registry as providerRegistry } from '@supaproxy/providers'
 import { createGuardrailResolver, type PluginRegistry } from './GuardrailResolver.js'
 import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.js'
@@ -14,13 +10,7 @@ import { BullMqService } from './infrastructure/queue/BullMqService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
-import { MysqlPromptTemplateRepository } from './infrastructure/persistence/mysql/MysqlPromptTemplateRepository.js'
-import { MysqlGuardrailEventRepository } from './infrastructure/persistence/mysql/MysqlGuardrailEventRepository.js'
-import { MysqlGuardrailPolicyRepository } from './infrastructure/persistence/mysql/MysqlGuardrailPolicyRepository.js'
-import { MysqlIntegrationRepository } from './infrastructure/persistence/mysql/MysqlIntegrationRepository.js'
-import { MysqlEntryPointRepository } from './infrastructure/persistence/mysql/MysqlEntryPointRepository.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
-import { MysqlKnowledgeChunkRepository } from './infrastructure/persistence/mysql/MysqlKnowledgeChunkRepository.js'
 import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
@@ -108,6 +98,7 @@ import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 
 interface ContainerOptions {
+  pool: import('mysql2/promise').Pool
   tenantService?: TenantService
   authRoutes: Hono
   requireAuth: (c: any, next: any) => Promise<any>
@@ -116,16 +107,12 @@ interface ContainerOptions {
   retrievalCatalogue: PluginRegistry
 }
 
-export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
+export function createContainer(infra: DatabaseAdapter, options: ContainerOptions) {
   const tenantService: TenantService = options.tenantService ?? new NoOpTenantService()
   const { authRoutes, requireAuth } = options
 
-  // Infrastructure singletons
-  const orgRepo = new MysqlOrganisationRepository(pool)
-  const workspaceRepo = new MysqlWorkspaceRepository(pool)
-  const conversationRepo = new MysqlConversationRepository(pool)
-  const auditRepo = new MysqlAuditLogRepository(pool)
-  const modelRepo = new MysqlModelRepository(pool)
+  // Infrastructure singletons (from injected database adapter)
+  const { orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo } = infra
   // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
@@ -134,7 +121,7 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const posterRegistry = new ConsumerPosterRegistryImpl()
 
   // Knowledge infrastructure
-  const knowledgeChunkRepo = new MysqlKnowledgeChunkRepository(pool)
+  const { knowledgeChunkRepo } = infra
   // Vector store: LanceDB by default, swappable via the VectorStore port interface
   // Optional: defaults to local file storage for development
   const vectorStore: import('./application/ports/VectorStore.js').VectorStore = new LanceDBVectorStore(process.env.VECTOR_STORE_PATH ?? './data/vectors')
@@ -162,10 +149,8 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo, embeddingFactory)
-  const guardrailPolicyRepo = new MysqlGuardrailPolicyRepository(pool)
-  const integrationRepo = new MysqlIntegrationRepository(pool)
-  const entryPointRepo = new MysqlEntryPointRepository(pool)
-  const guardrailEventRepoForCompliance = new MysqlGuardrailEventRepository(pool)
+  const { guardrailPolicyRepo, integrationRepo, entryPointRepo } = infra
+  const guardrailEventRepoForCompliance = infra.guardrailEventRepo
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo, providerRegistry)
   const getHealthUseCase = new GetHealthUseCase(orgRepo, workspaceRepo, providerRegistry)
@@ -237,11 +222,11 @@ export function createContainer(pool: mysql.Pool, options: ContainerOptions) {
   const guardrails = createGuardrailResolver({ workspaceRepo, guardrailPolicyRepo, guardrailRegistry: options.guardrailRegistry, executionCatalogue: options.executionCatalogue, retrievalCatalogue: options.retrievalCatalogue })
   const { resolveGuardrails, resolveExecutionRails, resolveRetrievalRails, listAvailableGuardrails, corePluginIds } = guardrails
 
-  const promptTemplateRepo = new MysqlPromptTemplateRepository(pool)
+  const { promptTemplateRepo } = infra
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
-  const guardrailEventRepo = new MysqlGuardrailEventRepository(pool)
-  const preQueryGuardDeps = new PreQueryGuardDepsImpl(pool, REDIS_HOST, REDIS_PORT)
+  const guardrailEventRepo = infra.guardrailEventRepo
+  const preQueryGuardDeps = new PreQueryGuardDepsImpl(options.pool, REDIS_HOST, REDIS_PORT)
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
   const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard, retrieveKnowledge)
   const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
