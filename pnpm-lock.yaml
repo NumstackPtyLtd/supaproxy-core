@@ -47,6 +47,9 @@ dependencies:
   '@supaproxy/providers':
     specifier: ^0.2.3
     version: 0.2.3(@anthropic-ai/sdk@0.90.0)(openai@6.38.0)
+  '@supaproxy/redis':
+    specifier: ^1.0.0
+    version: 1.0.0
   bcrypt:
     specifier: ^6.0.0
     version: 6.0.0
@@ -811,7 +814,6 @@ packages:
   /@lancedb/lancedb@0.27.2(apache-arrow@18.1.0):
     resolution: {integrity: sha512-JQpZHV5KzUzDI3flYCjtZcfHlEbL8lM54E0NT+jrRYe29aKYegfavvPsAsuZp0VdcMwFMZcpMkaBhjQMo/fwvg==}
     engines: {node: '>= 18'}
-    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       apache-arrow: '>=15.0.0 <=18.1.0'
@@ -1293,6 +1295,17 @@ packages:
       '@anthropic-ai/sdk': 0.90.0(zod@3.25.76)
       openai: 6.38.0(zod@3.25.76)
       pino: 9.14.0
+    dev: false
+
+  /@supaproxy/redis@1.0.0:
+    resolution: {integrity: sha512-BrHShE5XoW4i6ReWYiQQtGrdmnL8wkpycb8vVjWlIPksK9cQf7x4cYNpRUb2lCp5YtXf2P3JVQZ99FmK9OH71Q==}
+    peerDependencies:
+      '@supaproxy/core': '>=1.3.0'
+    dependencies:
+      ioredis: 5.10.1
+      pino: 9.14.0
+    transitivePeerDependencies:
+      - supports-color
     dev: false
 
   /@swc/helpers@0.5.21:

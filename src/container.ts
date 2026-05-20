@@ -9,7 +9,7 @@ import { McpClientFactoryImpl } from './infrastructure/mcp/McpClientFactoryImpl.
 import type { QueueService } from './application/ports/QueueService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
-import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
+import type { SessionStore } from './application/ports/SessionStore.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
 import type { VectorStore } from './application/ports/VectorStore.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
@@ -101,6 +101,7 @@ interface ContainerOptions {
   pool: import('mysql2/promise').Pool
   queueService: QueueService
   vectorStore: VectorStore
+  sessionStore: SessionStore
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -229,7 +230,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const preQueryGuardDeps = new PreQueryGuardDepsImpl(options.pool, REDIS_HOST, REDIS_PORT)
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
   const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard, retrieveKnowledge)
-  const sessionStore = new RedisSessionStore(REDIS_HOST, REDIS_PORT)
+  const { sessionStore } = options
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
