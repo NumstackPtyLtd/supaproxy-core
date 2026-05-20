@@ -1,5 +1,3 @@
-import { REDIS_HOST, REDIS_PORT } from './config.js'
-
 import type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
 
 // Infrastructure (non-MySQL)
@@ -10,7 +8,7 @@ import type { QueueService } from './application/ports/QueueService.js'
 import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegrationTester.js'
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import type { SessionStore } from './application/ports/SessionStore.js'
-import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
+import type { PreQueryGuardDeps } from './application/query/PreQueryGuardService.js'
 import type { VectorStore } from './application/ports/VectorStore.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
@@ -98,7 +96,6 @@ import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 
 interface ContainerOptions {
-  pool: import('mysql2/promise').Pool
   queueService: QueueService
   vectorStore: VectorStore
   sessionStore: SessionStore
@@ -227,7 +224,11 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const promptResolver = new PromptResolver(promptTemplateRepo)
 
   const guardrailEventRepo = infra.guardrailEventRepo
-  const preQueryGuardDeps = new PreQueryGuardDepsImpl(options.pool, REDIS_HOST, REDIS_PORT)
+  const preQueryGuardDeps: PreQueryGuardDeps = {
+    getMonthlySpend: (wsId) => infra.getMonthlySpend(wsId),
+    getWorkspaceGuardrailConfig: (wsId) => infra.getWorkspaceGuardrailConfig(wsId),
+    getRecentQueryCount: (scope, window) => options.sessionStore.getRecentQueryCount(scope, window),
+  }
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
   const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard, retrieveKnowledge)
   const { sessionStore } = options

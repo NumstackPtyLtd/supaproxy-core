@@ -10,6 +10,7 @@ function mockSessionStore(): SessionStore {
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue(undefined),
     delete: vi.fn().mockResolvedValue(undefined),
+    getRecentQueryCount: vi.fn().mockResolvedValue(0),
   }
 }
 

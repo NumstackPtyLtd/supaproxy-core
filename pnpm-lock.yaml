@@ -62,15 +62,9 @@ dependencies:
   hono:
     specifier: ^4.7.0
     version: 4.12.21
-  ioredis:
-    specifier: ^5.10.1
-    version: 5.10.1
   jsonwebtoken:
     specifier: ^9.0.3
     version: 9.0.3
-  mysql2:
-    specifier: ^3.22.1
-    version: 3.22.3(@types/node@22.19.19)
   openai:
     specifier: ^6.35.0
     version: 6.38.0(zod@3.25.76)
