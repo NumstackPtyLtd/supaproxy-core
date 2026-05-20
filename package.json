@@ -1,6 +1,6 @@
 {
   "name": "@supaproxy/core",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -19,6 +19,7 @@
     "./ports/database": "./src/application/ports/DatabaseAdapter.ts",
     "./ports/queue": "./src/application/ports/QueueService.ts",
     "./ports/vector-store": "./src/application/ports/VectorStore.ts",
+    "./ports/session-store": "./src/application/ports/SessionStore.ts",
     "./testing/validate-adapter": "./src/application/ports/DatabaseAdapter.test.ts",
     "./defaults": "./src/defaults.ts"
   },
