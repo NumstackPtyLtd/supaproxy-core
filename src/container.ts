@@ -1,16 +1,6 @@
 import { REDIS_HOST, REDIS_PORT } from './config.js'
 
-// Domain interfaces
-import type { OrganisationRepository } from './domain/organisation/repository.js'
-import type { WorkspaceRepository } from './domain/workspace/repository.js'
-import type { ConversationRepository } from './domain/conversation/repository.js'
-import type { AuditLogRepository } from './domain/audit/repository.js'
-import type { GuardrailEventRepository } from './domain/guardrail/repository.js'
-import type { GuardrailPolicyRepository } from './domain/guardrail/policyRepository.js'
-import type { IntegrationRepository, EntryPointRepository } from './domain/integration/repository.js'
-import type { KnowledgeChunkRepository } from './domain/knowledge/repository.js'
-import type { PromptTemplateRepository } from './domain/prompt/repository.js'
-import type { ModelRepository } from './application/ports/ModelRepository.js'
+import type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
 
 // Infrastructure (non-MySQL)
 import { registry as providerRegistry } from '@supaproxy/providers'
@@ -107,20 +97,6 @@ import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 
-interface DatabaseInfra {
-  orgRepo: OrganisationRepository
-  workspaceRepo: WorkspaceRepository
-  conversationRepo: ConversationRepository
-  auditRepo: AuditLogRepository
-  modelRepo: ModelRepository
-  promptTemplateRepo: PromptTemplateRepository
-  guardrailEventRepo: GuardrailEventRepository
-  guardrailPolicyRepo: GuardrailPolicyRepository
-  integrationRepo: IntegrationRepository
-  entryPointRepo: EntryPointRepository
-  knowledgeChunkRepo: KnowledgeChunkRepository
-}
-
 interface ContainerOptions {
   pool: import('mysql2/promise').Pool
   tenantService?: TenantService
@@ -131,7 +107,7 @@ interface ContainerOptions {
   retrievalCatalogue: PluginRegistry
 }
 
-export function createContainer(infra: DatabaseInfra, options: ContainerOptions) {
+export function createContainer(infra: DatabaseAdapter, options: ContainerOptions) {
   const tenantService: TenantService = options.tenantService ?? new NoOpTenantService()
   const { authRoutes, requireAuth } = options
 

@@ -16,6 +16,8 @@
     "./domain/knowledge": "./src/domain/knowledge/repository.ts",
     "./domain/prompt": "./src/domain/prompt/repository.ts",
     "./ports/model": "./src/application/ports/ModelRepository.ts",
+    "./ports/database": "./src/application/ports/DatabaseAdapter.ts",
+    "./testing/validate-adapter": "./src/application/ports/DatabaseAdapter.test.ts",
     "./defaults": "./src/defaults.ts"
   },
   "description": "AI operations engine. Route any LLM to any team through one governed layer.",
