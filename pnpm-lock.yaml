@@ -1,7 +1,7 @@
 lockfileVersion: '6.0'
 
 settings:
-  autoInstallPeers: true
+  autoInstallPeers: false
   excludeLinksFromLockfile: false
 
 dependencies:
@@ -25,7 +25,7 @@ dependencies:
     version: 1.29.0(zod@3.25.76)
   '@slack/bolt':
     specifier: ^4.2.0
-    version: 4.7.0(@types/express@5.0.6)
+    version: 4.7.0
   '@supaproxy/auth':
     specifier: ^1.0.0
     version: 1.0.0(hono@4.12.14)
@@ -39,8 +39,8 @@ dependencies:
     specifier: link:/Users/Elvis/workspace/supaproxyhq/supaproxy-guardrails
     version: link:../supaproxy-guardrails
   '@supaproxy/mysql':
-    specifier: link:../supaproxy-mysql
-    version: link:../supaproxy-mysql
+    specifier: ^1.0.0
+    version: 1.0.0(@types/node@22.19.17)
   '@supaproxy/providers':
     specifier: link:/Users/Elvis/workspace/supaproxyhq/supaproxy-providers
     version: link:../supaproxy-providers
@@ -608,7 +608,7 @@ packages:
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.14)
       ajv: 8.18.0
-      ajv-formats: 3.0.1(ajv@8.18.0)
+      ajv-formats: 3.0.1
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
@@ -890,7 +890,7 @@ packages:
     dev: true
     optional: true
 
-  /@slack/bolt@4.7.0(@types/express@5.0.6):
+  /@slack/bolt@4.7.0:
     resolution: {integrity: sha512-Xpf+gKegNvkHpft1z4YiuqZdciJ3tUp1bIRQxylW30Ovf+hzjb0M1zTHVtJsRw9jsjPxHTPoyanEXVvG6qVE1g==}
     engines: {node: '>=18', npm: '>=8.6.0'}
     peerDependencies:
@@ -901,7 +901,6 @@ packages:
       '@slack/socket-mode': 2.0.6
       '@slack/types': 2.20.1
       '@slack/web-api': 7.15.1
-      '@types/express': 5.0.6
       axios: 1.15.0
       express: 5.2.1
       path-to-regexp: 8.4.2
@@ -986,6 +985,17 @@ packages:
       pino: 9.14.0
     dev: false
 
+  /@supaproxy/mysql@1.0.0(@types/node@22.19.17):
+    resolution: {integrity: sha512-7WXGb9XnP4nsahI52vxIVaztJHN0ptk2yvVhHluwhBNGXKokQbfu4TiPS7DM31fbAbMQBITrPA8ySIMFC2V/fQ==}
+    peerDependencies:
+      '@supaproxy/core': '>=1.0.0'
+    dependencies:
+      mysql2: 3.22.1(@types/node@22.19.17)
+      pino: 9.14.0
+    transitivePeerDependencies:
+      - '@types/node'
+    dev: false
+
   /@swc/helpers@0.5.21:
     resolution: {integrity: sha512-jI/VAmtdjB/RnI8GTnokyX7Ug8c+g+ffD6QRLa6XQewtnGyukKkKSk3wLTM3b5cjt1jNh9x0jfVlagdN2gDKQg==}
     dependencies:
@@ -997,13 +1007,6 @@ packages:
     dependencies:
       '@types/node': 22.19.17
     dev: true
-
-  /@types/body-parser@1.19.6:
-    resolution: {integrity: sha512-HLFeCYgz89uk22N5Qg3dvGvsv46B8GLvKKo1zKG4NybA8U2DiEO3w9lqGg29t/tfLRJpJ6iQxnVw4OnB7MoM9g==}
-    dependencies:
-      '@types/connect': 3.4.38
-      '@types/node': 22.19.19
-    dev: false
 
   /@types/chai@5.2.3:
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
@@ -1020,12 +1023,6 @@ packages:
     resolution: {integrity: sha512-BwR5KP3Es/CSht0xqBcUXS3qCAUVXwpRKsV2+arxeb65atasuXG9LykC9Ab10Cw3s2raH92ZqOeILaQbsB2ACg==}
     dev: false
 
-  /@types/connect@3.4.38:
-    resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
-    dependencies:
-      '@types/node': 22.19.19
-    dev: false
-
   /@types/deep-eql@4.0.2:
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
     dev: true
@@ -1033,27 +1030,6 @@ packages:
   /@types/estree@1.0.8:
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
     dev: true
-
-  /@types/express-serve-static-core@5.1.1:
-    resolution: {integrity: sha512-v4zIMr/cX7/d2BpAEX3KNKL/JrT1s43s96lLvvdTmza1oEvDudCqK9aF/djc/SWgy8Yh0h30TZx5VpzqFCxk5A==}
-    dependencies:
-      '@types/node': 22.19.19
-      '@types/qs': 6.15.1
-      '@types/range-parser': 1.2.7
-      '@types/send': 1.2.1
-    dev: false
-
-  /@types/express@5.0.6:
-    resolution: {integrity: sha512-sKYVuV7Sv9fbPIt/442koC7+IIwK5olP1KWeD88e/idgoJqDm3JV/YUiPwkoKK92ylff2MGxSz1CSjsXelx0YA==}
-    dependencies:
-      '@types/body-parser': 1.19.6
-      '@types/express-serve-static-core': 5.1.1
-      '@types/serve-static': 2.2.0
-    dev: false
-
-  /@types/http-errors@2.0.5:
-    resolution: {integrity: sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==}
-    dev: false
 
   /@types/jsonwebtoken@9.0.10:
     resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
@@ -1075,35 +1051,8 @@ packages:
     dependencies:
       undici-types: 6.21.0
 
-  /@types/node@22.19.19:
-    resolution: {integrity: sha512-dyh/xO2Fh5bYrfWaaqGrRQQGkNdmYw6AmaAUvYeUMNTWQtvb796ikLdmTchRmOlOiIJ1TDXfWgVx1QkUlQ6Hew==}
-    dependencies:
-      undici-types: 6.21.0
-    dev: false
-
-  /@types/qs@6.15.1:
-    resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
-    dev: false
-
-  /@types/range-parser@1.2.7:
-    resolution: {integrity: sha512-hKormJbkJqzQGhziax5PItDUTMAM9uE2XXQmM37dyd4hVM+5aVl7oVxMVUiVQn2oCQFN/LKCZdvSM0pFRqbSmQ==}
-    dev: false
-
   /@types/retry@0.12.0:
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
-    dev: false
-
-  /@types/send@1.2.1:
-    resolution: {integrity: sha512-arsCikDvlU99zl1g69TcAB3mzZPpxgw0UQnaHeC1Nwb015xp8bknZv5rIfri9xTOcMuaVgvabfIRA7PSZVuZIQ==}
-    dependencies:
-      '@types/node': 22.19.19
-    dev: false
-
-  /@types/serve-static@2.2.0:
-    resolution: {integrity: sha512-8mam4H1NHLtu7nmtalF7eyBH14QyOASmcxHhSfEoRyr0nP/YdoesEtU+uSRvMe96TW/HPTtkoKqQLl53N7UXMQ==}
-    dependencies:
-      '@types/http-errors': 2.0.5
-      '@types/node': 22.19.19
     dev: false
 
   /@types/ws@8.18.1:
@@ -1210,10 +1159,8 @@ packages:
       negotiator: 1.0.0
     dev: false
 
-  /ajv-formats@3.0.1(ajv@8.18.0):
+  /ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
-    peerDependencies:
-      ajv: ^8.0.0
     peerDependenciesMeta:
       ajv:
         optional: true
