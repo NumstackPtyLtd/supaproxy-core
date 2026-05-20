@@ -13,7 +13,7 @@ import pino from 'pino'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
-import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } from './config.js'
+import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, QUEUE_HOST, QUEUE_PORT, SESSION_HOST, SESSION_PORT, DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME } from './config.js'
 import { createAuthRoutes } from '@supaproxy/auth'
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
@@ -31,20 +31,20 @@ process.on('unhandledRejection', (reason) => {
 })
 
 // --- Init ---
-const pool = createPool({ host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD, database: DB_NAME })
+const pool = createPool({ host: DATABASE_HOST, port: DATABASE_PORT, user: DATABASE_USER, password: DATABASE_PASSWORD, database: DATABASE_NAME })
 await runMigrations(pool)
 
 // --- Database adapter (default: @supaproxy/mysql) ---
 const infra = createMysqlInfra(pool)
 
 // --- Queue adapter (default: @supaproxy/bullmq) ---
-const queueService = createBullMqQueue(REDIS_HOST, REDIS_PORT)
+const queueService = createBullMqQueue(QUEUE_HOST, QUEUE_PORT)
 
 // --- Vector store adapter (default: @supaproxy/lancedb) ---
 const vectorStore = createLanceDBVectors(process.env.VECTOR_STORE_PATH ?? './data/vectors')
 
 // --- Session store adapter (default: @supaproxy/redis) ---
-const sessionStore = createRedisSession(REDIS_HOST, REDIS_PORT)
+const sessionStore = createRedisSession(SESSION_HOST, SESSION_PORT)
 
 // --- Auth (default: @supaproxy/auth with JWT + bcrypt) ---
 const { routes: authRoutes, requireAuth } = createAuthRoutes({

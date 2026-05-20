@@ -4,7 +4,7 @@ services:
     container_name: supaproxy-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DATABASE_PASSWORD}
       MYSQL_DATABASE: supaproxy
     ports:
       - "3308:3306"
@@ -38,10 +38,12 @@ services:
       - "3001:3001"
     env_file: .env
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      QUEUE_HOST: redis
+      QUEUE_PORT: 6379
+      SESSION_HOST: redis
+      SESSION_PORT: 6379
     depends_on:
       mysql:
         condition: service_healthy
