@@ -10,7 +10,7 @@
 export { createContainer, type Container } from './container.js'
 export { createApp } from './app.js'
 export { startConsumers, startWorkers } from './startup.js'
-export { PORT, CORS_ORIGINS, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, REDIS_HOST, REDIS_PORT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } from './config.js'
+export { PORT, CORS_ORIGINS, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, QUEUE_HOST, QUEUE_PORT, SESSION_HOST, SESSION_PORT, DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME } from './config.js'
 export type { TenantService } from './application/ports/TenantService.js'
 export type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
 export { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'

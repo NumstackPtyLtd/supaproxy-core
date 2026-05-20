@@ -40,15 +40,19 @@ export const COOKIE_DOMAIN = (() => {
 export const PORT = requireEnvInt('PORT')
 
 // Database
-export const DB_HOST = requireEnv('DB_HOST')
-export const DB_PORT = requireEnvInt('DB_PORT')
-export const DB_USER = requireEnv('DB_USER')
-export const DB_PASSWORD = requireEnv('DB_PASSWORD')
-export const DB_NAME = requireEnv('DB_NAME')
+export const DATABASE_HOST = requireEnv('DATABASE_HOST')
+export const DATABASE_PORT = requireEnvInt('DATABASE_PORT')
+export const DATABASE_USER = requireEnv('DATABASE_USER')
+export const DATABASE_PASSWORD = requireEnv('DATABASE_PASSWORD')
+export const DATABASE_NAME = requireEnv('DATABASE_NAME')
 
-// Redis
-export const REDIS_HOST = requireEnv('REDIS_HOST')
-export const REDIS_PORT = requireEnvInt('REDIS_PORT')
+// Queue
+export const QUEUE_HOST = requireEnv('QUEUE_HOST')
+export const QUEUE_PORT = requireEnvInt('QUEUE_PORT')
+
+// Session store
+export const SESSION_HOST = requireEnv('SESSION_HOST')
+export const SESSION_PORT = requireEnvInt('SESSION_PORT')
 
 // Audit
 export const LOG_DIR = process.env.SUPAPROXY_LOG_DIR
