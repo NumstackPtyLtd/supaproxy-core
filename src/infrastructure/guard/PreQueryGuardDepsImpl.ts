@@ -23,7 +23,7 @@ export class PreQueryGuardDepsImpl implements PreQueryGuardDeps {
   ) {
     if (redisHost && redisPort) {
       this.redis = new Redis({ host: redisHost, port: redisPort, maxRetriesPerRequest: 1, lazyConnect: true })
-      this.redis.connect().catch(() => { this.redis = null })
+      this.redis.connect().catch((err) => { log.warn({ error: (err as Error).message }, 'Redis connection failed, rate limiting disabled'); this.redis = null })
     }
   }
 
@@ -52,7 +52,7 @@ export class PreQueryGuardDepsImpl implements PreQueryGuardDeps {
         if (cfg.cost_cap_monthly_usd != null) merged.cost_cap_monthly_usd = cfg.cost_cap_monthly_usd
         if (cfg.rate_limit) merged.rate_limit = { ...merged.rate_limit, ...cfg.rate_limit }
         if (cfg.blocked_topics) merged.blocked_topics = [...(merged.blocked_topics || []), ...cfg.blocked_topics]
-      } catch { /* skip invalid JSON */ }
+      } catch (err) { log.warn({ error: (err as Error).message }, 'Invalid guardrail config JSON, skipping') }
     }
     return Object.keys(merged).length > 0 ? merged : null
   }

@@ -4,8 +4,8 @@
  * Uses the composable pieces directly. No cloud overlay.
  * Single-tenant mode (NoOpTenantService is the default).
  *
- * The cloud overlay (supaproxy-cloud) imports from ./server.ts
- * and injects CloudTenantService + additional routes.
+ * Cloud overlays import from ./server.ts and inject their own
+ * TenantService + additional routes.
  */
 import 'dotenv/config'
 import { serve } from '@hono/node-server'
@@ -57,7 +57,7 @@ const { routes: authRoutes, requireAuth } = createAuthRoutes({
 })
 
 // --- Composition root ---
-const container = createContainer(infra, { pool, authRoutes: authRoutes as any, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
+const container = createContainer(infra, { pool, authRoutes, requireAuth, guardrailRegistry, executionCatalogue, retrievalCatalogue })
 
 // --- App ---
 const app = createApp(container)

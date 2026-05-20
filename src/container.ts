@@ -100,8 +100,8 @@ import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPoli
 interface ContainerOptions {
   pool: import('mysql2/promise').Pool
   tenantService?: TenantService
-  authRoutes: Hono
-  requireAuth: (c: any, next: any) => Promise<any>
+  authRoutes: Hono<Record<string, unknown>>
+  requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
   guardrailRegistry: PluginRegistry
   executionCatalogue: PluginRegistry
   retrievalCatalogue: PluginRegistry

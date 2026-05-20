@@ -2,6 +2,7 @@ import { type GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } fr
 import type { WorkspaceRepository } from './domain/workspace/repository.js'
 import type { GuardrailPolicyRepository } from './domain/guardrail/policyRepository.js'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- registry holds heterogeneous plugin types
 export interface PluginRegistry<T = any> {
   list(): T[]
   has(id: string): boolean

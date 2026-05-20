@@ -117,7 +117,7 @@ export function decodeBase64Segments(text: string): string[] {
       if (/^[\x20-\x7E\s]+$/.test(decoded) && decoded.length > 5) {
         segments.push(decoded)
       }
-    } catch { /* not valid base64 */ }
+    } catch { /* not valid base64, expected for non-base64 matches */ }
   }
   return segments
 }
