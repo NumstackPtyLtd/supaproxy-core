@@ -61,7 +61,7 @@ export function validateDatabaseAdapter(adapter: DatabaseAdapter) {
       describe(key, () => {
         for (const method of REQUIRED_METHODS[key]) {
           it(`has method: ${method}`, () => {
-            const repo = adapter[key] as Record<string, unknown>
+            const repo = adapter[key] as unknown as Record<string, unknown>
             expect(typeof repo[method], `${key}.${method} should be a function`).toBe('function')
           })
         }
