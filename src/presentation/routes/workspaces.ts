@@ -1,6 +1,4 @@
 import { Hono } from 'hono'
-import { z } from 'zod'
-import pino from 'pino'
 import type { CreateWorkspaceUseCase } from '../../application/workspace/CreateWorkspaceUseCase.js'
 import type { UpdateWorkspaceUseCase } from '../../application/workspace/UpdateWorkspaceUseCase.js'
 import type { GetWorkspaceDetailUseCase } from '../../application/workspace/GetWorkspaceDetailUseCase.js'
@@ -20,34 +18,13 @@ import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRep
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
-import { parseBody } from '../middleware/validate.js'
-import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
-import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
+import { type AuthEnv } from '../middleware/auth.js'
 import { createWorkspaceKnowledgeRoutes } from './workspace-knowledge.js'
 import { createWorkspaceActivityRoutes } from './workspace-activity.js'
-
-const log = pino({ name: 'routes/workspaces' })
-
-const createWorkspaceSchema = z.object({
-  name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH),
-  model: z.string().min(1).max(100),
-  team_id: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
-  team_name: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
-  system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
-  org_id: z.string().max(MAX_WORKSPACE_NAME_LENGTH).optional(),
-}).refine((data) => data.team_id || data.team_name, {
-  path: ['team_id'],
-})
-
-const updateWorkspaceSchema = z.object({
-  name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
-  model: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH).optional(),
-  provider_type: z.string().min(1).max(50).nullable().optional(),
-  system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
-  cold_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
-  close_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
-})
+import { createWorkspaceGuardrailRoutes } from './workspace-guardrails.js'
+import { createWorkspaceConnectionRoutes } from './workspace-connections.js'
+import { createWorkspaceCrudRoutes } from './workspace-crud.js'
+import { createWorkspacePublishRoutes } from './workspace-publish.js'
 
 interface WorkspaceRouteDeps {
   createWorkspaceUseCase: CreateWorkspaceUseCase
@@ -89,218 +66,56 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
 
   // ── Mount sub-routes ──
 
-  const knowledgeRoutes = createWorkspaceKnowledgeRoutes({
+  workspaces.route('/', createWorkspaceKnowledgeRoutes({
     getKnowledgeUseCase: deps.getKnowledgeUseCase,
     indexKnowledgeUseCase: deps.indexKnowledgeUseCase,
     workspaceRepo: deps.workspaceRepo,
     tenantService: deps.tenantService,
     requireAuth: deps.requireAuth,
-  }, guardWorkspace)
+  }, guardWorkspace))
 
-  const activityRoutes = createWorkspaceActivityRoutes({
+  workspaces.route('/', createWorkspaceActivityRoutes({
     getActivityUseCase: deps.getActivityUseCase,
     getComplianceUseCase: deps.getComplianceUseCase,
     guardrailEventRepo: deps.guardrailEventRepo,
     tenantService: deps.tenantService,
     requireAuth: deps.requireAuth,
-  }, guardWorkspace)
+  }, guardWorkspace))
 
-  workspaces.route('/', knowledgeRoutes)
-  workspaces.route('/', activityRoutes)
+  workspaces.route('/', createWorkspaceGuardrailRoutes({
+    listAvailableGuardrails: deps.listAvailableGuardrails,
+    guardrailPolicyRepo: deps.guardrailPolicyRepo,
+    workspaceRepo: deps.workspaceRepo,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace))
 
-  // ── Teams ──
+  workspaces.route('/', createWorkspaceConnectionRoutes({
+    deleteConnectionUseCase: deps.deleteConnectionUseCase,
+    getConnectionsUseCase: deps.getConnectionsUseCase,
+    workspaceRepo: deps.workspaceRepo,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace))
 
-  workspaces.get('/api/teams', async (c) => {
-    const user = c.get('user') as AuthUser
-    const teams = await deps.orgRepo.listTeams(user.org_id)
-    return c.json({ teams })
-  })
+  workspaces.route('/', createWorkspaceCrudRoutes({
+    createWorkspaceUseCase: deps.createWorkspaceUseCase,
+    updateWorkspaceUseCase: deps.updateWorkspaceUseCase,
+    getWorkspaceDetailUseCase: deps.getWorkspaceDetailUseCase,
+    listWorkspacesUseCase: deps.listWorkspacesUseCase,
+    getWorkspaceSummaryUseCase: deps.getWorkspaceSummaryUseCase,
+    getDashboardUseCase: deps.getDashboardUseCase,
+    deleteWorkspaceUseCase: deps.deleteWorkspaceUseCase,
+    orgRepo: deps.orgRepo,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace))
 
-  // ── CRUD ──
-
-  workspaces.post('/api/workspaces', async (c) => {
-    const result = await parseBody(c, createWorkspaceSchema)
-    if (!result.success) return result.response
-    const user = c.get('user') as AuthUser
-
-    try {
-      const ws = await deps.createWorkspaceUseCase.execute({
-        name: result.data.name,
-        model: result.data.model,
-        teamId: result.data.team_id,
-        teamName: result.data.team_name,
-        systemPrompt: result.data.system_prompt,
-        orgId: user.org_id,
-      })
-      log.info({ workspace: ws.id, name: ws.name }, 'Workspace created')
-      return c.json(ws)
-    } catch (err) {
-      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
-      throw err
-    }
-  })
-
-  workspaces.get('/api/workspaces', async (c) => {
-    const user = c.get('user') as AuthUser
-    const orgScope = deps.tenantService.scopeWorkspaceList(user.org_id)
-    const rows = await deps.listWorkspacesUseCase.execute(orgScope)
-    return c.json({ workspaces: rows })
-  })
-
-  workspaces.get('/api/workspaces/:id/summary', async (c) => {
-    const user = c.get('user') as AuthUser
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      const workspace = await deps.getWorkspaceSummaryUseCase.execute(c.req.param('id'))
-      return c.json({ workspace })
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
-    }
-  })
-
-  workspaces.delete('/api/connections/:id', async (c) => {
-    await deps.deleteConnectionUseCase.execute(c.req.param('id'))
-    return c.json({ status: 'ok' })
-  })
-
-  workspaces.get('/api/workspaces/:id/connections', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getConnectionsUseCase.execute(c.req.param('id'))
-    return c.json(result)
-  })
-
-  workspaces.get('/api/workspaces/:id/consumers', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const consumers = await deps.workspaceRepo.findConsumers(c.req.param('id'))
-    return c.json({ consumers })
-  })
-
-  workspaces.get('/api/workspaces/:id', async (c) => {
-    const user = c.get('user') as AuthUser
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      const detail = await deps.getWorkspaceDetailUseCase.execute(c.req.param('id'))
-      return c.json(detail)
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
-    }
-  })
-
-  workspaces.put('/api/workspaces/:id', async (c) => {
-    const result = await parseBody(c, updateWorkspaceSchema)
-    if (!result.success) return result.response
-    const user = c.get('user') as AuthUser
-
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.updateWorkspaceUseCase.execute(c.req.param('id'), result.data)
-      return c.json({ status: 'ok' })
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
-    }
-  })
-
-  workspaces.get('/api/workspaces/:id/dashboard', async (c) => {
-    const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getDashboardUseCase.execute(c.req.param('id'))
-    return c.json(result)
-  })
-
-  // ── Delete workspace ──
-
-  workspaces.delete('/api/workspaces/:id', async (c) => {
-    const user = c.get('user') as AuthUser
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.deleteWorkspaceUseCase.execute(c.req.param('id'))
-      return c.json({ status: 'ok' })
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      throw err
-    }
-  })
-
-  // ── Publish / Unpublish ──
-
-  workspaces.post('/api/workspaces/:id/publish', async (c) => {
-    const user = c.get('user') as AuthUser
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.publishWorkspaceUseCase.execute(c.req.param('id'), true)
-      return c.json({ status: 'ok' })
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
-    }
-  })
-
-  workspaces.post('/api/workspaces/:id/unpublish', async (c) => {
-    const user = c.get('user') as AuthUser
-    try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.publishWorkspaceUseCase.execute(c.req.param('id'), false)
-      return c.json({ status: 'ok' })
-    } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
-    }
-  })
-
-  // ── Guardrails ──
-
-  workspaces.get('/api/workspaces/:id/guardrails', async (c) => {
-    const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    const available = await deps.listAvailableGuardrails(user.org_id)
-    const enabled = await deps.workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = new Set(enabled.map(e => e.guardrail_id))
-
-    // Fetch org-level policy enforcement for each guardrail
-    const policies = await deps.guardrailPolicyRepo.listByOrg(user.org_id)
-    const policyMap = new Map(policies.map(p => [p.plugin_id, p.enforcement]))
-
-    const guardrails = available.map(g => ({
-      ...g,
-      enabled: enabledIds.has(g.id),
-      workspaceConfig: enabled.find(e => e.guardrail_id === g.id)?.config || null,
-      enforcement: policyMap.get(g.id) || null,
-    }))
-
-    return c.json({ guardrails })
-  })
-
-  workspaces.post('/api/workspaces/:id/guardrails/:guardrailId/enable', async (c) => {
-    const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    const guardrailId = c.req.param('guardrailId')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    const body = await c.req.json().catch(() => ({})) as { config?: string }
-    const { generateId } = await import('../../domain/shared/EntityId.js')
-    await deps.workspaceRepo.enableGuardrail(generateId(), workspaceId, guardrailId, body.config)
-
-    return c.json({ ok: true })
-  })
-
-  workspaces.post('/api/workspaces/:id/guardrails/:guardrailId/disable', async (c) => {
-    const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    const guardrailId = c.req.param('guardrailId')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    await deps.workspaceRepo.disableGuardrail(workspaceId, guardrailId)
-
-    return c.json({ ok: true })
-  })
+  workspaces.route('/', createWorkspacePublishRoutes({
+    publishWorkspaceUseCase: deps.publishWorkspaceUseCase,
+    tenantService: deps.tenantService,
+    requireAuth: deps.requireAuth,
+  }, guardWorkspace))
 
   return workspaces
 }
