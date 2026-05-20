@@ -43,6 +43,7 @@
     "@supaproxy/bullmq": "^1.0.0",
     "@supaproxy/lancedb": "^1.0.0",
     "@supaproxy/mysql": "^1.0.0",
+    "@supaproxy/redis": "^1.0.0",
     "@supaproxy/connections": "^0.2.1",
     "@supaproxy/consumers": "^0.4.1",
     "@supaproxy/guardrails": "^0.7.5",
