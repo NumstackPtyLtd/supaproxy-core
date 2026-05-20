@@ -84,7 +84,7 @@ src/
 
 ### Pluggable Database
 
-Core defines the `DatabaseAdapter` interface (`application/ports/DatabaseAdapter.ts`) with 11 repository fields. Database adapter packages implement this interface:
+Core defines the `DatabaseAdapter` interface (`application/ports/DatabaseAdapter.ts`) listing every repository a database backend must provide. Adapter packages implement this interface:
 
 ```typescript
 import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
