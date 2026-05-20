@@ -8,6 +8,8 @@ Open-source AI operations engine. Hono API server.
 
 The server follows Domain-Driven Design with strict layered architecture. Dependencies point inward only: presentation -> application -> domain <- infrastructure.
 
+Core defines **interfaces only** for database persistence. Concrete implementations ship as separate adapter packages (e.g. `@supaproxy/mysql`). Core has zero SQL.
+
 ```
 src/
 ├── domain/                          Pure business rules, ZERO external dependencies
@@ -17,46 +19,104 @@ src/
 │   ├── organisation/repository.ts   OrganisationRepository interface
 │   ├── workspace/repository.ts      WorkspaceRepository interface
 │   ├── conversation/repository.ts   ConversationRepository interface
-│   └── audit/repository.ts          AuditLogRepository interface
+│   ├── audit/repository.ts          AuditLogRepository interface
+│   ├── guardrail/repository.ts      GuardrailEventRepository interface
+│   ├── guardrail/policyRepository.ts GuardrailPolicyRepository interface
+│   ├── integration/repository.ts    IntegrationRepository + EntryPointRepository interfaces
+│   ├── knowledge/repository.ts      KnowledgeChunkRepository interface
+│   └── prompt/repository.ts         PromptTemplateRepository interface
 │
 ├── application/                     Use cases, orchestrate domain logic
 │   ├── ports/                       Interfaces for external services (DIP)
+│   │   ├── DatabaseAdapter.ts       Contract for database adapter packages
 │   │   ├── AIProvider.ts            LLM abstraction
 │   │   ├── McpClient.ts             MCP connection abstraction
 │   │   ├── QueueService.ts          Job queue abstraction
+│   │   ├── SessionStore.ts          Session storage abstraction
+│   │   ├── VectorStore.ts           Vector database abstraction
+│   │   ├── EmbeddingService.ts      Text embedding abstraction
+│   │   ├── ModelRepository.ts       AI model listing
 │   │   ├── PasswordService.ts       Password hashing abstraction
 │   │   ├── TokenService.ts          JWT abstraction
+│   │   ├── TenantService.ts         Multi-tenancy abstraction
 │   │   ├── IntegrationTester.ts     External service testing
-│   │   ├── ModelRepository.ts       AI model listing
 │   │   └── ConsumerPoster.ts        Consumer message posting
-│   ├── auth/                        SignupUseCase, LoginUseCase
 │   ├── organisation/                GetOrg, UpdateOrg, Settings, Users, Integration
 │   ├── workspace/                   CRUD, Dashboard, Activity, Knowledge, Compliance, Health, Models
 │   ├── conversation/                List, Detail, Close, Manage, Lifecycle
 │   ├── connector/                   TestMcp, SaveMcp, BindChannel, ConnectConsumer
 │   ├── query/                       ExecuteQueryUseCase (agent loop)
-│   └── queue/                       ManageQueuesUseCase
+│   ├── routing/                     RouteMessageUseCase
+│   ├── queue/                       ManageQueuesUseCase
+│   ├── guardrail/                   ManagePolicies, SecurityOverview, PolicyOverrides
+│   ├── integration/                 ManageIntegration, ManageEntryPoint
+│   ├── knowledge/                   IndexKnowledge, RetrieveKnowledge
+│   └── prompt/                      PromptResolver, SavePrompt
 │
-├── infrastructure/                  Implements all interfaces
-│   ├── persistence/mysql/           MySQL repository implementations
-│   ├── ai/AnthropicProvider.ts      AIProvider implementation
+├── infrastructure/                  Implements non-database interfaces
+│   ├── ai/                          EmbeddingServiceFactory
 │   ├── mcp/McpClientFactoryImpl.ts  McpClientFactory implementation
-│   ├── queue/BullMqService.ts       QueueService implementation
-│   ├── auth/                        BcryptPasswordService, JwtTokenService, SlackIntegrationTester
-│   └── consumers/                   SlackConsumer, ConsumerPosterRegistryImpl
+│   ├── queue/BullMqService.ts       QueueService implementation (BullMQ)
+│   ├── session/RedisSessionStore.ts SessionStore implementation (Redis)
+│   ├── vector/LanceDBVectorStore.ts VectorStore implementation (LanceDB)
+│   ├── guard/PreQueryGuardDepsImpl.ts Pre-query rate limiting (Redis)
+│   ├── auth/                        ConsumerIntegrationTester
+│   ├── consumers/                   ConsumerPosterRegistryImpl
+│   └── tenant/NoOpTenantService.ts  Single-tenant default
 │
 ├── presentation/                    Thin HTTP controllers
 │   ├── middleware/                   auth.ts (JWT), validate.ts (Zod)
-│   └── routes/                      auth, org, workspaces, conversations, connectors, query, queues
+│   └── routes/                      org, workspaces, conversations, connectors, query, queues, prompts, guardrailPolicies, integrations, route
 │
-├── container.ts                     Composition root (dependency injection wiring)
+├── container.ts                     Composition root (accepts DatabaseAdapter + options)
 ├── config.ts                        requireEnv(), no fallbacks
-├── index.ts                         Server entrypoint
+├── defaults.ts                      Named constants (status values, limits, defaults)
+├── index.ts                         Server entrypoint (composes core + mysql + auth)
+├── server.ts                        Public API exports for cloud overlay
+├── app.ts                           Hono app factory
+├── startup.ts                       Consumer and worker startup
 ├── shared/                          Cross-cutting types (exported to SDK)
-├── db/                              Pool, migrations, seed, row types
+├── db/pool.ts                       MySQL pool factory (used by index.ts)
 ├── openapi.ts                       OpenAPI/Redoc spec
+├── GuardrailResolver.ts             Plugin resolution per workspace
 └── observability/audit.ts           File-based audit logging
 ```
+
+### Pluggable Database
+
+Core defines the `DatabaseAdapter` interface (`application/ports/DatabaseAdapter.ts`) with 11 repository fields. Database adapter packages implement this interface:
+
+```typescript
+import { createMysqlInfra, runMigrations } from '@supaproxy/mysql'
+
+const pool = getPool()
+await runMigrations(pool)
+const infra = createMysqlInfra(pool)  // returns DatabaseAdapter
+const container = createContainer(infra, { pool, ...options })
+```
+
+The default adapter is `@supaproxy/mysql`. Community adapters (`@supaproxy/postgres`, `@supaproxy/sqlite`) implement the same interface.
+
+### Exported interfaces for adapter packages
+
+Core exports domain interfaces and ports so adapter packages can import them:
+
+| Export path | Contents |
+|---|---|
+| `@supaproxy/core/domain/organisation` | OrganisationRepository + data types |
+| `@supaproxy/core/domain/workspace` | WorkspaceRepository + data types |
+| `@supaproxy/core/domain/conversation` | ConversationRepository + data types |
+| `@supaproxy/core/domain/audit` | AuditLogRepository + data types |
+| `@supaproxy/core/domain/guardrail` | GuardrailEventRepository + data types |
+| `@supaproxy/core/domain/guardrail-policy` | GuardrailPolicyRepository + data types |
+| `@supaproxy/core/domain/integration` | IntegrationRepository + EntryPointRepository |
+| `@supaproxy/core/domain/knowledge` | KnowledgeChunkRepository + data types |
+| `@supaproxy/core/domain/prompt` | PromptTemplateRepository + data types |
+| `@supaproxy/core/ports/model` | ModelRepository + data types |
+| `@supaproxy/core/ports/database` | DatabaseAdapter interface |
+| `@supaproxy/core/defaults` | Status constants, pagination limits, defaults |
+| `@supaproxy/core/domain/errors` | Domain error classes |
+| `@supaproxy/core/testing/validate-adapter` | Adapter validation test suite |
 
 ### Cloud Extension Point
 
@@ -81,16 +141,19 @@ Rules:
 - **Application** imports from domain and application/ports ONLY. Never from infrastructure.
 - **Infrastructure** implements domain interfaces and application ports.
 - **Presentation** calls application use cases. Never imports from infrastructure directly.
-- **container.ts** is the ONLY place where concrete implementations are instantiated.
+- **container.ts** is the ONLY place where concrete implementations are wired.
+- **Core has zero SQL.** All database queries live in adapter packages (e.g. `@supaproxy/mysql`).
 
 ## Related Repos
 
 | Repo | Visibility | Purpose |
 |---|---|---|
-| supaproxy-core (this) | Public (MIT) | Core: domain logic, use cases, routes |
+| supaproxy-core (this) | Public (MIT) | Core: domain interfaces, use cases, routes |
+| supaproxy-mysql | Public (MIT) | Default database adapter (`@supaproxy/mysql`) |
+| supaproxy-auth | Public (MIT) | Default auth adapter (`@supaproxy/auth`) |
 | supaproxy-sdk | Public (MIT) | TypeScript SDK (`@supaproxy/sdk` on npm) |
 | supaproxy-dashboard | Private | Astro + React frontend |
-| supaproxy-docs | Private | Mintlify documentation site |
+| supaproxy-docs | Private | Documentation site |
 | supaproxy-cloud | Private | Cloud multi-tenancy (CloudTenantService) |
 
 ## Start Dev
@@ -107,11 +170,13 @@ pnpm dev                           # API on :3001
 | Layer | Tech |
 |---|---|
 | Backend | Hono + TypeScript |
-| Auth | JWT cookies (httpOnly, secure in prod) |
+| Auth | @supaproxy/auth (JWT cookies, bcrypt) |
+| Database | @supaproxy/mysql (MySQL 8, Docker port 3308) |
 | Validation | Zod schemas via `parseBody()` |
-| DB | MySQL 8 (Docker, port 3308) |
 | Queue | Redis 7 + BullMQ (Docker, port 6380) |
-| Consumers | Slack (Socket Mode via @slack/bolt) |
+| Vectors | LanceDB (local file storage) |
+| Sessions | Redis (ioredis) |
+| Consumers | @supaproxy/consumers (Slack, WhatsApp, API) |
 
 ## Code Rules
 
@@ -125,27 +190,26 @@ pnpm dev                           # API on :3001
 #### Open/Closed Principle (OCP)
 - **New consumer types** plug in via `ConsumerTypeHandler` interface without modifying existing code.
 - **New AI providers** plug in via `AIProvider` port without modifying use cases.
-- **New repository backends** implement domain repository interfaces.
+- **New database backends** implement the `DatabaseAdapter` interface as a separate package.
 
 #### Liskov Substitution Principle (LSP)
 - All implementations must satisfy their interface contracts completely.
 - Any infrastructure adapter can be swapped without changing application or domain code.
 
 #### Interface Segregation Principle (ISP)
-- Ports are focused: `PasswordService`, `TokenService`, `AIProvider`, `McpClient`, `QueueService`.
+- Ports are focused: `PasswordService`, `TokenService`, `AIProvider`, `McpClient`, `QueueService`, `DatabaseAdapter`.
 - No god interfaces. Each port serves a specific concern.
 
 #### Dependency Inversion Principle (DIP)
 - Domain and application depend on abstractions (interfaces), never concrete implementations.
-- All database access goes through repository interfaces.
-- All external service access goes through port interfaces.
+- All database access goes through repository interfaces defined in `domain/`.
+- All external service access goes through port interfaces in `application/ports/`.
 - `container.ts` is the composition root that wires implementations to interfaces.
 
 ### Layer boundary rules
 
 - **NEVER import from `infrastructure/` in domain or application code.**
-- **NEVER call `getPool()` outside `infrastructure/persistence/`.**
-- **NEVER put SQL queries in use cases or route handlers.**
+- **NEVER put SQL queries in core.** SQL lives in adapter packages.
 - **NEVER put business logic in route handlers.** Extract to a use case.
 - **NEVER instantiate infrastructure classes outside `container.ts`.**
 
@@ -181,7 +245,6 @@ All code changes follow red-green-refactor. Tests are written BEFORE implementat
 ### Type Safety
 - **No `any` types.** Create interfaces for all data.
 - **No `as any` casts.** Define proper interfaces.
-- **DB row types extend `RowDataPacket`.** Keep them in repository implementation files.
 
 ### Error Handling
 - **No empty catch blocks.** Every `.catch()` must log the error.
@@ -216,10 +279,19 @@ All code changes follow red-green-refactor. Tests are written BEFORE implementat
 Run `/add-api-route` or follow this pattern:
 
 1. **Domain**: add method to the relevant repository interface in `domain/`
-2. **Infrastructure**: implement the method in the MySQL repository in `infrastructure/persistence/mysql/`
+2. **Adapter**: implement the method in `@supaproxy/mysql` (and any other adapter packages)
 3. **Application**: create a use case class in `application/` that calls the repository
 4. **Presentation**: add a thin route handler in `presentation/routes/` that calls the use case
 5. **Container**: wire the use case in `container.ts` and inject into the route factory
+
+### Adding a new repository
+
+1. Create the interface in `domain/{name}/repository.ts`
+2. Add it to the `DatabaseAdapter` interface in `application/ports/DatabaseAdapter.ts`
+3. Add the export to `package.json` exports
+4. Implement in `@supaproxy/mysql` (create `Mysql{Name}Repository.ts` + `{Name}RowMappers.ts`)
+5. Add to `createMysqlInfra()` in the mysql package
+6. Update `validateDatabaseAdapter()` test in `DatabaseAdapter.test.ts`
 
 ### Adding a new use case
 
