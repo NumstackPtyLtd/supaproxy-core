@@ -1,6 +1,5 @@
 import { Queue, Worker } from 'bullmq'
-import type { QueueService, QueueJobCounts, FailedJob } from '../../application/ports/QueueService.js'
-import type { LifecycleUseCase } from '../../application/conversation/LifecycleUseCase.js'
+import type { QueueService, QueueJobCounts, FailedJob, LifecycleHandler } from '../../application/ports/QueueService.js'
 import { QUEUE_LIFECYCLE, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS, LIFECYCLE_SCAN_INTERVAL_MS, COLD_MESSAGE_CONCURRENCY, STATS_WORKER_CONCURRENCY } from '../../defaults.js'
 import pino from 'pino'
 
@@ -89,7 +88,7 @@ export class BullMqService implements QueueService {
     return name in this.queues
   }
 
-  async startWorkers(lifecycleUseCase: LifecycleUseCase): Promise<void> {
+  async startWorkers(lifecycleUseCase: LifecycleHandler): Promise<void> {
     const connection = { host: this.redisHost, port: this.redisPort }
 
     this.lifecycleWorker = new Worker(QUEUE_LIFECYCLE, async () => {
