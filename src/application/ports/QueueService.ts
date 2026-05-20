@@ -14,6 +14,17 @@ export interface FailedJob {
   attemptsMade: number
 }
 
+/**
+ * LifecycleHandler — the callback interface that queue workers invoke.
+ * Passed to startWorkers() so the queue adapter can trigger lifecycle scans,
+ * cold messages, and stats generation without depending on use case types.
+ */
+export interface LifecycleHandler {
+  runLifecycleScan(): Promise<void>
+  sendColdMessage(data: { conversationId: string; consumerType: string; channel: string; externalThreadId: string }): Promise<void>
+  generateStats(conversationId: string): Promise<void>
+}
+
 export interface QueueService {
   addColdMessage(data: { conversationId: string; consumerType: string; channel: string; externalThreadId: string }): Promise<void>
   addStatsJob(conversationId: string): Promise<void>
@@ -22,4 +33,7 @@ export interface QueueService {
   retryAllFailed(queueName: string): Promise<number>
   drainQueue(queueName: string): Promise<void>
   listQueueNames(): string[]
+  queueExists(name: string): boolean
+  startWorkers(handler: LifecycleHandler): Promise<void>
+  stopWorkers(): Promise<void>
 }

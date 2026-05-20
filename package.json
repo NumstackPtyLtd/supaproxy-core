@@ -17,6 +17,7 @@
     "./domain/prompt": "./src/domain/prompt/repository.ts",
     "./ports/model": "./src/application/ports/ModelRepository.ts",
     "./ports/database": "./src/application/ports/DatabaseAdapter.ts",
+    "./ports/queue": "./src/application/ports/QueueService.ts",
     "./testing/validate-adapter": "./src/application/ports/DatabaseAdapter.test.ts",
     "./defaults": "./src/defaults.ts"
   },
@@ -38,6 +39,7 @@
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@slack/bolt": "^4.2.0",
     "@supaproxy/auth": "^1.0.0",
+    "@supaproxy/bullmq": "link:../supaproxy-bullmq",
     "@supaproxy/mysql": "^1.0.0",
     "@supaproxy/connections": "^0.2.1",
     "@supaproxy/consumers": "^0.4.1",
@@ -45,7 +47,6 @@
     "@supaproxy/providers": "^0.2.3",
     "apache-arrow": "^18.1.0",
     "bcrypt": "^6.0.0",
-    "bullmq": "^5.74.1",
     "dotenv": "^17.4.2",
     "glob": "^11.0.0",
     "hono": "^4.7.0",
