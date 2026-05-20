@@ -11,7 +11,7 @@ import { ConsumerIntegrationTester } from './infrastructure/auth/ConsumerIntegra
 import { ConsumerPosterRegistryImpl } from './infrastructure/consumers/ConsumerPosterRegistryImpl.js'
 import { RedisSessionStore } from './infrastructure/session/RedisSessionStore.js'
 import { PreQueryGuardDepsImpl } from './infrastructure/guard/PreQueryGuardDepsImpl.js'
-import { LanceDBVectorStore } from './infrastructure/vector/LanceDBVectorStore.js'
+import type { VectorStore } from './application/ports/VectorStore.js'
 import { IndexKnowledgeForWorkspaceUseCase } from './application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
 import { RetrieveKnowledgeForWorkspaceUseCase } from './application/knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import { ProviderEmbeddingServiceFactory } from './infrastructure/ai/EmbeddingServiceFactory.js'
@@ -100,6 +100,7 @@ import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPoli
 interface ContainerOptions {
   pool: import('mysql2/promise').Pool
   queueService: QueueService
+  vectorStore: VectorStore
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -123,9 +124,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
 
   // Knowledge infrastructure
   const { knowledgeChunkRepo } = infra
-  // Vector store: LanceDB by default, swappable via the VectorStore port interface
-  // Optional: defaults to local file storage for development
-  const vectorStore: import('./application/ports/VectorStore.js').VectorStore = new LanceDBVectorStore(process.env.VECTOR_STORE_PATH ?? './data/vectors')
+  const { vectorStore } = options
   const embeddingFactory = new ProviderEmbeddingServiceFactory(orgRepo, providerRegistry)
   const retrieveKnowledge = new RetrieveKnowledgeForWorkspaceUseCase(vectorStore, workspaceRepo, embeddingFactory)
   const indexKnowledge = new IndexKnowledgeForWorkspaceUseCase(knowledgeChunkRepo, vectorStore, workspaceRepo, embeddingFactory)
