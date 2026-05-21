@@ -10,8 +10,6 @@ interface OAuthRouteDeps {
   orgRepo: OrganisationRepository
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
   dashboardUrl: string
-  oauthClientId: string
-  oauthClientSecret: string
   /** Resolve a plugin's OAuth config from its ID (reads plugin.json from storage) */
   resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null>
 }
@@ -19,17 +17,35 @@ interface OAuthRouteDeps {
 export function createOAuthRoutes(deps: OAuthRouteDeps) {
   const oauth = new Hono()
 
+  /**
+   * Resolve the OAuth client credentials for a plugin.
+   * Reads {pluginId}_client_id and {pluginId}_client_secret from org settings.
+   * These are entered by the admin through the plugin's settings form.
+   */
+  async function resolveCredentials(orgId: string, pluginId: string): Promise<{ clientId: string; clientSecret: string } | null> {
+    const clientId = await deps.orgRepo.findSetting(orgId, `${pluginId}_client_id`)
+    const clientSecret = await deps.orgRepo.findSetting(orgId, `${pluginId}_client_secret`)
+    if (!clientId?.value || !clientSecret?.value) return null
+    return { clientId: clientId.value, clientSecret: clientSecret.value }
+  }
+
   // GET /api/oauth/:pluginId/authorize — redirect user to provider's auth page
   oauth.get('/api/oauth/:pluginId/authorize', async (c) => {
     const pluginId = c.req.param('pluginId')
     const config = await deps.resolvePluginOAuth(pluginId)
     if (!config) return c.json({ error: 'plugin_not_found_or_no_oauth' }, 404)
 
+    const orgId = await deps.orgRepo.getFirstOrgId()
+    if (!orgId) return c.json({ error: 'no_org' }, 400)
+
+    const credentials = await resolveCredentials(orgId, pluginId)
+    if (!credentials) return c.json({ error: 'oauth_credentials_not_configured', message: 'Set client_id and client_secret in plugin settings first.' }, 400)
+
     const state = `${pluginId}:${generateId()}`
     const redirectUri = `${deps.dashboardUrl}/oauth/callback`
 
     const params = new URLSearchParams({
-      client_id: deps.oauthClientId,
+      client_id: credentials.clientId,
       scope: config.scopes.join(' '),
       redirect_uri: redirectUri,
       state,
@@ -56,24 +72,32 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
       return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=missing_params`)
     }
 
-    // State format: pluginId:randomId
     const pluginId = state.split(':')[0]
     const config = await deps.resolvePluginOAuth(pluginId)
     if (!config) {
       return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=unknown_plugin`)
     }
 
+    const orgId = await deps.orgRepo.getFirstOrgId()
+    if (!orgId) {
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_org`)
+    }
+
+    const credentials = await resolveCredentials(orgId, pluginId)
+    if (!credentials) {
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_credentials`)
+    }
+
     try {
       const redirectUri = `${deps.dashboardUrl}/oauth/callback`
 
-      // Exchange code for tokens
       const tokenRes = await fetch(config.tokenUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grant_type: 'authorization_code',
-          client_id: deps.oauthClientId,
-          client_secret: deps.oauthClientSecret,
+          client_id: credentials.clientId,
+          client_secret: credentials.clientSecret,
           code,
           redirect_uri: redirectUri,
         }),
@@ -86,18 +110,11 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
 
       const tokens = await tokenRes.json() as OAuthTokens
 
-      const orgId = await deps.orgRepo.getFirstOrgId()
-      if (!orgId) {
-        return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_org`)
-      }
-
-      // Store tokens keyed by plugin ID
       await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_access_token`, tokens.access_token, true)
       if (tokens.refresh_token) {
         await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_refresh_token`, tokens.refresh_token, true)
       }
 
-      // Resolve accessible resources if the plugin declares a resources URL
       if (config.resourcesUrl) {
         try {
           const resRes = await fetch(config.resourcesUrl, {
