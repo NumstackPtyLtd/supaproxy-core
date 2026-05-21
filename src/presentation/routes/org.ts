@@ -89,7 +89,7 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
   org.post('/api/org/providers/test', async (c) => {
     const parsed = await parseBody(c, z.object({
       type: z.string().min(1),
-      apiKey: z.string().min(1),
+      api_key: z.string().min(1),
     }))
     if (!parsed.success) return parsed.response
 
@@ -98,7 +98,7 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     if (!provider.testConnection) return c.json({ error: 'provider_no_connection_test' }, 400)
 
     try {
-      const result = await provider.testConnection(parsed.data.apiKey)
+      const result = await provider.testConnection(parsed.data.api_key)
       return c.json(result)
     } catch (err) {
       log.error({ err, type: parsed.data.type }, 'Provider connection test failed')
@@ -109,7 +109,7 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
   org.post('/api/org/providers/models', async (c) => {
     const parsed = await parseBody(c, z.object({
       type: z.string().min(1),
-      apiKey: z.string().min(1),
+      api_key: z.string().min(1),
     }))
     if (!parsed.success) return parsed.response
 
@@ -118,7 +118,7 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     if (!provider.listModels) return c.json({ error: 'provider_no_model_list' }, 400)
 
     try {
-      const models = await provider.listModels(parsed.data.apiKey)
+      const models = await provider.listModels(parsed.data.api_key)
       return c.json({ models })
     } catch (err) {
       log.error({ err, type: parsed.data.type }, 'Provider model list failed')
