@@ -20,8 +20,8 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
   const oauth = new Hono<AuthEnv>()
 
   // Auth required for authorize, status, disconnect (not callback — that's from the provider)
-  oauth.use('/api/oauth/:pluginId/authorize', deps.requireAuth)
-  oauth.use('/api/oauth/:pluginId/status', deps.requireAuth)
+  oauth.use('/api/oauth/*/authorize', deps.requireAuth)
+  oauth.use('/api/oauth/*/status', deps.requireAuth)
 
   /**
    * Resolve the OAuth client credentials for a plugin.
