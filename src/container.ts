@@ -270,7 +270,6 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
     orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo, promptTemplateRepo,
     providerRegistry, mcpFactory, promptResolver,
     queueService, integrationTester, posterRegistry, consumerRegistry, tenantService,
-    vectorStore, indexKnowledge,
     // Middleware
     requireAuth,
     // Use cases
