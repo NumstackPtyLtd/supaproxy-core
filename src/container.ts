@@ -101,7 +101,7 @@ interface ContainerOptions {
   queueService: QueueService
   vectorStore: VectorStore
   sessionStore: SessionStore
-  oauth?: { dashboardUrl: string; resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null> }
+  oauth?: { clientId: string; clientSecret: string; dashboardUrl: string; resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null> }
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -262,7 +262,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
 
   // OAuth routes (optional, only if providers are configured)
   const oauthRoutes = options.oauth
-    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, resolvePluginOAuth: options.oauth.resolvePluginOAuth })
+    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, oauthClientId: options.oauth.clientId, oauthClientSecret: options.oauth.clientSecret, resolvePluginOAuth: options.oauth.resolvePluginOAuth })
     : null
 
   const container = {
