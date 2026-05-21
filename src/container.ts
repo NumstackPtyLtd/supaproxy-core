@@ -94,14 +94,11 @@ import { createQueueRoutes } from './presentation/routes/queues.js'
 import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
-import { createOAuthRoutes } from './presentation/routes/oauth.js'
-import type { PluginOAuthConfig } from './application/ports/OAuthProvider.js'
 
 interface ContainerOptions {
   queueService: QueueService
   vectorStore: VectorStore
   sessionStore: SessionStore
-  oauth?: { dashboardUrl: string; resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null> }
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -260,17 +257,11 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const manageEntryPointUseCase = new ManageEntryPointUseCase(integrationRepo, entryPointRepo)
   const integrationRoutes = createIntegrationRoutes({ manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo, requireAuth })
 
-  // OAuth routes (optional, only if providers are configured)
-  const oauthRoutes = options.oauth
-    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, resolvePluginOAuth: options.oauth.resolvePluginOAuth })
-    : null
-
   const container = {
     // Infrastructure
     orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo, promptTemplateRepo,
     providerRegistry, mcpFactory, promptResolver,
     queueService, integrationTester, posterRegistry, consumerRegistry, tenantService,
-    vectorStore, indexKnowledge,
     // Middleware
     requireAuth,
     // Use cases
@@ -285,7 +276,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
     managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
     manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo,
     // Routes
-    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, integrationRoutes, oauthRoutes,
+    authRoutes, orgRoutes, workspaceRoutes, conversationRoutes, connectorRoutes, queryRoutes, queueRoutes, routeRoutes, promptRoutes, guardrailPolicyRoutes, integrationRoutes,
   }
 
   return container
