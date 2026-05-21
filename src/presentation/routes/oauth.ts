@@ -1,122 +1,158 @@
 import { Hono } from 'hono'
 import { generateId } from '../../domain/shared/EntityId.js'
-import type { OAuthProvider } from '../../application/ports/OAuthProvider.js'
+import type { PluginOAuthConfig, OAuthTokens, OAuthResource } from '../../application/ports/OAuthProvider.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import pino from 'pino'
 
 const log = pino({ name: 'oauth' })
 
 interface OAuthRouteDeps {
-  providers: Map<string, OAuthProvider>
   orgRepo: OrganisationRepository
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
   dashboardUrl: string
+  oauthClientId: string
+  oauthClientSecret: string
+  /** Resolve a plugin's OAuth config from its ID (reads plugin.json from storage) */
+  resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null>
 }
 
 export function createOAuthRoutes(deps: OAuthRouteDeps) {
   const oauth = new Hono()
 
-  // GET /api/oauth/:provider/authorize — redirect user to provider's auth page
-  oauth.get('/api/oauth/:provider/authorize', async (c) => {
-    const providerId = c.req.param('provider')
-    const provider = deps.providers.get(providerId)
-    if (!provider) return c.json({ error: 'unknown_provider' }, 404)
+  // GET /api/oauth/:pluginId/authorize — redirect user to provider's auth page
+  oauth.get('/api/oauth/:pluginId/authorize', async (c) => {
+    const pluginId = c.req.param('pluginId')
+    const config = await deps.resolvePluginOAuth(pluginId)
+    if (!config) return c.json({ error: 'plugin_not_found_or_no_oauth' }, 404)
 
-    const state = generateId()
-    const redirectUri = `${deps.dashboardUrl}/oauth/${providerId}/callback`
-    const authUrl = provider.getAuthUrl(redirectUri, state)
+    const state = `${pluginId}:${generateId()}`
+    const redirectUri = `${deps.dashboardUrl}/oauth/callback`
 
-    return c.redirect(authUrl)
+    const params = new URLSearchParams({
+      client_id: deps.oauthClientId,
+      scope: config.scopes.join(' '),
+      redirect_uri: redirectUri,
+      state,
+      response_type: 'code',
+      prompt: 'consent',
+      ...config.authorizeParams,
+    })
+
+    return c.redirect(`${config.authorizeUrl}?${params.toString()}`)
   })
 
-  // GET /api/oauth/:provider/callback — exchange code for tokens, store in org settings
-  oauth.get('/api/oauth/:provider/callback', async (c) => {
-    const providerId = c.req.param('provider')
-    const provider = deps.providers.get(providerId)
-    if (!provider) return c.json({ error: 'unknown_provider' }, 404)
-
+  // GET /api/oauth/callback — exchange code for tokens, store as org settings
+  oauth.get('/api/oauth/callback', async (c) => {
     const code = c.req.query('code')
+    const state = c.req.query('state')
     const error = c.req.query('error')
 
     if (error) {
-      log.warn({ provider: providerId, error }, 'OAuth authorization denied')
+      log.warn({ error }, 'OAuth authorization denied')
       return c.redirect(`${deps.dashboardUrl}/settings?oauth=denied`)
     }
 
-    if (!code) {
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_code`)
+    if (!code || !state) {
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=missing_params`)
+    }
+
+    // State format: pluginId:randomId
+    const pluginId = state.split(':')[0]
+    const config = await deps.resolvePluginOAuth(pluginId)
+    if (!config) {
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=unknown_plugin`)
     }
 
     try {
-      const redirectUri = `${deps.dashboardUrl}/oauth/${providerId}/callback`
-      const tokens = await provider.exchangeCode(code, redirectUri)
+      const redirectUri = `${deps.dashboardUrl}/oauth/callback`
 
-      // Get the org to store settings
+      // Exchange code for tokens
+      const tokenRes = await fetch(config.tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          client_id: deps.oauthClientId,
+          client_secret: deps.oauthClientSecret,
+          code,
+          redirect_uri: redirectUri,
+        }),
+      })
+
+      if (!tokenRes.ok) {
+        const body = await tokenRes.text()
+        throw new Error(`Token exchange failed: ${tokenRes.status} ${body}`)
+      }
+
+      const tokens = await tokenRes.json() as OAuthTokens
+
       const orgId = await deps.orgRepo.getFirstOrgId()
       if (!orgId) {
         return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_org`)
       }
 
-      // Store access token
-      await deps.orgRepo.upsertSetting(generateId(), orgId, provider.settingKeys.accessToken, tokens.access_token, true)
-
-      // Store refresh token if provided
+      // Store tokens keyed by plugin ID
+      await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_access_token`, tokens.access_token, true)
       if (tokens.refresh_token) {
-        await deps.orgRepo.upsertSetting(generateId(), orgId, provider.settingKeys.refreshToken, tokens.refresh_token, true)
+        await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_refresh_token`, tokens.refresh_token, true)
       }
 
-      // Resolve and store the cloud resource (e.g. Atlassian site)
-      const resources = await provider.getResources(tokens.access_token)
-      if (resources.length > 0) {
-        await deps.orgRepo.upsertSetting(generateId(), orgId, provider.settingKeys.resourceId, resources[0].id, false)
-        await deps.orgRepo.upsertSetting(generateId(), orgId, provider.settingKeys.resourceUrl, resources[0].url, false)
+      // Resolve accessible resources if the plugin declares a resources URL
+      if (config.resourcesUrl) {
+        try {
+          const resRes = await fetch(config.resourcesUrl, {
+            headers: { Authorization: `Bearer ${tokens.access_token}`, Accept: 'application/json' },
+          })
+          if (resRes.ok) {
+            const resources = await resRes.json() as OAuthResource[]
+            if (resources.length > 0) {
+              await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_resource_id`, resources[0].id, false)
+              await deps.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_resource_url`, resources[0].url || resources[0].name, false)
+            }
+          }
+        } catch (err) {
+          log.warn({ pluginId, error: (err as Error).message }, 'Failed to resolve OAuth resources')
+        }
       }
 
-      log.info({ provider: providerId, resourceCount: resources.length }, 'OAuth connection established')
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=success&provider=${providerId}`)
+      log.info({ pluginId }, 'OAuth connection established')
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=success&plugin=${pluginId}`)
     } catch (err) {
-      log.error({ provider: providerId, error: (err as Error).message }, 'OAuth token exchange failed')
+      log.error({ pluginId, error: (err as Error).message }, 'OAuth token exchange failed')
       return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=token_exchange`)
     }
   })
 
-  // GET /api/oauth/:provider/status — check if connected
-  oauth.get('/api/oauth/:provider/status', async (c) => {
-    const providerId = c.req.param('provider')
-    const provider = deps.providers.get(providerId)
-    if (!provider) return c.json({ error: 'unknown_provider' }, 404)
-
+  // GET /api/oauth/:pluginId/status — check if connected
+  oauth.get('/api/oauth/:pluginId/status', async (c) => {
+    const pluginId = c.req.param('pluginId')
     const orgId = await deps.orgRepo.getFirstOrgId()
     if (!orgId) return c.json({ connected: false })
 
-    const token = await deps.orgRepo.findSetting(orgId, provider.settingKeys.accessToken)
-    const resourceUrl = await deps.orgRepo.findSetting(orgId, provider.settingKeys.resourceUrl)
+    const token = await deps.orgRepo.findSetting(orgId, `${pluginId}_access_token`)
+    const resourceUrl = await deps.orgRepo.findSetting(orgId, `${pluginId}_resource_url`)
 
     return c.json({
-      connected: !!token,
+      connected: !!token?.value,
       site: resourceUrl?.value || null,
-      provider: provider.name,
     })
   })
 
-  // DELETE /api/oauth/:provider — disconnect
-  oauth.delete('/api/oauth/:provider', async (c) => {
-    const providerId = c.req.param('provider')
-    const provider = deps.providers.get(providerId)
-    if (!provider) return c.json({ error: 'unknown_provider' }, 404)
-
+  // DELETE /api/oauth/:pluginId — disconnect
+  oauth.delete('/api/oauth/:pluginId', async (c) => {
+    const pluginId = c.req.param('pluginId')
     const orgId = await deps.orgRepo.getFirstOrgId()
     if (!orgId) return c.json({ error: 'no_org' }, 400)
 
-    // Clear all stored tokens
-    for (const key of Object.values(provider.settingKeys)) {
+    for (const suffix of ['access_token', 'refresh_token', 'resource_id', 'resource_url']) {
+      const key = `${pluginId}_${suffix}`
       const setting = await deps.orgRepo.findSetting(orgId, key)
       if (setting) {
         await deps.orgRepo.upsertSetting(setting.id, orgId, key, '', false)
       }
     }
 
-    log.info({ provider: providerId }, 'OAuth connection removed')
+    log.info({ pluginId }, 'OAuth connection removed')
     return c.json({ disconnected: true })
   })
 

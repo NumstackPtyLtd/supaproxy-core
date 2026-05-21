@@ -1,10 +1,30 @@
 /**
- * Port: OAuth2 provider for third-party service connections.
+ * OAuth2 plugin configuration.
  *
- * Each provider (Atlassian, Google, GitHub, etc.) implements this interface.
- * The OAuth routes use the provider to generate auth URLs, exchange codes,
- * and refresh tokens. Tokens are stored as org settings.
+ * This is data, not code. Plugin packages declare their OAuth config
+ * in plugin.json. Core reads it at runtime and runs a generic OAuth2
+ * flow using the declared URLs and scopes.
+ *
+ * No provider-specific classes needed. Adding a new OAuth-enabled
+ * plugin means shipping a plugin.json with an "oauth" field.
  */
+
+export interface PluginOAuthConfig {
+  /** OAuth2 authorize endpoint */
+  authorizeUrl: string
+
+  /** OAuth2 token exchange endpoint */
+  tokenUrl: string
+
+  /** Endpoint to discover accessible resources (optional) */
+  resourcesUrl?: string
+
+  /** Scopes to request */
+  scopes: string[]
+
+  /** Extra authorize params (e.g. audience for Atlassian) */
+  authorizeParams?: Record<string, string>
+}
 
 export interface OAuthTokens {
   access_token: string
@@ -17,37 +37,4 @@ export interface OAuthResource {
   id: string
   name: string
   url: string
-  scopes?: string[]
-  avatarUrl?: string
-}
-
-export interface OAuthProvider {
-  /** Provider identifier (e.g. 'atlassian', 'google', 'github') */
-  readonly id: string
-
-  /** Human-readable name */
-  readonly name: string
-
-  /** Scopes to request */
-  readonly scopes: string[]
-
-  /** Build the authorization URL the user gets redirected to */
-  getAuthUrl(redirectUri: string, state: string): string
-
-  /** Exchange an authorization code for tokens */
-  exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens>
-
-  /** Refresh an expired access token */
-  refreshToken(refreshToken: string): Promise<OAuthTokens>
-
-  /** Get accessible resources (e.g. Atlassian cloud sites) */
-  getResources(accessToken: string): Promise<OAuthResource[]>
-
-  /** Org setting keys where tokens are stored */
-  settingKeys: {
-    accessToken: string
-    refreshToken: string
-    resourceId: string
-    resourceUrl: string
-  }
 }
