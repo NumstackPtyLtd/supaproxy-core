@@ -20,6 +20,7 @@
     "./ports/queue": "./src/application/ports/QueueService.ts",
     "./ports/vector-store": "./src/application/ports/VectorStore.ts",
     "./ports/session-store": "./src/application/ports/SessionStore.ts",
+    "./ports/oauth": "./src/application/ports/OAuthProvider.ts",
     "./testing/validate-adapter": "./src/application/ports/DatabaseAdapter.test.ts",
     "./defaults": "./src/defaults.ts"
   },

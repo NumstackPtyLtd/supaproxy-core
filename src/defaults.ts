@@ -63,6 +63,8 @@ export const CONSUMER_TYPE_SYSTEM = 'system'
 export const QUEUE_LIFECYCLE = 'lifecycle'
 export const QUEUE_COLD_MESSAGES = 'cold-messages'
 export const QUEUE_CONVERSATION_STATS = 'conversation-stats'
+export const QUEUE_KNOWLEDGE_SYNC = 'knowledge-sync'
+export const KNOWLEDGE_SYNC_CONCURRENCY = 1
 
 // Validation limits
 export const MAX_ORG_NAME_LENGTH = 255
