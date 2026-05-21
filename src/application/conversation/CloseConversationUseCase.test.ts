@@ -17,7 +17,7 @@ describe('CloseConversationUseCase', () => {
 
     expect(repo.closeConversation).toHaveBeenCalledWith('conv-1')
     expect(repo.createStats).toHaveBeenCalledWith(expect.any(String), 'conv-1')
-    expect(queue.addStatsJob).toHaveBeenCalledWith('conv-1')
+    expect(queue.addJob).toHaveBeenCalledWith('conversation-stats', 'generate-stats', { conversationId: 'conv-1' })
   })
 
   it('creates stats if none exist', async () => {
@@ -63,7 +63,7 @@ describe('CloseConversationUseCase', () => {
     await uc.execute('conv-1')
 
     expect(repo.closeConversation).not.toHaveBeenCalled()
-    expect(queue.addStatsJob).toHaveBeenCalledWith('conv-1')
+    expect(queue.addJob).toHaveBeenCalledWith('conversation-stats', 'generate-stats', { conversationId: 'conv-1' })
   })
 
   it('throws NotFoundError if not found', async () => {

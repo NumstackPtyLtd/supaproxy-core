@@ -69,8 +69,9 @@ describe('LifecycleUseCase', () => {
       await useCase.runLifecycleScan()
 
       expect(conversationRepo.batchTransitionToCold).toHaveBeenCalledWith(['conv-1', 'conv-2'])
-      expect(queueService.addColdMessage).toHaveBeenCalledTimes(2)
-      expect(queueService.addColdMessage).toHaveBeenCalledWith(
+      expect(queueService.addJob).toHaveBeenCalledTimes(2)
+      expect(queueService.addJob).toHaveBeenCalledWith(
+        'cold-messages', 'send-cold-message',
         expect.objectContaining({ conversationId: 'conv-1', consumerType: 'slack' }),
       )
     })
@@ -82,9 +83,9 @@ describe('LifecycleUseCase', () => {
       await useCase.runLifecycleScan()
 
       expect(conversationRepo.batchTransitionToClosed).toHaveBeenCalledWith(['conv-3', 'conv-4'])
-      expect(queueService.addStatsJob).toHaveBeenCalledTimes(2)
-      expect(queueService.addStatsJob).toHaveBeenCalledWith('conv-3')
-      expect(queueService.addStatsJob).toHaveBeenCalledWith('conv-4')
+      expect(queueService.addJob).toHaveBeenCalledTimes(2)
+      expect(queueService.addJob).toHaveBeenCalledWith('conversation-stats', 'generate-stats', { conversationId: 'conv-3' })
+      expect(queueService.addJob).toHaveBeenCalledWith('conversation-stats', 'generate-stats', { conversationId: 'conv-4' })
     })
 
     it('does nothing when no candidates exist', async () => {
@@ -95,8 +96,7 @@ describe('LifecycleUseCase', () => {
 
       expect(conversationRepo.batchTransitionToCold).not.toHaveBeenCalled()
       expect(conversationRepo.batchTransitionToClosed).not.toHaveBeenCalled()
-      expect(queueService.addColdMessage).not.toHaveBeenCalled()
-      expect(queueService.addStatsJob).not.toHaveBeenCalled()
+      expect(queueService.addJob).not.toHaveBeenCalled()
     })
   })
 

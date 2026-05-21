@@ -104,6 +104,20 @@ export const DEFAULT_RETRIEVAL_LIMIT = 5
 export const DEFAULT_RETRIEVAL_MIN_SCORE = 0.3
 export const DEFAULT_EMBEDDING_DIMENSIONS = 1536
 
+// ── OAuth ──
+
+export const OAUTH_RESPONSE_TYPE = 'code'
+export const OAUTH_PROMPT = 'consent'
+export const OAUTH_SETTING_SUFFIXES = ['access_token', 'refresh_token', 'resource_id', 'resource_url']
+
+// ── OAuth error codes ──
+
+export const ERROR_NO_ORG = 'no_org'
+export const ERROR_NO_CREDENTIALS = 'no_credentials'
+export const ERROR_NO_REFRESH_TOKEN = 'no_refresh_token'
+export const ERROR_REFRESH_FAILED = 'refresh_failed'
+export const ERROR_PLUGIN_NOT_FOUND = 'plugin_not_found'
+
 // ── Stats analysis fallbacks ──
 
 export const DEFAULT_SENTIMENT_SCORE = 3

@@ -218,8 +218,9 @@ export function mockTokenService(): TokenService {
 
 export function mockQueueService(): QueueService {
   return {
-    addColdMessage: vi.fn().mockResolvedValue(undefined),
-    addStatsJob: vi.fn().mockResolvedValue(undefined),
+    addJob: vi.fn().mockResolvedValue(undefined),
+    scheduleJob: vi.fn().mockResolvedValue(undefined),
+    cancelSchedule: vi.fn().mockResolvedValue(undefined),
     getJobCounts: vi.fn().mockResolvedValue({ waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 }),
     getFailedJobs: vi.fn().mockResolvedValue([]),
     retryAllFailed: vi.fn().mockResolvedValue(0),

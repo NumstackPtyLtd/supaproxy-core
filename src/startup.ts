@@ -7,6 +7,12 @@
 import pino from 'pino'
 import type { Container } from './container.js'
 import type { IncomingMessage, Workspace } from '@supaproxy/consumers'
+import type { QueueConfig } from './application/ports/QueueService.js'
+import type { ColdMessageTarget } from './application/ports/ConsumerPoster.js'
+import {
+  QUEUE_LIFECYCLE, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS,
+  LIFECYCLE_SCAN_INTERVAL_MS, COLD_MESSAGE_CONCURRENCY, STATS_WORKER_CONCURRENCY,
+} from './defaults.js'
 
 const log = pino({ name: 'startup' })
 
@@ -57,7 +63,6 @@ export async function startConsumers(container: Container): Promise<void> {
           const routing = await container.manageEntryPointUseCase.resolveRouting(msg.consumerType, msg.channel)
 
           if (routing.mode === 'direct' && routing.workspaceId) {
-            // Direct routing: bypass receptionist
             const result = await container.executeQueryUseCase.execute(routing.workspaceId, msg.query, {
               consumerType: msg.consumerType,
               channel: msg.channel,
@@ -68,7 +73,6 @@ export async function startConsumers(container: Container): Promise<void> {
             return { answer: result.answer, conversationId: result.conversationId || '' }
           }
 
-          // Receptionist routing (default)
           const routingOrgId = routing.orgId || orgId
           if (routingOrgId) {
             const result = await container.routeMessageUseCase.execute({
@@ -82,16 +86,11 @@ export async function startConsumers(container: Container): Promise<void> {
             return { answer: result.answer, conversationId: result.conversationId }
           }
 
-          // No org: cannot route
           return { answer: 'No organisation configured. Please complete setup.', conversationId: '' }
         },
         onError: (err: Error) => log.error({ type: plugin.type, error: err.message }, 'Consumer error'),
         logger: log,
-        getWorkspaceForChannel: async (_channelId: string): Promise<Workspace | null> => {
-          // Legacy callback required by the consumer plugin interface.
-          // With the new entry_points model, routing is handled in onMessage.
-          return null
-        },
+        getWorkspaceForChannel: async (_channelId: string): Promise<Workspace | null> => null,
       }, credentials)
 
       if (plugin.sendMessage) {
@@ -109,6 +108,31 @@ export async function startConsumers(container: Container): Promise<void> {
   }
 }
 
+export function buildQueueConfigs(container: Container): QueueConfig[] {
+  return [
+    {
+      name: QUEUE_LIFECYCLE,
+      scheduler: { every: LIFECYCLE_SCAN_INTERVAL_MS, jobName: 'lifecycle-scan' },
+      handler: async () => { await container.lifecycleUseCase.runLifecycleScan() },
+    },
+    {
+      name: QUEUE_COLD_MESSAGES,
+      concurrency: COLD_MESSAGE_CONCURRENCY,
+      handler: async (data) => {
+        await container.lifecycleUseCase.sendColdMessage(data as unknown as ColdMessageTarget)
+      },
+    },
+    {
+      name: QUEUE_CONVERSATION_STATS,
+      concurrency: STATS_WORKER_CONCURRENCY,
+      handler: async (data) => {
+        await container.lifecycleUseCase.generateStats(data.conversationId as string)
+      },
+    },
+  ]
+}
+
 export async function startWorkers(container: Container): Promise<void> {
-  await container.queueService.startWorkers(container.lifecycleUseCase)
+  const configs = buildQueueConfigs(container)
+  await container.queueService.startWorkers(configs)
 }

@@ -2,7 +2,7 @@ import type { ConversationRepository } from '../../domain/conversation/repositor
 import type { QueueService } from '../ports/QueueService.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
-import { STATUS_CLOSED, STATUS_COMPLETE, STATUS_PENDING } from '../../defaults.js'
+import { STATUS_CLOSED, STATUS_COMPLETE, STATUS_PENDING, QUEUE_CONVERSATION_STATS } from '../../defaults.js'
 
 export class CloseConversationUseCase {
   constructor(
@@ -27,6 +27,6 @@ export class CloseConversationUseCase {
       await this.conversationRepo.createStats(generateId(), conversationId)
     }
 
-    await this.queueService.addStatsJob(conversationId)
+    await this.queueService.addJob(QUEUE_CONVERSATION_STATS, 'generate-stats', { conversationId })
   }
 }

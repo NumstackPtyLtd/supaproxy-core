@@ -95,13 +95,13 @@ import { createRouteRoutes } from './presentation/routes/route.js'
 import { createPromptRoutes } from './presentation/routes/prompts.js'
 import { createGuardrailPolicyRoutes } from './presentation/routes/guardrailPolicies.js'
 import { createOAuthRoutes } from './presentation/routes/oauth.js'
-import type { PluginOAuthConfig } from './application/ports/OAuthProvider.js'
+import type { OAuthCredentialPort } from './application/oauth/OAuthCredentialService.js'
 
 interface ContainerOptions {
   queueService: QueueService
   vectorStore: VectorStore
   sessionStore: SessionStore
-  oauth?: { dashboardUrl: string; resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null> }
+  oauth?: { dashboardUrl: string; credentialPort: OAuthCredentialPort }
   tenantService?: TenantService
   authRoutes: Hono<Record<string, unknown>>
   requireAuth: (c: unknown, next: () => Promise<void>) => Promise<Response | void>
@@ -262,7 +262,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
 
   // OAuth routes (optional, only if providers are configured)
   const oauthRoutes = options.oauth
-    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, resolvePluginOAuth: options.oauth.resolvePluginOAuth })
+    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, credentialPort: options.oauth.credentialPort })
     : null
 
   const container = {
