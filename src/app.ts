@@ -32,7 +32,14 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   })
 
   // Health check
-  app.get('/health', (c) => c.json({ status: 'ok' }))
+  app.get('/health', async (c) => {
+    try {
+      const result = await container.getHealthUseCase.executeAuthenticated()
+      return c.json(result)
+    } catch {
+      return c.json({ status: 'ok' })
+    }
+  })
 
   // Models
   app.get('/api/models', async (c) => {

@@ -14,8 +14,14 @@ interface OAuthRouteDeps {
   resolvePluginOAuth: (pluginId: string) => Promise<PluginOAuthConfig | null>
 }
 
+type AuthEnv = { Variables: { user: { id: string; org_id: string } } }
+
 export function createOAuthRoutes(deps: OAuthRouteDeps) {
-  const oauth = new Hono()
+  const oauth = new Hono<AuthEnv>()
+
+  // Auth required for authorize, status, disconnect (not callback — that's from the provider)
+  oauth.use('/api/oauth/:pluginId/authorize', deps.requireAuth)
+  oauth.use('/api/oauth/:pluginId/status', deps.requireAuth)
 
   /**
    * Resolve the OAuth client credentials for a plugin.
@@ -35,14 +41,15 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
     const config = await deps.resolvePluginOAuth(pluginId)
     if (!config) return c.json({ error: 'plugin_not_found_or_no_oauth' }, 404)
 
-    const orgId = await deps.orgRepo.getFirstOrgId()
-    if (!orgId) return c.json({ error: 'no_org' }, 400)
+    const user = c.get('user')
+    const orgId = user.org_id
 
     const credentials = await resolveCredentials(orgId, pluginId)
     if (!credentials) return c.json({ error: 'oauth_credentials_not_configured', message: 'Set client_id and client_secret in plugin settings first.' }, 400)
 
-    const state = `${pluginId}:${generateId()}`
-    const redirectUri = `${deps.dashboardUrl}/oauth/callback`
+    const state = `${pluginId}:${orgId}:${generateId()}`
+    const reqUrl = new URL(c.req.url, `http://${c.req.header('host') || 'localhost'}`)
+    const redirectUri = `${reqUrl.origin}/api/oauth/callback`
 
     const params = new URLSearchParams({
       client_id: credentials.clientId,
@@ -64,32 +71,36 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
     const error = c.req.query('error')
 
     if (error) {
+      const pluginFromState = state?.split(':')[0] || 'unknown'
       log.warn({ error }, 'OAuth authorization denied')
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=denied`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginFromState}?oauth=denied`)
     }
 
     if (!code || !state) {
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=missing_params`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace?oauth=error&reason=missing_params`)
     }
 
-    const pluginId = state.split(':')[0]
+    const stateParts = state.split(':')
+    const pluginId = stateParts[0]
+    const orgId = stateParts[1]
     const config = await deps.resolvePluginOAuth(pluginId)
     if (!config) {
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=unknown_plugin`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginId}?oauth=error&reason=unknown_plugin`)
     }
 
-    const orgId = await deps.orgRepo.getFirstOrgId()
     if (!orgId) {
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_org`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginId}?oauth=error&reason=no_org`)
     }
 
     const credentials = await resolveCredentials(orgId, pluginId)
     if (!credentials) {
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=no_credentials`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginId}?oauth=error&reason=no_credentials`)
     }
 
     try {
-      const redirectUri = `${deps.dashboardUrl}/oauth/callback`
+      const reqUrl = new URL(c.req.url, `http://${c.req.header('host') || 'localhost'}`)
+      const origin = reqUrl.origin
+      const redirectUri = `${origin}/api/oauth/callback`
 
       const tokenRes = await fetch(config.tokenUrl, {
         method: 'POST',
@@ -133,21 +144,20 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
       }
 
       log.info({ pluginId }, 'OAuth connection established')
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=success&plugin=${pluginId}`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginId}?oauth=success`)
     } catch (err) {
       log.error({ pluginId, error: (err as Error).message }, 'OAuth token exchange failed')
-      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=token_exchange`)
+      return c.redirect(`${deps.dashboardUrl}/marketplace/${pluginId}?oauth=error&reason=token_exchange`)
     }
   })
 
   // GET /api/oauth/:pluginId/status — check if connected
   oauth.get('/api/oauth/:pluginId/status', async (c) => {
     const pluginId = c.req.param('pluginId')
-    const orgId = await deps.orgRepo.getFirstOrgId()
-    if (!orgId) return c.json({ connected: false })
+    const user = c.get('user')
 
-    const token = await deps.orgRepo.findSetting(orgId, `${pluginId}_access_token`)
-    const resourceUrl = await deps.orgRepo.findSetting(orgId, `${pluginId}_resource_url`)
+    const token = await deps.orgRepo.findSetting(user.org_id, `${pluginId}_access_token`)
+    const resourceUrl = await deps.orgRepo.findSetting(user.org_id, `${pluginId}_resource_url`)
 
     return c.json({
       connected: !!token?.value,
@@ -156,10 +166,10 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
   })
 
   // DELETE /api/oauth/:pluginId — disconnect
-  oauth.delete('/api/oauth/:pluginId', async (c) => {
+  oauth.delete('/api/oauth/:pluginId', deps.requireAuth, async (c) => {
     const pluginId = c.req.param('pluginId')
-    const orgId = await deps.orgRepo.getFirstOrgId()
-    if (!orgId) return c.json({ error: 'no_org' }, 400)
+    const user = c.get('user')
+    const orgId = user.org_id
 
     for (const suffix of ['access_token', 'refresh_token', 'resource_id', 'resource_url']) {
       const key = `${pluginId}_${suffix}`
