@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.0.1] - 2026-05-22
+
+### Fixed
+- Extract `OAuthHttpClient` port; `fetch()` calls moved from use cases to `FetchOAuthHttpClient` infrastructure adapter
+- `CreateWorkspaceUseCase` catches domain `ConflictError` instead of MySQL `ER_DUP_ENTRY`
+- Domain JSON mappers (`parseComplianceViolations`, `parseKnowledgeGaps`, `parseStatsAnalysis`) replace inline parsing
+- `StatsGenerator` uses `Duration` value object for timestamp calculations
+- `formatKnowledgeContext` moved from `RetrieveKnowledgeUseCase` to `prompts.ts`
+- `SECRET_KEY_PATTERNS`, `SECURITY_*` constants, `COLD_MESSAGE_TRANSCRIPT_LIMIT` moved to `defaults.ts`
+
 ## [2.0.0] - 2026-05-22
 
 ### Added
