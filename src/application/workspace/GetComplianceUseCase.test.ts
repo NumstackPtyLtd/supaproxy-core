@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockWorkspaceRepo, mockConversationRepo, mockGuardrailEventRepo } from '../../__tests__/mocks.js'
+import { mockWorkspaceRepo, mockConversationQueryRepo, mockGuardrailEventRepo } from '../../__tests__/mocks.js'
 import { GetComplianceUseCase } from './GetComplianceUseCase.js'
 
 describe('GetComplianceUseCase', () => {
   it('returns guardrails and parsed violations', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(wsRepo.findGuardrails).mockResolvedValue([
       { id: 'g1', rule_type: 'pii_filter', enabled: true, config: '{}' },
     ])
@@ -24,7 +24,7 @@ describe('GetComplianceUseCase', () => {
 
   it('handles null compliance_violations gracefully', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(convRepo.getComplianceViolationsByWorkspace).mockResolvedValue([
       { compliance_violations: null, conversation_id: 'c1', user_name: null, last_activity_at: null },
     ])
@@ -37,7 +37,7 @@ describe('GetComplianceUseCase', () => {
 
   it('includes guardrail events in the response', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     const eventRepo = mockGuardrailEventRepo()
     vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([
       {
@@ -74,7 +74,7 @@ describe('GetComplianceUseCase', () => {
 
   it('returns empty guardrail events when no event repo provided', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
 
     const useCase = new GetComplianceUseCase(wsRepo, convRepo)
     const result = await useCase.execute('ws-test')
@@ -84,7 +84,7 @@ describe('GetComplianceUseCase', () => {
 
   it('uses findByWorkspaceFiltered when eventFilter is provided', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     const eventRepo = mockGuardrailEventRepo()
     vi.mocked(eventRepo.findByWorkspaceFiltered).mockResolvedValue({
       events: [
@@ -111,7 +111,7 @@ describe('GetComplianceUseCase', () => {
 
   it('uses findByWorkspace when no eventFilter is provided', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     const eventRepo = mockGuardrailEventRepo()
     vi.mocked(eventRepo.findByWorkspace).mockResolvedValue([])
 

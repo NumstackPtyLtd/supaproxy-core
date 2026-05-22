@@ -20,6 +20,7 @@ const REPO_KEYS: (keyof DatabaseAdapter)[] = [
   'orgRepo',
   'workspaceRepo',
   'conversationRepo',
+  'conversationQueryRepo',
   'auditRepo',
   'modelRepo',
   'promptTemplateRepo',
@@ -37,7 +38,8 @@ const REPO_KEYS: (keyof DatabaseAdapter)[] = [
 const REQUIRED_METHODS: Record<string, string[]> = {
   orgRepo: ['findById', 'create', 'updateName', 'findUserByEmail', 'createUser', 'listSettings', 'upsertSetting', 'listTeams', 'createTeam', 'getFirstOrgId'],
   workspaceRepo: ['findById', 'create', 'update', 'listNonArchived', 'findConnections', 'createConnection', 'findTools', 'createTools', 'findConsumers', 'createConsumer', 'findKnowledge', 'findGuardrails', 'enableGuardrail', 'getStats', 'getActiveWorkspaceCount'],
-  conversationRepo: ['findById', 'findLatestByThread', 'create', 'updateStatus', 'closeConversation', 'listWithStats', 'findMessages', 'recordMessage', 'findStats', 'createStats', 'updateStatsComplete', 'getAggregateData'],
+  conversationRepo: ['findById', 'findLatestByThread', 'create', 'updateStatus', 'closeConversation', 'findMessages', 'recordMessage', 'findStats', 'createStats', 'updateStatsComplete', 'getAggregateData'],
+  conversationQueryRepo: ['listWithStats', 'getFilters', 'getTicketSummary', 'getSentimentDistribution', 'getComplianceStats', 'getResolutionDistribution', 'getCategoryDistribution', 'getChannelDistribution', 'getCostAndUsage', 'getRecentConversations'],
   auditRepo: ['create'],
   modelRepo: ['listByProvider', 'listAll'],
   promptTemplateRepo: ['findActive', 'findAllActive', 'findVersions', 'create', 'activate', 'deactivateAllForType'],
@@ -85,6 +87,6 @@ export function validateDatabaseAdapter(adapter: DatabaseAdapter) {
 describe('DatabaseAdapter type', () => {
   it('REPO_KEYS matches all DatabaseAdapter fields', () => {
     // This test ensures we update this file when new repos are added
-    expect(REPO_KEYS.length).toBe(11)
+    expect(REPO_KEYS.length).toBe(12)
   })
 })

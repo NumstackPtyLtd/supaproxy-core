@@ -1,7 +1,8 @@
 import { vi } from 'vitest'
 import type { OrganisationRepository, UserData, OrgSettingData, TeamData } from '../domain/organisation/repository.js'
 import type { WorkspaceRepository, WorkspaceData, ConnectionData, ConsumerData, WorkspaceStatsData, WorkspaceListItemData } from '../domain/workspace/repository.js'
-import type { ConversationRepository, ConversationData, ConversationStatsData as ConvStatsData, ConversationFilterData, ColdTransitionData } from '../domain/conversation/repository.js'
+import type { ConversationRepository, ConversationData, ConversationStatsData as ConvStatsData, ColdTransitionData } from '../domain/conversation/repository.js'
+import type { ConversationQueryRepository } from '../domain/conversation/queryRepository.js'
 import { ConversationStatus } from '../domain/conversation/ConversationStatus.js'
 import { WorkspaceStatus } from '../domain/workspace/WorkspaceStatus.js'
 import type { AuditLogRepository } from '../domain/audit/repository.js'
@@ -157,8 +158,6 @@ export function mockConversationRepo(): ConversationRepository {
     updateRouting: vi.fn().mockResolvedValue(undefined),
     reopenFromCold: vi.fn().mockResolvedValue(undefined),
     closeConversation: vi.fn().mockResolvedValue(undefined),
-    listWithStats: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
-    getFilters: vi.fn().mockResolvedValue({ status: [], consumer: [], category: [], resolution: [] }),
     findMessages: vi.fn().mockResolvedValue([]),
     findMessagesWithAudit: vi.fn().mockResolvedValue([]),
     recordMessage: vi.fn().mockResolvedValue(undefined),
@@ -176,6 +175,13 @@ export function mockConversationRepo(): ConversationRepository {
     batchTransitionToCold: vi.fn().mockResolvedValue(undefined),
     findCloseTransitionCandidates: vi.fn().mockResolvedValue([]),
     batchTransitionToClosed: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+export function mockConversationQueryRepo(): ConversationQueryRepository {
+  return {
+    listWithStats: vi.fn().mockResolvedValue({ rows: [], total: 0 }),
+    getFilters: vi.fn().mockResolvedValue({ status: [], consumer: [], category: [], resolution: [] }),
     getTicketSummary: vi.fn().mockResolvedValue({ open: 0, cold: 0, closed_today: 0, closed_week: 0 }),
     getSentimentDistribution: vi.fn().mockResolvedValue([]),
     getComplianceStats: vi.fn().mockResolvedValue([]),

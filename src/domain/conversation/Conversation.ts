@@ -1,13 +1,8 @@
 import type { ConversationData } from './repository.js'
 import { ConversationStatus } from './ConversationStatus.js'
-import { DomainError } from '../shared/errors.js'
+import { InvalidTransitionError } from '../shared/errors.js'
 
-export class InvalidTransitionError extends DomainError {
-  constructor(from: ConversationStatus, to: ConversationStatus) {
-    super(`Cannot transition from ${from} to ${to}`, 'INVALID_TRANSITION')
-    this.name = 'InvalidTransitionError'
-  }
-}
+export { InvalidTransitionError }
 
 export class Conversation {
   private _status: ConversationStatus

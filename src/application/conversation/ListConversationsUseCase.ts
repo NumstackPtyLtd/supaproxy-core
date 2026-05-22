@@ -1,7 +1,7 @@
-import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 
 export class ListConversationsUseCase {
-  constructor(private readonly conversationRepo: ConversationRepository) {}
+  constructor(private readonly conversationRepo: ConversationQueryRepository) {}
 
   async execute(workspaceId: string, filters: { status?: string; category?: string; resolution?: string; consumer?: string }, limit: number, offset: number) {
     const [result, filterValues] = await Promise.all([
