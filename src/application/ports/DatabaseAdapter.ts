@@ -1,5 +1,5 @@
 /**
- * DatabaseAdapter — the contract every database adapter package must implement.
+ * DatabaseAdapter: the contract every database adapter package must implement.
  *
  * To build a custom adapter (e.g. @supaproxy/postgres, @supaproxy/sqlite):
  *

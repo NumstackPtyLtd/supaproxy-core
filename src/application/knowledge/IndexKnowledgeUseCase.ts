@@ -17,7 +17,7 @@ interface IndexResult {
   chunksIndexed: number;
 }
 
-import { DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_OVERLAP } from '../../defaults.js';
+import { DEFAULT_CHUNK_SIZE, DEFAULT_CHUNK_OVERLAP, CONTENT_HASH_LENGTH } from '../../defaults.js';
 
 function chunkText(text: string, chunkSize = DEFAULT_CHUNK_SIZE, overlap = DEFAULT_CHUNK_OVERLAP): string[] {
   const words = text.split(/\s+/).filter(w => w.length > 0);
@@ -36,7 +36,7 @@ function chunkText(text: string, chunkSize = DEFAULT_CHUNK_SIZE, overlap = DEFAU
 }
 
 function contentHash(text: string): string {
-  return createHash('sha256').update(text).digest('hex').slice(0, 16);
+  return createHash('sha256').update(text).digest('hex').slice(0, CONTENT_HASH_LENGTH);
 }
 
 export class IndexKnowledgeUseCase {

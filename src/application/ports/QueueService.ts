@@ -28,7 +28,7 @@ export interface QueueConfig {
 }
 
 /**
- * QueueService — generic queue abstraction.
+ * QueueService: generic queue abstraction.
  * Product-specific queue names and handlers are defined in core/cloud,
  * not in the adapter. The adapter receives queue configuration at startup.
  */
