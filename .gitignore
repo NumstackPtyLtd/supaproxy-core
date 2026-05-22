@@ -14,3 +14,5 @@ OSS_ROADMAP.md
 DEV.md
 .pnpmfile.cjs
 apps/web/
+data/vectors/
+supaproxy-core

@@ -547,16 +547,7 @@ docs.doc('/api/openapi.json', {
   security: [],
 })
 
-// Serve bundled Redoc JS
-docs.get('/public/redoc.standalone.js', async (c) => {
-  const fs = await import('fs/promises')
-  const path = await import('path')
-  const filePath = path.resolve(import.meta.dirname, '../public/redoc.standalone.js')
-  const js = await fs.readFile(filePath, 'utf-8')
-  return c.body(js, 200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'public, max-age=86400' })
-})
-
-// Redoc UI
+// Redoc UI (loads from CDN)
 docs.get('/docs', (c) => {
   return c.html(html`<!DOCTYPE html>
 <html>
@@ -572,7 +563,7 @@ docs.get('/docs', (c) => {
     <a href="/api/openapi.json" download="supaproxy-openapi.json" style="color: #0066cc; text-decoration: none; font-size: 14px;">Download OpenAPI spec (Postman, Insomnia, etc.)</a>
   </div>
   <redoc spec-url='/api/openapi.json'></redoc>
-  <script src="/public/redoc.standalone.js"></script>
+  <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
 </body>
 </html>`)
 })
