@@ -1,6 +1,7 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { ProviderPlugin } from '@supaproxy/providers'
 import { generateId } from '../../domain/shared/EntityId.js'
+import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
 import { DEFAULT_STATS_ANALYSIS_MAX_TOKENS, DEFAULT_SENTIMENT_SCORE } from '../../defaults.js'
 import { buildAnalysisPrompt } from '../../prompts.js'
 import pino from 'pino'
@@ -15,7 +16,7 @@ export async function generateStats(
   const existing = await conversationRepo.findStats(conversationId)
   let statsId: string
   if (existing) {
-    if (existing.stats_status === 'complete') return
+    if (existing.stats_status === StatsStatus.COMPLETE) return
     statsId = existing.id
   } else {
     statsId = generateId()
@@ -25,7 +26,7 @@ export async function generateStats(
   try {
     const messages = await conversationRepo.findMessages(conversationId)
     if (messages.length === 0) {
-      await conversationRepo.updateStatsStatus(statsId, 'failed')
+      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
 
@@ -34,13 +35,13 @@ export async function generateStats(
     const providerInfo = await conversationRepo.getWorkspaceProviderInfo(conversationId)
 
     if (!providerInfo) {
-      await conversationRepo.updateStatsStatus(statsId, 'failed')
+      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
 
     const resolved = await resolveProvider(providerInfo.provider_type)
     if (!resolved) {
-      await conversationRepo.updateStatsStatus(statsId, 'failed')
+      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
     const { provider, apiKey } = resolved
@@ -79,7 +80,7 @@ export async function generateStats(
 
     log.info({ conversationId, sentiment: parsed.sentiment_score, resolution: parsed.resolution_status }, 'Conversation stats generated')
   } catch (err) {
-    await conversationRepo.updateStatsStatus(statsId, 'failed')
+    await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
     log.error({ conversationId, error: (err as Error).message }, 'Stats generation failed')
   }
 }

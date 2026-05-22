@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { ManageIntegrationUseCase } from './ManageIntegrationUseCase.js'
 import { mockIntegrationRepo } from '../../__tests__/mocks.js'
 import type { IntegrationData } from '../../domain/integration/repository.js'
+import { IntegrationStatus } from '../../domain/integration/IntegrationStatus.js'
 
 describe('ManageIntegrationUseCase', () => {
   function setup() {
@@ -14,8 +15,8 @@ describe('ManageIntegrationUseCase', () => {
     it('returns all integrations for the org', async () => {
       const { integrationRepo, useCase } = setup()
       const integrations: IntegrationData[] = [
-        { id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' },
-        { id: 'i2', org_id: 'org-1', type: 'whatsapp', status: 'active' },
+        { id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE },
+        { id: 'i2', org_id: 'org-1', type: 'whatsapp', status: IntegrationStatus.ACTIVE },
       ]
       vi.mocked(integrationRepo.findByOrg).mockResolvedValue(integrations)
 
@@ -32,25 +33,25 @@ describe('ManageIntegrationUseCase', () => {
       await useCase.activate('org-1', 'slack')
 
       expect(integrationRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ org_id: 'org-1', type: 'slack', status: 'active' }),
+        expect.objectContaining({ org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE }),
       )
     })
 
     it('reactivates an inactive integration', async () => {
       const { integrationRepo, useCase } = setup()
       vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue(
-        { id: 'i1', org_id: 'org-1', type: 'slack', status: 'inactive' },
+        { id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.INACTIVE },
       )
 
       await useCase.activate('org-1', 'slack')
 
-      expect(integrationRepo.updateStatus).toHaveBeenCalledWith('i1', 'active')
+      expect(integrationRepo.updateStatus).toHaveBeenCalledWith('i1', IntegrationStatus.ACTIVE)
     })
 
     it('does nothing if already active', async () => {
       const { integrationRepo, useCase } = setup()
       vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue(
-        { id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' },
+        { id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE },
       )
 
       await useCase.activate('org-1', 'slack')
@@ -64,12 +65,12 @@ describe('ManageIntegrationUseCase', () => {
     it('sets integration to inactive', async () => {
       const { integrationRepo, useCase } = setup()
       vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue(
-        { id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' },
+        { id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE },
       )
 
       await useCase.deactivate('org-1', 'slack')
 
-      expect(integrationRepo.updateStatus).toHaveBeenCalledWith('i1', 'inactive')
+      expect(integrationRepo.updateStatus).toHaveBeenCalledWith('i1', IntegrationStatus.INACTIVE)
     })
 
     it('does nothing if not found', async () => {

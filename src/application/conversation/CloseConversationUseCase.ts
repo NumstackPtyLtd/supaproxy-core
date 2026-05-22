@@ -2,7 +2,9 @@ import type { ConversationRepository } from '../../domain/conversation/repositor
 import type { QueueService } from '../ports/QueueService.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
-import { STATUS_CLOSED, STATUS_COMPLETE, STATUS_PENDING, QUEUE_CONVERSATION_STATS } from '../../defaults.js'
+import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
+import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
+import { QUEUE_CONVERSATION_STATS } from '../../defaults.js'
 
 export class CloseConversationUseCase {
   constructor(
@@ -14,14 +16,14 @@ export class CloseConversationUseCase {
     const conversation = await this.conversationRepo.findById(conversationId)
     if (!conversation) throw new NotFoundError('Conversation', conversationId)
 
-    if (conversation.status !== STATUS_CLOSED) {
+    if (conversation.status !== ConversationStatus.CLOSED) {
       await this.conversationRepo.closeConversation(conversationId)
     }
 
     const existingStats = await this.conversationRepo.findStats(conversationId)
     if (existingStats) {
-      if (existingStats.stats_status !== STATUS_COMPLETE) {
-        await this.conversationRepo.updateStatsStatus(existingStats.id, STATUS_PENDING)
+      if (existingStats.stats_status !== StatsStatus.COMPLETE) {
+        await this.conversationRepo.updateStatsStatus(existingStats.id, StatsStatus.PENDING)
       }
     } else {
       await this.conversationRepo.createStats(generateId(), conversationId)

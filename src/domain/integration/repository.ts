@@ -1,8 +1,10 @@
+import { IntegrationStatus } from './IntegrationStatus.js'
+
 export interface IntegrationData {
   id: string
   org_id: string
   type: string
-  status: 'active' | 'inactive'
+  status: IntegrationStatus
   created_at?: string
   updated_at?: string
 }
@@ -26,7 +28,7 @@ export interface IntegrationRepository {
   findByOrg(orgId: string): Promise<IntegrationData[]>
   findByOrgAndType(orgId: string, type: string): Promise<IntegrationData | null>
   create(data: IntegrationData): Promise<void>
-  updateStatus(id: string, status: 'active' | 'inactive'): Promise<void>
+  updateStatus(id: string, status: IntegrationStatus): Promise<void>
   delete(id: string): Promise<void>
 }
 

@@ -2,7 +2,7 @@ import type { AIContentBlock, AIToolSpec } from '@supaproxy/providers'
 import type { ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
 import type { GuardrailEventRepository, GuardrailEventData } from '../../domain/guardrail/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { STATUS_OPEN } from '../../defaults.js'
+import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
 import pino from 'pino'
 
 const log = pino({ name: 'tool-call-processor' })
@@ -75,7 +75,7 @@ export class ToolCallProcessor {
             outcome: { reason: railResult.reason || null },
             display: plugin?.eventDisplay || [],
             actions: plugin?.eventActions || [],
-            status: STATUS_OPEN,
+            status: ConversationStatus.OPEN,
           })
           continue
         }
@@ -100,7 +100,7 @@ export class ToolCallProcessor {
               outcome: { original_content: resultText.substring(0, 1000), stripped_content: sanitised.stripped.join(', ').substring(0, 500) },
               display: plugin?.eventDisplay || [],
               actions: plugin?.eventActions || [],
-              status: STATUS_OPEN,
+              status: ConversationStatus.OPEN,
             })
           }
           resultText = sanitised.content

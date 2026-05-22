@@ -1,6 +1,6 @@
 import type { IntegrationRepository } from '../../domain/integration/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { STATUS_ACTIVE } from '../../defaults.js'
+import { IntegrationStatus } from '../../domain/integration/IntegrationStatus.js'
 
 export class ManageIntegrationUseCase {
   constructor(private readonly integrationRepo: IntegrationRepository) {}
@@ -12,9 +12,9 @@ export class ManageIntegrationUseCase {
   async activate(orgId: string, type: string): Promise<void> {
     const existing = await this.integrationRepo.findByOrgAndType(orgId, type)
 
-    if (existing && existing.status === STATUS_ACTIVE) return
-    if (existing && existing.status === 'inactive') {
-      await this.integrationRepo.updateStatus(existing.id, STATUS_ACTIVE)
+    if (existing && existing.status === IntegrationStatus.ACTIVE) return
+    if (existing && existing.status === IntegrationStatus.INACTIVE) {
+      await this.integrationRepo.updateStatus(existing.id, IntegrationStatus.ACTIVE)
       return
     }
 
@@ -22,13 +22,13 @@ export class ManageIntegrationUseCase {
       id: generateId(),
       org_id: orgId,
       type,
-      status: STATUS_ACTIVE,
+      status: IntegrationStatus.ACTIVE,
     })
   }
 
   async deactivate(orgId: string, type: string): Promise<void> {
     const existing = await this.integrationRepo.findByOrgAndType(orgId, type)
     if (!existing) return
-    await this.integrationRepo.updateStatus(existing.id, 'inactive')
+    await this.integrationRepo.updateStatus(existing.id, IntegrationStatus.INACTIVE)
   }
 }

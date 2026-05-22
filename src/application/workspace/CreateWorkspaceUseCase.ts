@@ -1,7 +1,8 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId, generateWorkspaceId } from '../../domain/shared/EntityId.js'
-import { DEFAULT_SYSTEM_PROMPT, STATUS_ACTIVE } from '../../defaults.js'
+import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
+import { WorkspaceStatus } from '../../domain/workspace/WorkspaceStatus.js'
 
 interface CreateWorkspaceInput {
   name: string
@@ -31,7 +32,7 @@ export class CreateWorkspaceUseCase {
       systemPrompt: input.systemPrompt || DEFAULT_SYSTEM_PROMPT,
     })
 
-    return { id: wsId, name: input.name, status: STATUS_ACTIVE }
+    return { id: wsId, name: input.name, status: WorkspaceStatus.ACTIVE }
   }
 
   private async resolveTeam(orgId: string, teamId?: string, teamName?: string): Promise<string | null> {
