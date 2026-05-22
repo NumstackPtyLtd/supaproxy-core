@@ -1,7 +1,7 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
-import type { SessionStore } from '../ports/SessionStore.js'
+import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
@@ -60,7 +60,7 @@ export class RouteMessageUseCase {
   private async handleExistingSession(
     input: RouteMessageInput,
     sessionKey: string,
-    existingSession: { workspaceId: string; routedFrom?: string | null; routedFromConversationId?: string | null; generalConversationId?: string | null; pendingRedirect?: boolean },
+    existingSession: RoutingSession,
   ): Promise<RouteMessageOutput> {
     const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
     if (defaultWs && existingSession.workspaceId === defaultWs.id && !existingSession.routedFrom) {
