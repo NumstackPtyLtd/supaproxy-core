@@ -4,7 +4,7 @@ import type { QueueService } from '../ports/QueueService.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { ConsumerPosterRegistry, ColdMessageTarget } from '../ports/ConsumerPoster.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, DEFAULT_STATS_ANALYSIS_MAX_TOKENS, DEFAULT_SENTIMENT_SCORE } from '../../defaults.js'
+import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, DEFAULT_STATS_ANALYSIS_MAX_TOKENS, DEFAULT_SENTIMENT_SCORE, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS } from '../../defaults.js'
 import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE, buildAnalysisPrompt } from '../../prompts.js'
 import pino from 'pino'
 
@@ -25,7 +25,7 @@ export class LifecycleUseCase {
       const ids = coldConvos.map(c => c.id)
       await this.conversationRepo.batchTransitionToCold(ids)
       for (const c of coldConvos) {
-        await this.queueService.addColdMessage({
+        await this.queueService.addJob(QUEUE_COLD_MESSAGES, 'send-cold-message', {
           conversationId: c.id,
           consumerType: c.consumer_type,
           channel: c.channel,
@@ -38,7 +38,7 @@ export class LifecycleUseCase {
     if (closedIds.length > 0) {
       await this.conversationRepo.batchTransitionToClosed(closedIds)
       for (const id of closedIds) {
-        await this.queueService.addStatsJob(id)
+        await this.queueService.addJob(QUEUE_CONVERSATION_STATS, 'generate-stats', { conversationId: id })
       }
     }
   }

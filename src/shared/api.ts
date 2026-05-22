@@ -13,6 +13,7 @@ import type {
 
 export interface HealthResponse {
   status: 'ok';
+  edition: 'core' | 'cloud';
   setup_complete: boolean;
   workspaces: number;
   ai_configured: boolean;

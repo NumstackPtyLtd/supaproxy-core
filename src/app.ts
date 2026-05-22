@@ -32,7 +32,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   })
 
   // Health check
-  app.get('/health', (c) => c.json({ status: 'ok' }))
+  app.get('/health', (c) => c.json({ status: 'ok', edition: 'core' }))
 
   // Models
   app.get('/api/models', async (c) => {
@@ -62,7 +62,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   app.route('/', container.promptRoutes)
   app.route('/', container.guardrailPolicyRoutes)
   app.route('/', container.integrationRoutes)
-
+  if (container.oauthRoutes) app.route('/', container.oauthRoutes)
   // WhatsApp webhook (no auth; Meta needs direct access)
   app.get('/api/webhooks/whatsapp', async (c) => {
     const mode = c.req.query('hub.mode') || ''

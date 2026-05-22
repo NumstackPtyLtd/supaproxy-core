@@ -114,6 +114,7 @@ const McpTestResponse = z.object({
 
 const HealthResponse = z.object({
   status: z.string(),
+  edition: z.enum(['core', 'cloud']),
   setup_complete: z.boolean(),
   workspaces: z.number(),
   ai_configured: z.boolean(),
