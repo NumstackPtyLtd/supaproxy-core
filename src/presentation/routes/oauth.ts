@@ -5,6 +5,7 @@ import type { OAuthCredentialPort } from '../../application/oauth/OAuthCredentia
 import { ExchangeOAuthCodeUseCase } from '../../application/oauth/ExchangeOAuthCodeUseCase.js'
 import { RefreshOAuthTokenUseCase } from '../../application/oauth/RefreshOAuthTokenUseCase.js'
 import { DisconnectOAuthUseCase } from '../../application/oauth/DisconnectOAuthUseCase.js'
+import { FetchOAuthHttpClient } from '../../infrastructure/oauth/FetchOAuthHttpClient.js'
 import { OAUTH_RESPONSE_TYPE, OAUTH_PROMPT, ERROR_PLUGIN_NOT_FOUND, ERROR_NO_ORG, ERROR_NO_CREDENTIALS } from '../../defaults.js'
 import pino from 'pino'
 
@@ -20,8 +21,9 @@ interface OAuthRouteDeps {
 export function createOAuthRoutes(deps: OAuthRouteDeps) {
   const oauth = new Hono()
   const { orgRepo, credentialPort, dashboardUrl } = deps
-  const exchangeUseCase = new ExchangeOAuthCodeUseCase(orgRepo, credentialPort, dashboardUrl)
-  const refreshUseCase = new RefreshOAuthTokenUseCase(orgRepo, credentialPort)
+  const oauthHttp = new FetchOAuthHttpClient()
+  const exchangeUseCase = new ExchangeOAuthCodeUseCase(orgRepo, credentialPort, oauthHttp, dashboardUrl)
+  const refreshUseCase = new RefreshOAuthTokenUseCase(orgRepo, credentialPort, oauthHttp)
   const disconnectUseCase = new DisconnectOAuthUseCase(orgRepo)
 
   oauth.get('/api/oauth/:pluginId/authorize', async (c) => {

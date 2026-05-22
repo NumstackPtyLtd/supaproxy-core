@@ -1,9 +1,7 @@
 import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
-import { safeJsonParse } from '../../shared/json.js'
+import { parseComplianceViolations, parseKnowledgeGaps } from '../../domain/shared/jsonMappers.js'
+import type { ComplianceViolation, KnowledgeGap } from '../../domain/shared/jsonMappers.js'
 import { DEFAULT_DASHBOARD_TOP_GAPS } from '../../defaults.js'
-
-interface ViolationItem { rule: string; description: string }
-interface KnowledgeGapItem { topic: string; [key: string]: unknown }
 
 export class GetDashboardUseCase {
   constructor(private readonly conversationRepo: ConversationQueryRepository) {}
@@ -59,11 +57,11 @@ export class GetDashboardUseCase {
 
   private buildCompliance(rows: Array<{ compliance_violations: string | null; conversation_id: string; created_at: string }>) {
     let totalViolations = 0
-    const recent: Array<ViolationItem & { conversation_id: string; timestamp: string }> = []
+    const recent: Array<ComplianceViolation & { conversation_id: string; timestamp: string }> = []
     const byRule: Record<string, number> = {}
 
     for (const r of rows) {
-      const violations: ViolationItem[] = typeof r.compliance_violations === 'string' ? safeJsonParse<ViolationItem[]>(r.compliance_violations, []) : (r.compliance_violations || [])
+      const violations = parseComplianceViolations(r.compliance_violations)
       totalViolations += violations.length
       for (const v of violations) {
         byRule[v.rule] = (byRule[v.rule] || 0) + 1
@@ -79,7 +77,7 @@ export class GetDashboardUseCase {
   private buildKnowledgeGaps(rows: Array<{ knowledge_gaps: string | null; created_at: string }>) {
     const counts: Record<string, { count: number; last_seen: string }> = {}
     for (const r of rows) {
-      const gaps: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? safeJsonParse<KnowledgeGapItem[]>(r.knowledge_gaps, []) : (r.knowledge_gaps || [])
+      const gaps = parseKnowledgeGaps(r.knowledge_gaps)
       for (const g of gaps) {
         if (!counts[g.topic]) counts[g.topic] = { count: 0, last_seen: r.created_at }
         counts[g.topic].count++

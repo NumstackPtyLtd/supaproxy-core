@@ -3,7 +3,7 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { QueueService } from '../ports/QueueService.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { ConsumerPosterRegistry, ColdMessageTarget } from '../ports/ConsumerPoster.js'
-import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS } from '../../defaults.js'
+import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS, COLD_MESSAGE_TRANSCRIPT_LIMIT } from '../../defaults.js'
 import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE } from '../../prompts.js'
 import { generateStats } from './StatsGenerator.js'
 import pino from 'pino'
@@ -77,7 +77,7 @@ export class LifecycleUseCase {
       if (!resolved) return ''
       const { provider, apiKey } = resolved
       const model = providerInfo.model
-      const transcript = messages.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n\n')
+      const transcript = messages.slice(-COLD_MESSAGE_TRANSCRIPT_LIMIT).map(m => `${m.role}: ${m.content}`).join('\n\n')
       return provider.createSimpleMessage({
         apiKey,
         model,

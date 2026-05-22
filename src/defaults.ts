@@ -21,6 +21,7 @@ export const DEFAULT_CLOSE_TIMEOUT_MINUTES = 60
 export const DEFAULT_MAX_RESPONSE_TOKENS = 4096
 export const DEFAULT_MAX_TOOL_ROUNDS = 10
 export const DEFAULT_COLD_MESSAGE_MAX_TOKENS = 150
+export const COLD_MESSAGE_TRANSCRIPT_LIMIT = 6
 export const DEFAULT_STATS_ANALYSIS_MAX_TOKENS = 1024
 
 // ── Pagination ──
@@ -92,6 +93,13 @@ export const JWT_EXPIRY = '24h'
 // BullMQ worker concurrency
 export const COLD_MESSAGE_CONCURRENCY = 3
 export const STATS_WORKER_CONCURRENCY = 2
+
+// ── Security ──
+
+export const SECRET_KEY_PATTERNS = ['token', 'secret', 'api_key', 'password']
+export const SECURITY_MIN_DAYS = 1
+export const SECURITY_MAX_DAYS = 90
+export const SECURITY_DEFAULT_DAYS = 30
 
 // ── Dashboard ──
 

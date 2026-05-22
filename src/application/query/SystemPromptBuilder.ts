@@ -1,7 +1,6 @@
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
-import { buildScopeEnforcementClause } from '../../prompts.js'
+import { buildScopeEnforcementClause, formatKnowledgeContext } from '../../prompts.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
-import { RetrieveKnowledgeUseCase } from '../knowledge/RetrieveKnowledgeUseCase.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import pino from 'pino'
 
@@ -40,7 +39,7 @@ export async function buildSystemPrompt(
     try {
       const retrieval = await retrieveKnowledge.execute(input.workspaceId, input.queryToForward)
       if (retrieval.chunks.length > 0) {
-        systemPrompt += RetrieveKnowledgeUseCase.formatContext(retrieval.chunks)
+        systemPrompt += formatKnowledgeContext(retrieval.chunks)
         knowledgeChunksUsed = retrieval.chunks.length
       }
     } catch (err) {
