@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.0.0] - 2026-05-22
+
+### Added
+- Domain status enums: `ConversationStatus`, `StatsStatus`, `WorkspaceStatus`, `IntegrationStatus`
+- Branded ID types: `WorkspaceId`, `ConversationId`, `OrganisationId`, `UserId`, `AuditLogId`, `TeamId`
+- Rich aggregate entities: `Conversation`, `Workspace`, `Integration` with behaviour methods
+- `ConversationQueryRepository` interface for dashboard/analytics queries
+- `InvalidTransitionError` in `domain/shared/errors.ts`
+- Value objects: `Email`, `Money`, `Duration` in `domain/shared/valueObjects.ts`
+- Package export: `./domain/conversation-query`
+
+### Changed
+- `DatabaseAdapter` now requires `conversationQueryRepo` property
+- `ConversationRepository` no longer includes dashboard query methods (moved to `ConversationQueryRepository`)
+- Use cases (`ManageConversationUseCase`, `CloseConversationUseCase`, `DeleteWorkspaceUseCase`, `ManageIntegrationUseCase`) use aggregate entities
+- Query use cases (`GetDashboardUseCase`, `ListConversationsUseCase`, `GetComplianceUseCase`, `GetKnowledgeUseCase`) accept `ConversationQueryRepository`
+
+### Breaking
+- Removed `STATUS_ACTIVE`, `STATUS_ARCHIVED`, `STATUS_OPEN`, `STATUS_CLOSED`, `STATUS_COLD`, `STATUS_PENDING`, `STATUS_COMPLETE`, `STATUS_FAILED` from `defaults.ts`. Use enums instead.
+- `DatabaseAdapter` requires new `conversationQueryRepo` field. Adapter packages must provide this.
+
 ## [1.0.0] - 2026-05-20
 
 ### Added
