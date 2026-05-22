@@ -1,5 +1,6 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import { safeJsonParse } from '../../shared/json.js'
+import { DEFAULT_DASHBOARD_TOP_GAPS } from '../../defaults.js'
 
 interface ViolationItem { rule: string; description: string }
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
@@ -86,7 +87,7 @@ export class GetDashboardUseCase {
     }
     const topics = Object.entries(counts)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 5)
+      .slice(0, DEFAULT_DASHBOARD_TOP_GAPS)
       .map(([topic, { count, last_seen }]) => ({ topic, count, last_seen }))
     return { topics }
   }

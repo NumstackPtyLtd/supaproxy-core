@@ -96,7 +96,13 @@ export const JWT_EXPIRY = '24h'
 export const COLD_MESSAGE_CONCURRENCY = 3
 export const STATS_WORKER_CONCURRENCY = 2
 
+// ── Dashboard ──
+
+export const DEFAULT_DASHBOARD_TOP_GAPS = 5
+
 // ── Knowledge retrieval ──
+
+export const CONTENT_HASH_LENGTH = 16
 
 export const DEFAULT_CHUNK_SIZE = 500
 export const DEFAULT_CHUNK_OVERLAP = 50

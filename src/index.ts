@@ -13,7 +13,7 @@ import pino from 'pino'
 import { createContainer } from './container.js'
 import { createApp } from './app.js'
 import { startConsumers, startWorkers } from './startup.js'
-import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, QUEUE_HOST, QUEUE_PORT, SESSION_HOST, SESSION_PORT, DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME } from './config.js'
+import { PORT, DASHBOARD_URL, JWT_SECRET, IS_PRODUCTION, COOKIE_DOMAIN, QUEUE_HOST, QUEUE_PORT, SESSION_HOST, SESSION_PORT, DATABASE_HOST, DATABASE_PORT, DATABASE_USER, DATABASE_PASSWORD, DATABASE_NAME, VECTOR_STORE_PATH } from './config.js'
 import { createAuthRoutes } from '@supaproxy/auth'
 import { registry as guardrailRegistry, executionCatalogue, retrievalCatalogue } from '@supaproxy/guardrails'
 import { generateId, generateWorkspaceId } from './domain/shared/EntityId.js'
@@ -41,7 +41,7 @@ const infra = createMysqlInfra(pool)
 const queueService = createBullMqQueue(QUEUE_HOST, QUEUE_PORT)
 
 // --- Vector store adapter (default: @supaproxy/lancedb) ---
-const vectorStore = createLanceDBVectors(process.env.VECTOR_STORE_PATH ?? './data/vectors')
+const vectorStore = createLanceDBVectors(VECTOR_STORE_PATH)
 
 // --- Session store adapter (default: @supaproxy/redis) ---
 const sessionStore = createRedisSession(SESSION_HOST, SESSION_PORT)

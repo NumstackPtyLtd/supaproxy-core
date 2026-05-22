@@ -54,6 +54,9 @@ export const QUEUE_PORT = requireEnvInt('QUEUE_PORT')
 export const SESSION_HOST = requireEnv('SESSION_HOST')
 export const SESSION_PORT = requireEnvInt('SESSION_PORT')
 
+// Vector store
+export const VECTOR_STORE_PATH = requireEnv('VECTOR_STORE_PATH')
+
 // Audit
 export const LOG_DIR = process.env.SUPAPROXY_LOG_DIR
 
