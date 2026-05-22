@@ -19,15 +19,10 @@ export default defineConfig({
         'src/domain/audit/**',
         'src/application/ports/**',
         'src/shared/**',
-        'src/db/types.ts',
 
-        // Infrastructure requiring external services (MySQL, Redis, Slack, Anthropic, MCP)
-        'src/infrastructure/persistence/**',
+        // Infrastructure requiring external services (Anthropic, MCP)
         'src/infrastructure/ai/**',
         'src/infrastructure/mcp/**',
-        'src/infrastructure/queue/**',
-        'src/infrastructure/consumers/SlackConsumer.ts',
-        'src/infrastructure/auth/SlackIntegrationTester.ts',
 
         // Presentation routes are thin controllers; their logic is tested via use case tests
         'src/presentation/routes/**',
@@ -46,11 +41,6 @@ export default defineConfig({
         'src/startup.ts',
         'src/config.ts',
         'src/openapi.ts',
-
-        // Database setup (requires live MySQL)
-        'src/db/pool.ts',
-        'src/db/migrations.ts',
-        'src/db/seed.ts',
       ],
       thresholds: {
         lines: 80,
