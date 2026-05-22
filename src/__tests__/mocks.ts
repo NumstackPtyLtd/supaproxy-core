@@ -2,6 +2,8 @@ import { vi } from 'vitest'
 import type { OrganisationRepository, UserData, OrgSettingData, TeamData } from '../domain/organisation/repository.js'
 import type { WorkspaceRepository, WorkspaceData, ConnectionData, ConsumerData, WorkspaceStatsData, WorkspaceListItemData } from '../domain/workspace/repository.js'
 import type { ConversationRepository, ConversationData, ConversationStatsData as ConvStatsData, ConversationFilterData, ColdTransitionData } from '../domain/conversation/repository.js'
+import { ConversationStatus } from '../domain/conversation/ConversationStatus.js'
+import { WorkspaceStatus } from '../domain/workspace/WorkspaceStatus.js'
 import type { AuditLogRepository } from '../domain/audit/repository.js'
 import type { IntegrationRepository, EntryPointRepository } from '../domain/integration/repository.js'
 import type { PasswordService } from '../application/ports/PasswordService.js'
@@ -32,7 +34,7 @@ export function stubUser(overrides: Partial<UserData> = {}): UserData {
 export function stubWorkspace(overrides: Partial<WorkspaceData> = {}): WorkspaceData {
   return {
     id: 'ws-test', org_id: 'org-1', team_id: 'team-1', name: 'Test Workspace',
-    status: 'active', model: 'claude-sonnet-4-20250514', provider_type: null,
+    status: WorkspaceStatus.ACTIVE, model: 'claude-sonnet-4-20250514', provider_type: null,
     system_prompt: 'You are helpful.',
     max_tool_rounds: 10, max_thread_history: 50, cold_timeout_minutes: 30,
     close_timeout_minutes: 60, is_default: false, created_by: 'user-1', created_at: '2024-01-01',
@@ -44,7 +46,7 @@ export function stubWorkspace(overrides: Partial<WorkspaceData> = {}): Workspace
 export function stubConversation(overrides: Partial<ConversationData> = {}): ConversationData {
   return {
     id: 'conv-1', workspace_id: 'ws-test', consumer_type: 'api',
-    external_thread_id: 'thread-1', status: 'open', user_id: 'user-1',
+    external_thread_id: 'thread-1', status: ConversationStatus.OPEN, user_id: 'user-1',
     user_name: 'Test User', channel: null, message_count: 2,
     first_message_at: '2024-01-01', last_activity_at: '2024-01-01',
     cold_at: null, closed_at: null,

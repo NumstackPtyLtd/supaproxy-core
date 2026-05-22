@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { ManageEntryPointUseCase } from './ManageEntryPointUseCase.js'
 import { mockIntegrationRepo, mockEntryPointRepo } from '../../__tests__/mocks.js'
 import type { EntryPointData } from '../../domain/integration/repository.js'
+import { IntegrationStatus } from '../../domain/integration/IntegrationStatus.js'
 
 describe('ManageEntryPointUseCase', () => {
   function setup() {
@@ -27,7 +28,7 @@ describe('ManageEntryPointUseCase', () => {
   describe('createEntryPoint', () => {
     it('creates an entry point with non-direct mode by default', async () => {
       const { integrationRepo, entryPointRepo, useCase } = setup()
-      vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' })
+      vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE })
 
       await useCase.createEntryPoint('org-1', 'slack', { channel_id: 'C123', channel_name: '#support' })
 
@@ -44,7 +45,7 @@ describe('ManageEntryPointUseCase', () => {
 
     it('creates an entry point with direct mode', async () => {
       const { integrationRepo, entryPointRepo, useCase } = setup()
-      vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: 'active' })
+      vi.mocked(integrationRepo.findByOrgAndType).mockResolvedValue({ id: 'i1', org_id: 'org-1', type: 'slack', status: IntegrationStatus.ACTIVE })
 
       await useCase.createEntryPoint('org-1', 'slack', {
         channel_id: 'C456',

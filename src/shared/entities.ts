@@ -5,11 +5,11 @@
 
 // ── Conversation lifecycle ──
 
-export type ConversationStatus = 'open' | 'cold' | 'closed';
+export { ConversationStatus } from '../domain/conversation/ConversationStatus.js';
 export type ConsumerType = string;
 export type ResolutionStatus = 'resolved' | 'unresolved' | 'escalated' | 'abandoned';
 export type ConversationCategory = 'query' | 'issue' | 'sales' | 'feedback' | 'support' | 'internal' | 'other';
-export type StatsStatus = 'pending' | 'complete' | 'failed';
+export { StatsStatus } from '../domain/conversation/StatsStatus.js';
 
 export interface Conversation {
   id: string;
@@ -121,7 +121,7 @@ export interface ConversationWithStats extends Conversation {
 
 // ── Workspace ──
 
-export type WorkspaceStatus = 'active' | 'paused' | 'archived';
+export { WorkspaceStatus } from '../domain/workspace/WorkspaceStatus.js';
 export type ConnectionStatus = 'connected' | 'disconnected' | 'error';
 export type ConnectionTransport = 'http' | 'stdio';
 

@@ -1,9 +1,11 @@
+import { WorkspaceStatus } from './WorkspaceStatus.js'
+
 export interface WorkspaceData {
   id: string
   org_id: string | null
   team_id: string | null
   name: string
-  status: 'active' | 'paused' | 'archived'
+  status: WorkspaceStatus
   model: string
   provider_type: string | null
   system_prompt: string | null

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mockConversationRepo, stubConversation } from '../../__tests__/mocks.js'
 import { ManageConversationUseCase } from './ManageConversationUseCase.js'
+import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
 
 describe('ManageConversationUseCase', () => {
   describe('findOrCreate', () => {
     it('returns existing open conversation ID', async () => {
       const repo = mockConversationRepo()
-      const conv = stubConversation({ id: 'conv-open', status: 'open' })
+      const conv = stubConversation({ id: 'conv-open', status: ConversationStatus.OPEN })
 
       vi.mocked(repo.findLatestByThread).mockResolvedValue(conv)
 
@@ -20,7 +21,7 @@ describe('ManageConversationUseCase', () => {
 
     it('reopens cold conversation', async () => {
       const repo = mockConversationRepo()
-      const conv = stubConversation({ id: 'conv-cold', status: 'cold' })
+      const conv = stubConversation({ id: 'conv-cold', status: ConversationStatus.COLD })
 
       vi.mocked(repo.findLatestByThread).mockResolvedValue(conv)
 
@@ -34,7 +35,7 @@ describe('ManageConversationUseCase', () => {
 
     it('creates follow-up for closed conversation with parentId', async () => {
       const repo = mockConversationRepo()
-      const conv = stubConversation({ id: 'conv-closed', status: 'closed' })
+      const conv = stubConversation({ id: 'conv-closed', status: ConversationStatus.CLOSED })
 
       vi.mocked(repo.findLatestByThread).mockResolvedValue(conv)
 

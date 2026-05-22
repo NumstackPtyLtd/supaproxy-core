@@ -1,8 +1,10 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { QueueService } from '../ports/QueueService.js'
+import { Conversation } from '../../domain/conversation/Conversation.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
-import { STATUS_CLOSED, STATUS_COMPLETE, STATUS_PENDING, QUEUE_CONVERSATION_STATS } from '../../defaults.js'
+import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
+import { QUEUE_CONVERSATION_STATS } from '../../defaults.js'
 
 export class CloseConversationUseCase {
   constructor(
@@ -11,17 +13,18 @@ export class CloseConversationUseCase {
   ) {}
 
   async execute(conversationId: string): Promise<void> {
-    const conversation = await this.conversationRepo.findById(conversationId)
-    if (!conversation) throw new NotFoundError('Conversation', conversationId)
+    const data = await this.conversationRepo.findById(conversationId)
+    if (!data) throw new NotFoundError('Conversation', conversationId)
 
-    if (conversation.status !== STATUS_CLOSED) {
+    const conversation = Conversation.fromData(data)
+    if (!conversation.isClosed()) {
       await this.conversationRepo.closeConversation(conversationId)
     }
 
     const existingStats = await this.conversationRepo.findStats(conversationId)
     if (existingStats) {
-      if (existingStats.stats_status !== STATUS_COMPLETE) {
-        await this.conversationRepo.updateStatsStatus(existingStats.id, STATUS_PENDING)
+      if (existingStats.stats_status !== StatsStatus.COMPLETE) {
+        await this.conversationRepo.updateStatsStatus(existingStats.id, StatsStatus.PENDING)
       }
     } else {
       await this.conversationRepo.createStats(generateId(), conversationId)

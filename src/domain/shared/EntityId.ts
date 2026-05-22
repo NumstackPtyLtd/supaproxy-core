@@ -1,7 +1,16 @@
 import { randomBytes } from 'crypto'
+import type { WorkspaceId, ConversationId, AuditLogId } from './ids.js'
 
 export function generateId(): string {
   return randomBytes(16).toString('hex')
+}
+
+export function generateConversationId(): ConversationId {
+  return randomBytes(16).toString('hex') as ConversationId
+}
+
+export function generateAuditLogId(): AuditLogId {
+  return randomBytes(16).toString('hex') as AuditLogId
 }
 
 export function generateSlug(name: string): string {
@@ -12,6 +21,6 @@ export function generateSlug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
-export function generateWorkspaceId(): string {
-  return `ws-${randomBytes(12).toString('hex')}`
+export function generateWorkspaceId(): WorkspaceId {
+  return `ws-${randomBytes(12).toString('hex')}` as WorkspaceId
 }

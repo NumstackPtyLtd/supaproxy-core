@@ -2,12 +2,14 @@ import { describe, it, expect, vi } from 'vitest'
 import { mockConversationRepo, mockQueueService, stubConversation } from '../../__tests__/mocks.js'
 import { CloseConversationUseCase } from './CloseConversationUseCase.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
+import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
+import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
 
 describe('CloseConversationUseCase', () => {
   it('closes conversation and queues stats', async () => {
     const repo = mockConversationRepo()
     const queue = mockQueueService()
-    const conv = stubConversation({ status: 'open' })
+    const conv = stubConversation({ status: ConversationStatus.OPEN })
 
     vi.mocked(repo.findById).mockResolvedValue(conv)
     vi.mocked(repo.findStats).mockResolvedValue(null)
@@ -23,7 +25,7 @@ describe('CloseConversationUseCase', () => {
   it('creates stats if none exist', async () => {
     const repo = mockConversationRepo()
     const queue = mockQueueService()
-    const conv = stubConversation({ status: 'open' })
+    const conv = stubConversation({ status: ConversationStatus.OPEN })
 
     vi.mocked(repo.findById).mockResolvedValue(conv)
     vi.mocked(repo.findStats).mockResolvedValue(null)
@@ -38,8 +40,8 @@ describe('CloseConversationUseCase', () => {
   it('resets existing incomplete stats to pending', async () => {
     const repo = mockConversationRepo()
     const queue = mockQueueService()
-    const conv = stubConversation({ status: 'open' })
-    const stats = { id: 'stats-1', conversation_id: 'conv-1', stats_status: 'failed' as const }
+    const conv = stubConversation({ status: ConversationStatus.OPEN })
+    const stats = { id: 'stats-1', conversation_id: 'conv-1', stats_status: StatsStatus.FAILED }
 
     vi.mocked(repo.findById).mockResolvedValue(conv)
     vi.mocked(repo.findStats).mockResolvedValue(stats as never)
@@ -47,14 +49,14 @@ describe('CloseConversationUseCase', () => {
     const uc = new CloseConversationUseCase(repo, queue)
     await uc.execute('conv-1')
 
-    expect(repo.updateStatsStatus).toHaveBeenCalledWith('stats-1', 'pending')
+    expect(repo.updateStatsStatus).toHaveBeenCalledWith('stats-1', StatsStatus.PENDING)
     expect(repo.createStats).not.toHaveBeenCalled()
   })
 
   it('does not re-close already closed conversation', async () => {
     const repo = mockConversationRepo()
     const queue = mockQueueService()
-    const conv = stubConversation({ status: 'closed' })
+    const conv = stubConversation({ status: ConversationStatus.CLOSED })
 
     vi.mocked(repo.findById).mockResolvedValue(conv)
     vi.mocked(repo.findStats).mockResolvedValue(null)

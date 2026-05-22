@@ -42,18 +42,15 @@ export const DEFAULT_WORKSPACE_NAME = '#general'
 export const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant.'
 export const DEFAULT_RECEPTIONIST_PROMPT = 'You are a helpful receptionist.'
 
-// Status constants
-export const STATUS_ACTIVE = 'active'
-export const STATUS_PAUSED = 'paused'
-export const STATUS_ARCHIVED = 'archived'
-export const STATUS_OPEN = 'open'
-export const STATUS_COLD = 'cold'
-export const STATUS_CLOSED = 'closed'
+// Status enums (canonical source of truth)
+export { ConversationStatus } from './domain/conversation/ConversationStatus.js'
+export { StatsStatus } from './domain/conversation/StatsStatus.js'
+export { WorkspaceStatus } from './domain/workspace/WorkspaceStatus.js'
+export { IntegrationStatus } from './domain/integration/IntegrationStatus.js'
+
+// Connection status (not yet an enum, used by adapter packages)
 export const STATUS_CONNECTED = 'connected'
 export const STATUS_DISCONNECTED = 'disconnected'
-export const STATUS_PENDING = 'pending'
-export const STATUS_COMPLETE = 'complete'
-export const STATUS_FAILED = 'failed'
 export const STATUS_SAVED = 'saved'
 
 // Consumer types

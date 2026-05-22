@@ -1,9 +1,12 @@
+import { ConversationStatus } from './ConversationStatus.js'
+import { StatsStatus } from './StatsStatus.js'
+
 export interface ConversationData {
   id: string
   workspace_id: string
   consumer_type: string
   external_thread_id: string | null
-  status: 'open' | 'cold' | 'closed'
+  status: ConversationStatus
   user_id: string | null
   user_name: string | null
   channel: string | null
@@ -32,7 +35,7 @@ export interface ConversationWithStatsData extends ConversationData {
   tools_used: string | null
   stats_message_count: number | null
   duration_seconds: number | null
-  stats_status: 'pending' | 'complete' | 'failed' | null
+  stats_status: StatsStatus | null
 }
 
 export interface MessageData {
@@ -69,7 +72,7 @@ export interface ConversationStatsData {
   duration_seconds: number
   summary: string | null
   category: string | null
-  stats_status: 'pending' | 'complete' | 'failed'
+  stats_status: StatsStatus
   created_at: string
 }
 
