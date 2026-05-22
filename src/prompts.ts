@@ -142,3 +142,19 @@ export const ERROR_CODES = {
   NO_WORKSPACE_MODEL: 'workspace_model_not_configured',
   INPUT_BLOCKED: 'input_blocked',
 } as const
+
+
+// ── Knowledge context formatting ──
+
+import type { VectorSearchResult } from './application/ports/VectorStore.js'
+
+export function formatKnowledgeContext(chunks: VectorSearchResult[]): string {
+  if (chunks.length === 0) return ''
+
+  const lines = chunks.map((c, i) => {
+    const source = c.metadata?.source_name || 'Knowledge base'
+    return `[${i + 1}] (${source}) ${c.text}`
+  })
+
+  return `\n\n<knowledge_context>\nThe following information was retrieved from the workspace knowledge base. Use it to inform your response where relevant.\n\n${lines.join('\n\n')}\n</knowledge_context>`
+}

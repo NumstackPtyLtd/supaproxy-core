@@ -2,6 +2,8 @@ import type { ConversationRepository } from '../../domain/conversation/repositor
 import type { ProviderPlugin } from '@supaproxy/providers'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
+import { Duration } from '../../domain/shared/valueObjects.js'
+import { parseStatsAnalysis } from '../../domain/shared/jsonMappers.js'
 import { DEFAULT_STATS_ANALYSIS_MAX_TOKENS, DEFAULT_SENTIMENT_SCORE } from '../../defaults.js'
 import { buildAnalysisPrompt } from '../../prompts.js'
 import pino from 'pino'
@@ -48,7 +50,7 @@ export async function generateStats(
     const model = providerInfo.model
 
     const durationSec = timestamps?.first_message_at && timestamps?.closed_at
-      ? Math.round((new Date(timestamps.closed_at).getTime() - new Date(timestamps.first_message_at).getTime()) / 1000)
+      ? Duration.fromMs(new Date(timestamps.closed_at).getTime() - new Date(timestamps.first_message_at).getTime()).seconds
       : 0
 
     const transcript = messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
@@ -59,7 +61,7 @@ export async function generateStats(
       prompt: buildAnalysisPrompt(transcript),
     })
 
-    const parsed = parseAnalysis(analysisText, conversationId)
+    const parsed = parseStatsAnalysis(analysisText)
 
     await conversationRepo.updateStatsComplete(statsId, {
       sentimentScore: (parsed.sentiment_score as number) || DEFAULT_SENTIMENT_SCORE,
@@ -85,15 +87,3 @@ export async function generateStats(
   }
 }
 
-function parseAnalysis(analysisText: string, conversationId: string): Record<string, unknown> {
-  let text = analysisText.trim()
-  if (text.startsWith('```')) {
-    text = text.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim()
-  }
-  try {
-    return JSON.parse(text)
-  } catch (parseErr) {
-    log.error({ conversationId, error: (parseErr as Error).message }, 'Failed to parse stats analysis JSON')
-    return { sentiment_score: DEFAULT_SENTIMENT_SCORE, resolution_status: 'unresolved', summary: '', category: 'other', compliance_violations: [], knowledge_gaps: [], fraud_indicators: [], tools_used: [] }
-  }
-}

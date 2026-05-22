@@ -1,10 +1,8 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js'
-import { safeJsonParse } from '../../shared/json.js'
+import { parseKnowledgeGaps } from '../../domain/shared/jsonMappers.js'
 import { DEFAULT_KNOWLEDGE_GAPS_LIMIT } from '../../defaults.js'
-
-interface KnowledgeGapItem { topic: string; [key: string]: unknown }
 
 export class GetKnowledgeUseCase {
   constructor(
@@ -19,13 +17,11 @@ export class GetKnowledgeUseCase {
       this.conversationQueryRepo.getKnowledgeGapsByWorkspace(workspaceId, DEFAULT_KNOWLEDGE_GAPS_LIMIT),
     ])
 
-    const gaps: Array<KnowledgeGapItem & { conversation_id: string; user_name: string | null; timestamp: string | null }> = []
-    for (const r of gapRows) {
-      const parsed: KnowledgeGapItem[] = typeof r.knowledge_gaps === 'string' ? safeJsonParse<KnowledgeGapItem[]>(r.knowledge_gaps, []) : (r.knowledge_gaps || [])
-      for (const g of parsed) {
-        gaps.push({ ...g, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at })
-      }
-    }
+    const gaps = gapRows.flatMap(r =>
+      parseKnowledgeGaps(r.knowledge_gaps).map(g => ({
+        ...g, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at,
+      }))
+    )
 
     // Check if embedding is available for this workspace's org
     let embeddingAvailable = false

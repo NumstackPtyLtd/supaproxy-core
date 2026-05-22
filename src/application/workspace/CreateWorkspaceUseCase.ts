@@ -1,6 +1,7 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import { generateId, generateWorkspaceId } from '../../domain/shared/EntityId.js'
+import { ConflictError } from '../../domain/shared/errors.js'
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { WorkspaceStatus } from '../../domain/workspace/WorkspaceStatus.js'
 
@@ -47,7 +48,7 @@ export class CreateWorkspaceUseCase {
       await this.orgRepo.createTeam(newTeamId, orgId, teamName)
       return newTeamId
     } catch (err: unknown) {
-      if ((err as { code?: string }).code === 'ER_DUP_ENTRY') {
+      if (err instanceof ConflictError) {
         const retry = await this.orgRepo.findTeamByName(orgId, teamName)
         if (retry) return retry.id
       }

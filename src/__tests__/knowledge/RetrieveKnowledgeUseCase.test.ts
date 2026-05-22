@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RetrieveKnowledgeUseCase } from '../../application/knowledge/RetrieveKnowledgeUseCase.js';
+import { formatKnowledgeContext } from '../../prompts.js';
 import type { EmbeddingService } from '../../application/ports/EmbeddingService.js';
 import type { VectorStore, VectorSearchResult } from '../../application/ports/VectorStore.js';
 
@@ -77,14 +78,14 @@ describe('RetrieveKnowledgeUseCase', () => {
   });
 });
 
-describe('RetrieveKnowledgeUseCase.formatContext', () => {
+describe('formatKnowledgeContext', () => {
   it('formats chunks into prompt context', () => {
     const chunks: VectorSearchResult[] = [
       { id: 'c1', text: 'Customers may return goods within 5 days.', sourceId: 'src-1', score: 0.9, metadata: { source_name: 'Refund Policy' } },
       { id: 'c2', text: 'Cooling-off period under CPA s.16.', sourceId: 'src-2', score: 0.7, metadata: { source_name: 'CPA Regulations' } },
     ];
 
-    const context = RetrieveKnowledgeUseCase.formatContext(chunks);
+    const context = formatKnowledgeContext(chunks);
 
     expect(context).toContain('<knowledge_context>');
     expect(context).toContain('[1] (Refund Policy) Customers may return goods within 5 days.');
@@ -93,7 +94,7 @@ describe('RetrieveKnowledgeUseCase.formatContext', () => {
   });
 
   it('returns empty string for no chunks', () => {
-    expect(RetrieveKnowledgeUseCase.formatContext([])).toBe('');
+    expect(formatKnowledgeContext([])).toBe('');
   });
 
   it('uses fallback source name when metadata missing', () => {
@@ -101,7 +102,7 @@ describe('RetrieveKnowledgeUseCase.formatContext', () => {
       { id: 'c1', text: 'Some text.', sourceId: 'src-1', score: 0.8 },
     ];
 
-    const context = RetrieveKnowledgeUseCase.formatContext(chunks);
+    const context = formatKnowledgeContext(chunks);
     expect(context).toContain('[1] (Knowledge base) Some text.');
   });
 });

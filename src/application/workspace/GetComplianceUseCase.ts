@@ -1,9 +1,7 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 import type { GuardrailEventRepository, GuardrailEventData, GuardrailEventFilter } from '../../domain/guardrail/repository.js'
-import { safeJsonParse } from '../../shared/json.js'
-
-interface ViolationItem { rule: string; description: string }
+import { parseComplianceViolations } from '../../domain/shared/jsonMappers.js'
 
 export class GetComplianceUseCase {
   constructor(
@@ -25,13 +23,11 @@ export class GetComplianceUseCase {
       guardrailEventResult,
     ])
 
-    const violations: Array<ViolationItem & { conversation_id: string; user_name: string | null; timestamp: string | null }> = []
-    for (const r of violationRows) {
-      const parsed: ViolationItem[] = typeof r.compliance_violations === 'string' ? safeJsonParse<ViolationItem[]>(r.compliance_violations, []) : (r.compliance_violations || [])
-      for (const v of parsed) {
-        violations.push({ ...v, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at })
-      }
-    }
+    const violations = violationRows.flatMap(r =>
+      parseComplianceViolations(r.compliance_violations).map(v => ({
+        ...v, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at,
+      }))
+    )
 
     return { guardrails, violations, guardrailEvents: eventResult.events, guardrailEventTotal: eventResult.total }
   }

@@ -1,10 +1,9 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-
-const SECRET_PATTERNS = ['token', 'secret', 'api_key', 'password']
+import { SECRET_KEY_PATTERNS } from '../../defaults.js'
 
 function isSecretKey(key: string): boolean {
-  return SECRET_PATTERNS.some(pattern => key.includes(pattern))
+  return SECRET_KEY_PATTERNS.some(pattern => key.includes(pattern))
 }
 
 export class UpdateOrgSettingUseCase {
