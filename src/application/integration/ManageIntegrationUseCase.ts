@@ -1,4 +1,5 @@
 import type { IntegrationRepository } from '../../domain/integration/repository.js'
+import { Integration } from '../../domain/integration/Integration.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { IntegrationStatus } from '../../domain/integration/IntegrationStatus.js'
 
@@ -12,9 +13,11 @@ export class ManageIntegrationUseCase {
   async activate(orgId: string, type: string): Promise<void> {
     const existing = await this.integrationRepo.findByOrgAndType(orgId, type)
 
-    if (existing && existing.status === IntegrationStatus.ACTIVE) return
-    if (existing && existing.status === IntegrationStatus.INACTIVE) {
-      await this.integrationRepo.updateStatus(existing.id, IntegrationStatus.ACTIVE)
+    if (existing) {
+      const integration = Integration.fromData(existing)
+      if (integration.isActive()) return
+      integration.activate()
+      await this.integrationRepo.updateStatus(existing.id, integration.status)
       return
     }
 
@@ -29,6 +32,8 @@ export class ManageIntegrationUseCase {
   async deactivate(orgId: string, type: string): Promise<void> {
     const existing = await this.integrationRepo.findByOrgAndType(orgId, type)
     if (!existing) return
-    await this.integrationRepo.updateStatus(existing.id, IntegrationStatus.INACTIVE)
+    const integration = Integration.fromData(existing)
+    integration.deactivate()
+    await this.integrationRepo.updateStatus(existing.id, integration.status)
   }
 }

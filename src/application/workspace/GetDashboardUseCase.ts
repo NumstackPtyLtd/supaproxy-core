@@ -1,4 +1,4 @@
-import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 import { safeJsonParse } from '../../shared/json.js'
 import { DEFAULT_DASHBOARD_TOP_GAPS } from '../../defaults.js'
 
@@ -6,7 +6,7 @@ interface ViolationItem { rule: string; description: string }
 interface KnowledgeGapItem { topic: string; [key: string]: unknown }
 
 export class GetDashboardUseCase {
-  constructor(private readonly conversationRepo: ConversationRepository) {}
+  constructor(private readonly conversationRepo: ConversationQueryRepository) {}
 
   async execute(workspaceId: string) {
     const [tickets, sentimentRows, compRows, gapRows, resRows, catRows, chanRows, costUsage, recentConversations] = await Promise.all([

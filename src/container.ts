@@ -115,7 +115,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const { authRoutes, requireAuth } = options
 
   // Infrastructure singletons (from injected database adapter)
-  const { orgRepo, workspaceRepo, conversationRepo, auditRepo, modelRepo } = infra
+  const { orgRepo, workspaceRepo, conversationRepo, conversationQueryRepo, auditRepo, modelRepo } = infra
   // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
@@ -143,20 +143,20 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const getWorkspaceDetailUseCase = new GetWorkspaceDetailUseCase(workspaceRepo)
   const listWorkspacesUseCase = new ListWorkspacesUseCase(workspaceRepo)
   const getWorkspaceSummaryUseCase = new GetWorkspaceSummaryUseCase(workspaceRepo)
-  const getDashboardUseCase = new GetDashboardUseCase(conversationRepo)
+  const getDashboardUseCase = new GetDashboardUseCase(conversationQueryRepo)
   const getActivityUseCase = new GetActivityUseCase(workspaceRepo)
   const deleteConnectionUseCase = new DeleteConnectionUseCase(workspaceRepo)
   const deleteWorkspaceUseCase = new DeleteWorkspaceUseCase(workspaceRepo)
   const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
-  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationRepo, embeddingFactory)
+  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationQueryRepo, embeddingFactory)
   const { guardrailPolicyRepo, integrationRepo, entryPointRepo } = infra
   const guardrailEventRepoForCompliance = infra.guardrailEventRepo
-  const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationRepo, guardrailEventRepoForCompliance)
+  const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationQueryRepo, guardrailEventRepoForCompliance)
   const getModelsUseCase = new GetModelsUseCase(modelRepo, orgRepo, providerRegistry)
   const getHealthUseCase = new GetHealthUseCase(orgRepo, workspaceRepo, providerRegistry)
 
-  const listConversationsUseCase = new ListConversationsUseCase(conversationRepo)
+  const listConversationsUseCase = new ListConversationsUseCase(conversationQueryRepo)
   const getConversationDetailUseCase = new GetConversationDetailUseCase(conversationRepo)
   const manageConversationUseCase = new ManageConversationUseCase(conversationRepo)
   const closeConversationUseCase = new CloseConversationUseCase(conversationRepo, queueService)

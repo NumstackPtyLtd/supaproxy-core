@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockConversationRepo } from '../../__tests__/mocks.js'
+import { mockConversationQueryRepo } from '../../__tests__/mocks.js'
 import { ListConversationsUseCase } from './ListConversationsUseCase.js'
 
 describe('ListConversationsUseCase', () => {
   it('returns conversations with total and filters', async () => {
-    const repo = mockConversationRepo()
+    const repo = mockConversationQueryRepo()
     const rows = [{ id: 'conv-1' }, { id: 'conv-2' }]
     const filterValues = { status: ['open', 'closed'], consumer: ['slack'], category: ['billing'], resolution: ['resolved'] }
 

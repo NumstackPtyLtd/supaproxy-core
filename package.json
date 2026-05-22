@@ -9,6 +9,7 @@
     "./domain/organisation": "./src/domain/organisation/repository.ts",
     "./domain/workspace": "./src/domain/workspace/repository.ts",
     "./domain/conversation": "./src/domain/conversation/repository.ts",
+    "./domain/conversation-query": "./src/domain/conversation/queryRepository.ts",
     "./domain/audit": "./src/domain/audit/repository.ts",
     "./domain/guardrail": "./src/domain/guardrail/repository.ts",
     "./domain/guardrail-policy": "./src/domain/guardrail/policyRepository.ts",

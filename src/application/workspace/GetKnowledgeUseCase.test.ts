@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockWorkspaceRepo, mockConversationRepo } from '../../__tests__/mocks.js'
+import { mockWorkspaceRepo, mockConversationQueryRepo } from '../../__tests__/mocks.js'
 import { GetKnowledgeUseCase } from './GetKnowledgeUseCase.js'
 
 describe('GetKnowledgeUseCase', () => {
   it('returns knowledge sources and parsed gaps', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(wsRepo.findKnowledge).mockResolvedValue([
       { id: 'k1', type: 'file', name: 'docs.pdf', config: '{}', status: 'synced', chunks: 10, last_synced_at: '2024-01-01' },
     ])
@@ -25,7 +25,7 @@ describe('GetKnowledgeUseCase', () => {
 
   it('handles null knowledge_gaps gracefully', async () => {
     const wsRepo = mockWorkspaceRepo()
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(convRepo.getKnowledgeGapsByWorkspace).mockResolvedValue([
       { knowledge_gaps: null, conversation_id: 'c1', user_name: null, last_activity_at: null },
     ])

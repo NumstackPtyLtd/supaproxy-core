@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mockConversationRepo } from '../../__tests__/mocks.js'
+import { mockConversationQueryRepo } from '../../__tests__/mocks.js'
 import { GetDashboardUseCase } from './GetDashboardUseCase.js'
 
 describe('GetDashboardUseCase', () => {
   it('returns aggregated dashboard data', async () => {
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(convRepo.getTicketSummary).mockResolvedValue({ open: 5, cold: 2, closed_today: 3, closed_week: 10 })
     vi.mocked(convRepo.getSentimentDistribution).mockResolvedValue([
       { score: 4, count: 5 },
@@ -32,7 +32,7 @@ describe('GetDashboardUseCase', () => {
   })
 
   it('builds compliance violations from JSON strings', async () => {
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(convRepo.getComplianceStats).mockResolvedValue([
       { compliance_violations: JSON.stringify([{ rule: 'PII', description: 'Leaked email' }]), conversation_id: 'c1', created_at: '2024-01-01' },
     ])
@@ -46,7 +46,7 @@ describe('GetDashboardUseCase', () => {
   })
 
   it('builds knowledge gaps from JSON strings', async () => {
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     vi.mocked(convRepo.getKnowledgeGapStats).mockResolvedValue([
       { knowledge_gaps: JSON.stringify([{ topic: 'billing' }]), created_at: '2024-01-01' },
       { knowledge_gaps: JSON.stringify([{ topic: 'billing' }, { topic: 'returns' }]), created_at: '2024-01-02' },
@@ -61,7 +61,7 @@ describe('GetDashboardUseCase', () => {
   })
 
   it('handles zero sentiment data', async () => {
-    const convRepo = mockConversationRepo()
+    const convRepo = mockConversationQueryRepo()
     const useCase = new GetDashboardUseCase(convRepo)
     const result = await useCase.execute('ws-test')
 

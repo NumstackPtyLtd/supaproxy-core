@@ -1,5 +1,5 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
-import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 import type { GuardrailEventRepository, GuardrailEventData, GuardrailEventFilter } from '../../domain/guardrail/repository.js'
 import { safeJsonParse } from '../../shared/json.js'
 
@@ -8,7 +8,7 @@ interface ViolationItem { rule: string; description: string }
 export class GetComplianceUseCase {
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
-    private readonly conversationRepo: ConversationRepository,
+    private readonly conversationQueryRepo: ConversationQueryRepository,
     private readonly guardrailEventRepo?: GuardrailEventRepository,
   ) {}
 
@@ -21,7 +21,7 @@ export class GetComplianceUseCase {
 
     const [guardrails, violationRows, eventResult] = await Promise.all([
       this.workspaceRepo.findGuardrails(workspaceId),
-      this.conversationRepo.getComplianceViolationsByWorkspace(workspaceId, 20),
+      this.conversationQueryRepo.getComplianceViolationsByWorkspace(workspaceId, 20),
       guardrailEventResult,
     ])
 

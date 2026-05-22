@@ -39,3 +39,10 @@ export class ConfigurationError extends DomainError {
     this.name = 'ConfigurationError'
   }
 }
+
+export class InvalidTransitionError extends DomainError {
+  constructor(from: string, to: string) {
+    super(`Cannot transition from ${from} to ${to}`, 'INVALID_TRANSITION')
+    this.name = 'InvalidTransitionError'
+  }
+}

@@ -24,6 +24,7 @@
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
 import type { AuditLogRepository } from '../../domain/audit/repository.js'
 import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
@@ -39,8 +40,11 @@ export interface DatabaseAdapter {
   /** Workspace, connection, consumer, knowledge source, guardrail, and permission persistence */
   workspaceRepo: WorkspaceRepository
 
-  /** Conversation lifecycle, messages, stats, and dashboard queries */
+  /** Conversation lifecycle, messages, and stats */
   conversationRepo: ConversationRepository
+
+  /** Dashboard and analytics queries (read-only) */
+  conversationQueryRepo: ConversationQueryRepository
 
   /** Audit log creation (append-only query log) */
   auditRepo: AuditLogRepository
