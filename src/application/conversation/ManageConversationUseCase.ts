@@ -1,6 +1,6 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
+import { Conversation } from '../../domain/conversation/Conversation.js'
 import { generateId } from '../../domain/shared/EntityId.js'
-import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
 
 export class ManageConversationUseCase {
   constructor(private readonly conversationRepo: ConversationRepository) {}
@@ -9,13 +9,14 @@ export class ManageConversationUseCase {
     const existing = await this.conversationRepo.findLatestByThread(workspaceId, consumerType, externalThreadId)
 
     if (existing) {
-      if (existing.status === ConversationStatus.OPEN || existing.status === ConversationStatus.COLD) {
-        if (existing.status === ConversationStatus.COLD) {
+      const conv = Conversation.fromData(existing)
+      if (conv.isActive()) {
+        if (conv.canReopen()) {
           await this.conversationRepo.reopenFromCold(existing.id)
         }
         return existing.id
       }
-      // Closed - create follow-up
+      // Closed: create follow-up
       const newId = generateId()
       await this.conversationRepo.create({
         id: newId,

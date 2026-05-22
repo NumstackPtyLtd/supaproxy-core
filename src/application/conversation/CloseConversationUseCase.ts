@@ -1,8 +1,8 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { QueueService } from '../ports/QueueService.js'
+import { Conversation } from '../../domain/conversation/Conversation.js'
 import { generateId } from '../../domain/shared/EntityId.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
-import { ConversationStatus } from '../../domain/conversation/ConversationStatus.js'
 import { StatsStatus } from '../../domain/conversation/StatsStatus.js'
 import { QUEUE_CONVERSATION_STATS } from '../../defaults.js'
 
@@ -13,10 +13,11 @@ export class CloseConversationUseCase {
   ) {}
 
   async execute(conversationId: string): Promise<void> {
-    const conversation = await this.conversationRepo.findById(conversationId)
-    if (!conversation) throw new NotFoundError('Conversation', conversationId)
+    const data = await this.conversationRepo.findById(conversationId)
+    if (!data) throw new NotFoundError('Conversation', conversationId)
 
-    if (conversation.status !== ConversationStatus.CLOSED) {
+    const conversation = Conversation.fromData(data)
+    if (!conversation.isClosed()) {
       await this.conversationRepo.closeConversation(conversationId)
     }
 
