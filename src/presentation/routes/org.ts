@@ -8,9 +8,9 @@ import type { TestIntegrationUseCase } from '../../application/organisation/Test
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
 import type { ListOrgConnectionsUseCase } from '../../application/workspace/ListOrgConnectionsUseCase.js'
+import type { GetConnectionToolsUseCase } from '../../application/workspace/GetConnectionToolsUseCase.js'
 import type { ReconnectConnectionUseCase } from '../../application/connector/ReconnectConnectionUseCase.js'
 import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
-import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
@@ -32,9 +32,9 @@ interface OrgRouteDeps {
   testIntegrationUseCase: TestIntegrationUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
   listOrgConnectionsUseCase: ListOrgConnectionsUseCase
+  getConnectionToolsUseCase: GetConnectionToolsUseCase
   reconnectConnectionUseCase: ReconnectConnectionUseCase
   deleteConnectionUseCase: DeleteConnectionUseCase
-  workspaceRepo: WorkspaceRepository
   orgRepo: OrganisationRepository
   providerRegistry?: typeof ProviderRegistryType
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
@@ -145,8 +145,8 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
 
   org.get('/api/org/connections/:id/tools', async (c) => {
     const connectionId = c.req.param('id')
-    const tools = await deps.workspaceRepo.findToolsByConnectionId(connectionId)
-    return c.json({ tools })
+    const result = await deps.getConnectionToolsUseCase.execute(connectionId)
+    return c.json(result)
   })
 
   org.post('/api/org/connections/:id/reconnect', async (c) => {
