@@ -9,6 +9,7 @@ import {
   stubWorkspace,
 } from '../../__tests__/mocks.js'
 import { ExecuteQueryUseCase } from './ExecuteQueryUseCase.js'
+import { ToolCallProcessor } from './ToolCallProcessor.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { GuardrailPlugin } from '@supaproxy/guardrails'
@@ -74,6 +75,7 @@ describe('ExecuteQueryUseCase', () => {
       providerRegistry,
       mcpFactory,
       conversationUseCase,
+      new ToolCallProcessor(),
       resolveGuardrails,
     )
   }
@@ -507,7 +509,7 @@ describe('ExecuteQueryUseCase', () => {
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, resolveExec,
+        conversationUseCase, new ToolCallProcessor(), resolveGuardrails, undefined, resolveExec,
       )
 
       const result = await useCase.execute('ws-test', 'What is my balance?', baseMeta)
@@ -534,7 +536,7 @@ describe('ExecuteQueryUseCase', () => {
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, resolveExec, undefined, eventRepo,
+        conversationUseCase, new ToolCallProcessor(eventRepo), resolveGuardrails, undefined, resolveExec,
       )
 
       await useCase.execute('ws-test', 'What is my balance?', baseMeta)
@@ -571,7 +573,7 @@ describe('ExecuteQueryUseCase', () => {
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, resolveExec,
+        conversationUseCase, new ToolCallProcessor(), resolveGuardrails, undefined, resolveExec,
       )
 
       const result = await useCase.execute('ws-test', 'Please delete my account', baseMeta)
@@ -617,7 +619,7 @@ describe('ExecuteQueryUseCase', () => {
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, undefined, resolveRetrieval,
+        conversationUseCase, new ToolCallProcessor(), resolveGuardrails, undefined, undefined, resolveRetrieval,
       )
 
       await useCase.execute('ws-test', 'Fetch this page', baseMeta)
@@ -672,7 +674,7 @@ describe('ExecuteQueryUseCase', () => {
 
       const useCase = new ExecuteQueryUseCase(
         workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory,
-        conversationUseCase, resolveGuardrails, undefined, undefined, resolveRetrieval, eventRepo,
+        conversationUseCase, new ToolCallProcessor(eventRepo), resolveGuardrails, undefined, undefined, resolveRetrieval,
       )
 
       await useCase.execute('ws-test', 'Search for data', baseMeta)

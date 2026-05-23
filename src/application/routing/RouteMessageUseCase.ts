@@ -1,12 +1,10 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
-import type { OrganisationRepository } from '../../domain/organisation/repository.js'
-import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { SessionStore, RoutingSession } from '../ports/SessionStore.js'
 import { buildSessionKey } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
-import { WorkspaceMatcher } from './WorkspaceMatcher.js'
-import { ReceptionistRouter } from './ReceptionistRouter.js'
+import type { WorkspaceMatcher } from './WorkspaceMatcher.js'
+import type { ReceptionistRouter } from './ReceptionistRouter.js'
 import { SESSION_TTL_SECONDS } from '../../defaults.js'
 import { isRedirectOffer } from '../../prompts.js'
 import pino from 'pino'
@@ -31,20 +29,14 @@ interface RouteMessageOutput {
 }
 
 export class RouteMessageUseCase {
-  private readonly matcher: WorkspaceMatcher
-  private readonly router: ReceptionistRouter
-
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
-    private readonly orgRepo: OrganisationRepository,
-    private readonly conversationRepo: ConversationRepository,
     private readonly sessionStore: SessionStore,
     private readonly executeQueryUseCase: ExecuteQueryUseCase,
     private readonly conversationUseCase: ManageConversationUseCase,
-  ) {
-    this.matcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQueryUseCase)
-    this.router = new ReceptionistRouter(workspaceRepo, conversationRepo, sessionStore, conversationUseCase, this.matcher)
-  }
+    private readonly matcher: WorkspaceMatcher,
+    private readonly router: ReceptionistRouter,
+  ) {}
 
   async execute(input: RouteMessageInput): Promise<RouteMessageOutput> {
     const sessionKey = buildSessionKey(input.consumerType, input.entryPoint, input.userId)
