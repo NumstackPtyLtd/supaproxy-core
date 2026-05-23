@@ -5,20 +5,17 @@ import type { UpdateOrgUseCase } from '../../application/organisation/UpdateOrgU
 import type { GetOrgSettingsUseCase } from '../../application/organisation/GetOrgSettingsUseCase.js'
 import type { UpdateOrgSettingUseCase } from '../../application/organisation/UpdateOrgSettingUseCase.js'
 import type { TestIntegrationUseCase } from '../../application/organisation/TestIntegrationUseCase.js'
-import type { registry as ProviderRegistryType } from '@supaproxy/providers'
+import type { TestProviderUseCase } from '../../application/organisation/TestProviderUseCase.js'
+import type { ListProviderModelsUseCase } from '../../application/organisation/ListProviderModelsUseCase.js'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
 import type { ListOrgConnectionsUseCase } from '../../application/workspace/ListOrgConnectionsUseCase.js'
 import type { GetConnectionToolsUseCase } from '../../application/workspace/GetConnectionToolsUseCase.js'
 import type { ReconnectConnectionUseCase } from '../../application/connector/ReconnectConnectionUseCase.js'
 import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
-import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
-import { DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT } from '../../defaults.js'
-import pino from 'pino'
-
-const log = pino({ name: 'routes/org' })
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import { parsePagination } from '../helpers/parsePagination.js'
 
 const updateOrgSchema = z.object({ name: z.string().min(1).max(255) })
 const updateSettingSchema = z.object({ value: z.string().max(5000) })
@@ -31,21 +28,14 @@ interface OrgRouteDeps {
   getOrgSettingsUseCase: GetOrgSettingsUseCase
   updateOrgSettingUseCase: UpdateOrgSettingUseCase
   testIntegrationUseCase: TestIntegrationUseCase
+  testProviderUseCase: TestProviderUseCase
+  listProviderModelsUseCase: ListProviderModelsUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
   listOrgConnectionsUseCase: ListOrgConnectionsUseCase
   getConnectionToolsUseCase: GetConnectionToolsUseCase
   reconnectConnectionUseCase: ReconnectConnectionUseCase
   deleteConnectionUseCase: DeleteConnectionUseCase
-  orgRepo: OrganisationRepository
-  providerRegistry?: typeof ProviderRegistryType
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
-}
-
-function parsePagination(c: import('hono').Context) {
-  const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
-  const page = parseInt(c.req.query('page') || '0', 10)
-  const search = c.req.query('search') || undefined
-  return { search, limit, page, offset: page * limit }
 }
 
 function getOrg(deps: OrgRouteDeps) {
@@ -55,8 +45,7 @@ function getOrg(deps: OrgRouteDeps) {
       const orgData = await deps.getOrgUseCase.execute(user.org_id)
       return c.json({ org: orgData })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -100,8 +89,7 @@ function testIntegration(deps: OrgRouteDeps) {
       if (!testResult.ok) return c.json({ error: testResult.error }, 400)
       return c.json(testResult.detail || { status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      return c.json({ error: 'integration_test_failed' }, 400)
+      return handleDomainError(c, err)
     }
   }
 }
@@ -111,16 +99,11 @@ function testProvider(deps: OrgRouteDeps) {
     const parsed = await parseBody(c, providerTestSchema)
     if (!parsed.success) return parsed.response
 
-    const provider = deps.providerRegistry?.get(parsed.data.type)
-    if (!provider) return c.json({ error: 'unknown_provider_type' }, 400)
-    if (!provider.testConnection) return c.json({ error: 'provider_no_connection_test' }, 400)
-
     try {
-      const result = await provider.testConnection(parsed.data.api_key)
+      const result = await deps.testProviderUseCase.execute(parsed.data.type, parsed.data.api_key)
       return c.json(result)
     } catch (err) {
-      log.error({ err, type: parsed.data.type }, 'Provider connection test failed')
-      return c.json({ ok: false, chat: false, embedding: false, error: 'provider_test_failed' }, 400)
+      return handleDomainError(c, err)
     }
   }
 }
@@ -130,16 +113,11 @@ function listProviderModels(deps: OrgRouteDeps) {
     const parsed = await parseBody(c, providerTestSchema)
     if (!parsed.success) return parsed.response
 
-    const provider = deps.providerRegistry?.get(parsed.data.type)
-    if (!provider) return c.json({ error: 'unknown_provider_type' }, 400)
-    if (!provider.listModels) return c.json({ error: 'provider_no_model_list' }, 400)
-
     try {
-      const models = await provider.listModels(parsed.data.api_key)
+      const models = await deps.listProviderModelsUseCase.execute(parsed.data.type, parsed.data.api_key)
       return c.json({ models })
     } catch (err) {
-      log.error({ err, type: parsed.data.type }, 'Provider model list failed')
-      return c.json({ error: 'provider_model_list_failed' }, 400)
+      return handleDomainError(c, err)
     }
   }
 }
@@ -166,8 +144,7 @@ function reconnectConnection(deps: OrgRouteDeps) {
       const result = await deps.reconnectConnectionUseCase.execute(c.req.param('id')!)
       return c.json(result)
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }

@@ -12,7 +12,8 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import type { GuardFn } from '../helpers/guardWorkspace.js'
 import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
 
 const log = pino({ name: 'routes/workspace-crud' })
@@ -49,8 +50,6 @@ interface WorkspaceCrudRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
-
 function listTeams(deps: WorkspaceCrudRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
@@ -77,8 +76,7 @@ function createWorkspace(deps: WorkspaceCrudRouteDeps) {
       log.info({ workspace: ws.id, name: ws.name }, 'Workspace created')
       return c.json(ws)
     } catch (err) {
-      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -100,8 +98,7 @@ function getWorkspaceSummary(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
       const workspace = await deps.getWorkspaceSummaryUseCase.execute(c.req.param('id')!)
       return c.json({ workspace })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -114,8 +111,7 @@ function getWorkspaceDetail(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
       const detail = await deps.getWorkspaceDetailUseCase.execute(c.req.param('id')!)
       return c.json(detail)
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -131,8 +127,7 @@ function updateWorkspace(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
       await deps.updateWorkspaceUseCase.execute(c.req.param('id')!, result.data)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -154,9 +149,7 @@ function deleteWorkspace(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
       await deps.deleteWorkspaceUseCase.execute(c.req.param('id')!)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }

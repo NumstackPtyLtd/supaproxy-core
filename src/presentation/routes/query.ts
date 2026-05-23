@@ -6,7 +6,8 @@ import { MAX_QUERY_LENGTH, MAX_HISTORY_ITEMS } from '../../defaults.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
-import { NotFoundError } from '../../domain/shared/errors.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import { createGuardWorkspace, type GuardFn } from '../helpers/guardWorkspace.js'
 
 const queryBodySchema = z.object({
   query: z.string().min(1).max(MAX_QUERY_LENGTH),
@@ -30,8 +31,6 @@ interface QueryRouteDeps {
   tenantService: TenantService
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
-
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
 function executeQuery(deps: QueryRouteDeps, guard: GuardFn) {
   return async (c: import('hono').Context<AuthEnv>) => {
@@ -64,18 +63,13 @@ function executeQuery(deps: QueryRouteDeps, guard: GuardFn) {
         session_id: result.sessionId,
       })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
 
 export function createQueryRoutes(deps: QueryRouteDeps) {
-  function guardWorkspace(workspaceId: string, userOrgId: string) {
-    return deps.workspaceRepo.findById(workspaceId).then(ws => {
-      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-    })
-  }
+  const guardWorkspace = createGuardWorkspace(deps.workspaceRepo, deps.tenantService)
 
   const query = new Hono<AuthEnv>()
 

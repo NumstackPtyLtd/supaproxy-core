@@ -1,27 +1,25 @@
 import { Hono } from 'hono'
 import type { GetActivityUseCase } from '../../application/workspace/GetActivityUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
-import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
-import type { TenantService } from '../../application/ports/TenantService.js'
+import type { UpdateGuardrailEventStatusUseCase } from '../../application/guardrail/UpdateGuardrailEventStatusUseCase.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
+import type { GuardFn } from '../helpers/guardWorkspace.js'
+import { parsePagination } from '../helpers/parsePagination.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
 import { DEFAULT_PAGINATION_LIMIT, MAX_PAGINATION_LIMIT } from '../../defaults.js'
 
 interface WorkspaceActivityRouteDeps {
   getActivityUseCase: GetActivityUseCase
   getComplianceUseCase: GetComplianceUseCase
-  guardrailEventRepo: GuardrailEventRepository
-  tenantService: TenantService
+  updateGuardrailEventStatusUseCase: UpdateGuardrailEventStatusUseCase
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
-
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
 function getActivity(deps: WorkspaceActivityRouteDeps, guard: GuardFn) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     await guard(c.req.param('id')!, user.org_id)
-    const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
-    const offset = parseInt(c.req.query('offset') || '0')
+    const { limit, offset } = parsePagination(c)
     const result = await deps.getActivityUseCase.execute(c.req.param('id')!, limit, offset)
     return c.json({ activity: result.rows, total: result.total })
   }
@@ -60,11 +58,13 @@ function updateGuardrailEventStatus(deps: WorkspaceActivityRouteDeps, guard: Gua
     const user = c.get('user') as AuthUser
     await guard(c.req.param('id')!, user.org_id)
     const body = await c.req.json<{ status: string }>()
-    if (body.status !== 'open' && body.status !== 'flagged' && body.status !== 'dismissed') {
-      return c.json({ error: 'invalid_status' }, 400)
+
+    try {
+      const status = await deps.updateGuardrailEventStatusUseCase.execute(c.req.param('eventId')!, body.status)
+      return c.json({ status })
+    } catch (err) {
+      return handleDomainError(c, err)
     }
-    await deps.guardrailEventRepo.updateStatus(c.req.param('eventId')!, body.status)
-    return c.json({ status: body.status })
   }
 }
 

@@ -5,7 +5,8 @@ import type { GetSecurityOverviewUseCase } from '../../application/guardrail/Get
 import type { CreatePolicyOverrideUseCase } from '../../application/guardrail/CreatePolicyOverrideUseCase.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import { parsePagination } from '../helpers/parsePagination.js'
 
 const setEnforcementSchema = z.object({
   enforcement: z.enum(['mandatory', 'recommended', 'off']),
@@ -33,10 +34,12 @@ function getSecurityOverview(deps: GuardrailPolicyRouteDeps) {
   }
 }
 
+// TODO: Move data merging and filtering into a ListGuardrailPoliciesUseCase
+// or expand ManagePoliciesUseCase.listPoliciesEnriched(orgId, filters).
 function listPolicies(deps: GuardrailPolicyRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const search = c.req.query('search')?.toLowerCase()
+    const { search } = parsePagination(c)
     const enforcementFilter = c.req.query('enforcement')
     const sourceFilter = c.req.query('source')
     const stageFilter = c.req.query('stage')
@@ -84,8 +87,7 @@ function setEnforcement(deps: GuardrailPolicyRouteDeps) {
       await deps.managePoliciesUseCase.setEnforcement(user.org_id, pluginId, body.data.enforcement)
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -107,10 +109,7 @@ function createOverride(deps: GuardrailPolicyRouteDeps) {
       })
       return c.json({ status: 'ok' })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      if (err instanceof NotFoundError) return c.json({ error: 'policy_not_found' }, 404)
-      if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 409)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }

@@ -1,18 +1,16 @@
 import { Hono } from 'hono'
-import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
-import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
-import type { TenantService } from '../../application/ports/TenantService.js'
+import type { ListWorkspaceGuardrailsUseCase } from '../../application/workspace/ListWorkspaceGuardrailsUseCase.js'
+import type { EnableGuardrailUseCase } from '../../application/workspace/EnableGuardrailUseCase.js'
+import type { DisableGuardrailUseCase } from '../../application/workspace/DisableGuardrailUseCase.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
+import type { GuardFn } from '../helpers/guardWorkspace.js'
 
 interface WorkspaceGuardrailRouteDeps {
-  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>>
-  guardrailPolicyRepo: GuardrailPolicyRepository
-  workspaceRepo: WorkspaceRepository
-  tenantService: TenantService
+  listWorkspaceGuardrailsUseCase: ListWorkspaceGuardrailsUseCase
+  enableGuardrailUseCase: EnableGuardrailUseCase
+  disableGuardrailUseCase: DisableGuardrailUseCase
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
-
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
 function listGuardrails(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
   return async (c: import('hono').Context<AuthEnv>) => {
@@ -20,20 +18,7 @@ function listGuardrails(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
     const workspaceId = c.req.param('id')!
     await guard(workspaceId, user.org_id)
 
-    const available = await deps.listAvailableGuardrails(user.org_id)
-    const enabled = await deps.workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
-    const enabledIds = new Set(enabled.map(e => e.guardrail_id))
-
-    const policies = await deps.guardrailPolicyRepo.listByOrg(user.org_id)
-    const policyMap = new Map(policies.map(p => [p.plugin_id, p.enforcement]))
-
-    const guardrails = available.map(g => ({
-      ...g,
-      enabled: enabledIds.has(g.id),
-      workspaceConfig: enabled.find(e => e.guardrail_id === g.id)?.config || null,
-      enforcement: policyMap.get(g.id) || null,
-    }))
-
+    const guardrails = await deps.listWorkspaceGuardrailsUseCase.execute(workspaceId, user.org_id)
     return c.json({ guardrails })
   }
 }
@@ -46,8 +31,7 @@ function enableGuardrail(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
     await guard(workspaceId, user.org_id)
 
     const body = await c.req.json().catch(() => ({})) as { config?: string }
-    const { generateId } = await import('../../domain/shared/EntityId.js')
-    await deps.workspaceRepo.enableGuardrail(generateId(), workspaceId, guardrailId, body.config)
+    await deps.enableGuardrailUseCase.execute(workspaceId, guardrailId, body.config)
 
     return c.json({ ok: true })
   }
@@ -60,7 +44,7 @@ function disableGuardrail(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
     const guardrailId = c.req.param('guardrailId')!
     await guard(workspaceId, user.org_id)
 
-    await deps.workspaceRepo.disableGuardrail(workspaceId, guardrailId)
+    await deps.disableGuardrailUseCase.execute(workspaceId, guardrailId)
 
     return c.json({ ok: true })
   }

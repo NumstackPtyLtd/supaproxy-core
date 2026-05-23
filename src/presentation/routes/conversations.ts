@@ -5,10 +5,11 @@ import type { ListConversationsUseCase } from '../../application/conversation/Li
 import type { GetConversationDetailUseCase } from '../../application/conversation/GetConversationDetailUseCase.js'
 import type { CloseConversationUseCase } from '../../application/conversation/CloseConversationUseCase.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import { createGuardWorkspace, type GuardFn } from '../helpers/guardWorkspace.js'
+import { parsePagination } from '../helpers/parsePagination.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
-import { NotFoundError } from '../../domain/shared/errors.js'
-import { DEFAULT_PAGINATION_LIMIT } from '../../defaults.js'
 
 const log = pino({ name: 'routes/conversations' })
 
@@ -21,15 +22,12 @@ interface ConversationRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
-
 function listConversations(deps: ConversationRouteDeps, guard: GuardFn) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const wsId = c.req.param('id')!
     await guard(wsId, user.org_id)
-    const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
-    const offset = parseInt(c.req.query('offset') || '0')
+    const { limit, offset } = parsePagination(c)
     const filters = {
       status: c.req.query('status'),
       category: c.req.query('category'),
@@ -50,8 +48,7 @@ function getConversationDetail(deps: ConversationRouteDeps, guard: GuardFn) {
       const result = await deps.getConversationDetailUseCase.execute(c.req.param('cid')!)
       return c.json(result)
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -65,18 +62,13 @@ function closeConversation(deps: ConversationRouteDeps, guard: GuardFn) {
       log.info({ conversationId: c.req.param('cid')! }, 'Conversation closed manually, analysis queued')
       return c.json({ status: ConversationStatus.CLOSED, message: ConversationStatus.CLOSED })
     } catch (err) {
-      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
 
 export function createConversationRoutes(deps: ConversationRouteDeps) {
-  function guardWorkspace(workspaceId: string, userOrgId: string) {
-    return deps.workspaceRepo.findById(workspaceId).then(ws => {
-      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-    })
-  }
+  const guardWorkspace = createGuardWorkspace(deps.workspaceRepo, deps.tenantService)
 
   const conversations = new Hono<AuthEnv>()
 

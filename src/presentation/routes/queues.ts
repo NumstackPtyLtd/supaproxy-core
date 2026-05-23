@@ -19,6 +19,7 @@ function listQueues(deps: QueueRouteDeps) {
 function getFailedJobs(deps: QueueRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const name = c.req.param('name')!
+    // TODO: Move queue name validation into ManageQueuesUseCase
     if (!deps.queueService.listQueueNames().includes(name)) {
       return c.json({ error: 'not_found' }, 404)
     }
@@ -30,6 +31,7 @@ function getFailedJobs(deps: QueueRouteDeps) {
 function retryAllFailed(deps: QueueRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const name = c.req.param('name')!
+    // TODO: Move queue name validation into ManageQueuesUseCase
     if (!deps.queueService.listQueueNames().includes(name)) {
       return c.json({ error: 'not_found' }, 404)
     }
@@ -41,6 +43,7 @@ function retryAllFailed(deps: QueueRouteDeps) {
 function drainQueue(deps: QueueRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const name = c.req.param('name')!
+    // TODO: Move queue name validation into ManageQueuesUseCase
     if (!deps.queueService.listQueueNames().includes(name)) {
       return c.json({ error: 'not_found' }, 404)
     }

@@ -2,10 +2,13 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import type { PromptResolver } from '../../application/prompt/PromptResolver.js'
 import type { SavePromptUseCase } from '../../application/prompt/SavePromptUseCase.js'
-import type { PromptTemplateRepository, PromptType, PromptScope } from '../../domain/prompt/repository.js'
+import type { ListPromptsUseCase } from '../../application/prompt/ListPromptsUseCase.js'
+import type { GetPromptVersionsUseCase } from '../../application/prompt/GetPromptVersionsUseCase.js'
+import type { ActivatePromptUseCase } from '../../application/prompt/ActivatePromptUseCase.js'
+import type { PromptType, PromptScope } from '../../domain/prompt/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
-import { ValidationError } from '../../domain/shared/errors.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
 
 const VALID_PROMPT_TYPES: PromptType[] = [
   'receptionist', 'scope_enforcement', 'out_of_scope_message',
@@ -21,16 +24,18 @@ const savePromptSchema = z.object({
 
 interface PromptRouteDeps {
   promptResolver: PromptResolver
-  promptRepo: PromptTemplateRepository
   savePromptUseCase: SavePromptUseCase
+  listPromptsUseCase: ListPromptsUseCase
+  getPromptVersionsUseCase: GetPromptVersionsUseCase
+  activatePromptUseCase: ActivatePromptUseCase
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
 function listPrompts(deps: PromptRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const orgPrompts = await deps.promptRepo.findAllActive('org', user.org_id)
-    return c.json({ prompts: orgPrompts })
+    const prompts = await deps.listPromptsUseCase.execute(user.org_id)
+    return c.json({ prompts })
   }
 }
 
@@ -45,7 +50,7 @@ function getPromptVersions(deps: PromptRouteDeps) {
     const scope = (c.req.query('scope') || 'org') as PromptScope
     const scopeId = c.req.query('scope_id') || user.org_id
 
-    const versions = await deps.promptRepo.findVersions(promptType, scope, scopeId)
+    const versions = await deps.getPromptVersionsUseCase.execute(promptType, scope, scopeId)
     return c.json({ versions })
   }
 }
@@ -76,8 +81,7 @@ function savePrompt(deps: PromptRouteDeps) {
 
       return c.json({ id: result.id, version: result.version })
     } catch (err) {
-      if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-      throw err
+      return handleDomainError(c, err)
     }
   }
 }
@@ -94,8 +98,7 @@ function activatePrompt(deps: PromptRouteDeps) {
     const scope = (c.req.query('scope') || 'org') as PromptScope
     const scopeId = c.req.query('scope_id') || user.org_id
 
-    await deps.promptRepo.deactivateAllForType(promptType, scope, scopeId)
-    await deps.promptRepo.activate(id)
+    await deps.activatePromptUseCase.execute(promptType, id, scope, scopeId)
 
     return c.json({ status: 'activated' })
   }

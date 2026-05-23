@@ -1,19 +1,16 @@
 import { Hono } from 'hono'
 import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
 import type { GetConnectionsUseCase } from '../../application/workspace/GetConnectionsUseCase.js'
-import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
-import type { TenantService } from '../../application/ports/TenantService.js'
+import type { ListWorkspaceConsumersUseCase } from '../../application/workspace/ListWorkspaceConsumersUseCase.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
+import type { GuardFn } from '../helpers/guardWorkspace.js'
 
 interface WorkspaceConnectionRouteDeps {
   deleteConnectionUseCase: DeleteConnectionUseCase
   getConnectionsUseCase: GetConnectionsUseCase
-  workspaceRepo: WorkspaceRepository
-  tenantService: TenantService
+  listWorkspaceConsumersUseCase: ListWorkspaceConsumersUseCase
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
-
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
 function deleteConnection(deps: WorkspaceConnectionRouteDeps) {
   return async (c: import('hono').Context<AuthEnv>) => {
@@ -35,7 +32,7 @@ function listConsumers(deps: WorkspaceConnectionRouteDeps, guard: GuardFn) {
   return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     await guard(c.req.param('id')!, user.org_id)
-    const consumers = await deps.workspaceRepo.findConsumers(c.req.param('id')!)
+    const consumers = await deps.listWorkspaceConsumersUseCase.execute(c.req.param('id')!)
     return c.json({ consumers })
   }
 }

@@ -8,7 +8,9 @@ import { parseBody } from '../middleware/validate.js'
 import { type AuthUser, type AuthEnv } from '../middleware/auth.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
-import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
+import { handleDomainError } from '../helpers/handleDomainError.js'
+import { createGuardWorkspace, type GuardFn } from '../helpers/guardWorkspace.js'
+import { ValidationError, NotFoundError } from '../../domain/shared/errors.js'
 import { MAX_MCP_URL_LENGTH, MAX_MCP_COMMAND_LENGTH, MAX_MCP_ARGS_COUNT, MAX_MCP_HEADER_LENGTH } from '../../defaults.js'
 
 const mcpTestSchema = z.object({ transport: z.enum(['http', 'stdio']).optional(), url: z.string().url().max(MAX_MCP_URL_LENGTH).optional(), command: z.string().max(MAX_MCP_COMMAND_LENGTH).optional(), headers: z.record(z.string().max(MAX_MCP_HEADER_LENGTH)).optional() })
@@ -24,15 +26,6 @@ interface ConnectorRouteDeps {
   workspaceRepo: WorkspaceRepository
   tenantService: TenantService
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
-}
-
-type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
-
-function handleDomainError(c: import('hono').Context, err: unknown) {
-  if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
-  if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
-  if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
-  throw err
 }
 
 function bindConsumerChannel(deps: ConnectorRouteDeps, guard: GuardFn) {
@@ -108,11 +101,7 @@ function saveMcpConnection(deps: ConnectorRouteDeps, guard: GuardFn) {
 }
 
 export function createConnectorRoutes(deps: ConnectorRouteDeps) {
-  function guardWorkspace(workspaceId: string, userOrgId: string) {
-    return deps.workspaceRepo.findById(workspaceId).then(ws => {
-      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-    })
-  }
+  const guardWorkspace = createGuardWorkspace(deps.workspaceRepo, deps.tenantService)
 
   const connectors = new Hono<AuthEnv>()
 
