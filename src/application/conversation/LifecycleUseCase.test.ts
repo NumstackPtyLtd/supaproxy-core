@@ -3,6 +3,7 @@ import {
   mockConversationRepo, mockOrgRepo, mockQueueService, mockPosterRegistry,
 } from '../../__tests__/mocks.js'
 import { LifecycleUseCase } from './LifecycleUseCase.js'
+import { StatsGenerator } from './StatsGenerator.js'
 import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
 import type { ColdTransitionData, ConversationStatsData } from '../../domain/conversation/repository.js'
 
@@ -52,7 +53,17 @@ describe('LifecycleUseCase', () => {
     providerPlugin = mockProviderPlugin()
     providerRegistry = mockProviderRegistry(providerPlugin)
     posterRegistry = mockPosterRegistry()
-    useCase = new LifecycleUseCase(conversationRepo, orgRepo, queueService, providerRegistry, posterRegistry)
+    const resolveProviderSafe = async (pt: string | null) => {
+      const orgSettings = await orgRepo.getSettingValues(['ai_provider_type'])
+      const providerType = pt || orgSettings['ai_provider_type']
+      if (!providerType) return null
+      const keySettings = await orgRepo.getSettingValues([`${providerType}_api_key`, 'ai_api_key'])
+      const apiKey = keySettings[`${providerType}_api_key`] || keySettings['ai_api_key'] || null
+      if (!apiKey) return null
+      return { provider: providerRegistry.get(providerType), apiKey }
+    }
+    const statsGenerator = new StatsGenerator(conversationRepo, resolveProviderSafe)
+    useCase = new LifecycleUseCase(conversationRepo, orgRepo, queueService, providerRegistry, posterRegistry, statsGenerator)
   })
 
   // ── runLifecycleScan ──

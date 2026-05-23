@@ -7,7 +7,7 @@ import { ConfigurationError } from '../../domain/shared/errors.js'
 import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS, COLD_MESSAGE_TRANSCRIPT_LIMIT } from '../../defaults.js'
 import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE } from '../../prompts.js'
 import { resolveProvider } from '../query/ProviderResolver.js'
-import { StatsGenerator } from './StatsGenerator.js'
+import type { StatsGenerator } from './StatsGenerator.js'
 import pino from 'pino'
 
 const log = pino({ name: 'lifecycle-use-case' })
@@ -19,6 +19,7 @@ export class LifecycleUseCase {
     private readonly queueService: QueueService,
     private readonly providerRegistry: typeof ProviderRegistryType,
     private readonly posterRegistry: ConsumerPosterRegistry,
+    private readonly statsGenerator: StatsGenerator,
   ) {}
 
   async runLifecycleScan(): Promise<void> {
@@ -52,8 +53,7 @@ export class LifecycleUseCase {
   }
 
   async generateStats(conversationId: string): Promise<void> {
-    const generator = new StatsGenerator(this.conversationRepo, (pt) => this.resolveOrgProviderSafe(pt))
-    return generator.generate(conversationId)
+    return this.statsGenerator.generate(conversationId)
   }
 
   private async resolveOrgProviderSafe(workspaceProviderType: string | null) {
