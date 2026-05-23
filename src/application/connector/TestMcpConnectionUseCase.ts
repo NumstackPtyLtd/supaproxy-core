@@ -14,7 +14,15 @@ export class TestMcpConnectionUseCase {
   async execute(transport: string, url?: string, command?: string, headers?: Record<string, string>): Promise<TestResult> {
     if (transport === 'http') {
       if (!url) return { ok: false, error: 'Server URL is required' }
-      return this.mcpFactory.testHttp(url, headers)
+      try {
+        return await this.mcpFactory.testHttp(url, headers)
+      } catch (err) {
+        const raw = (err as Error).message
+        const error = raw === 'fetch failed'
+          ? 'Could not reach the server. Check that the URL is correct and the service is running.'
+          : raw
+        return { ok: false, error }
+      }
     }
     return { ok: false, error: 'STDIO connections are tested on first query.' }
   }
