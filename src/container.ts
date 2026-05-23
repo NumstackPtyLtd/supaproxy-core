@@ -16,6 +16,9 @@ import { ProviderEmbeddingServiceFactory } from './infrastructure/ai/EmbeddingSe
 import { PreQueryGuardService } from './application/query/PreQueryGuardService.js'
 import { PromptResolver } from './application/prompt/PromptResolver.js'
 import { SavePromptUseCase } from './application/prompt/SavePromptUseCase.js'
+import { ListPromptsUseCase } from './application/prompt/ListPromptsUseCase.js'
+import { GetPromptVersionsUseCase } from './application/prompt/GetPromptVersionsUseCase.js'
+import { ActivatePromptUseCase } from './application/prompt/ActivatePromptUseCase.js'
 import { NoOpTenantService } from './infrastructure/tenant/NoOpTenantService.js'
 import type { TenantService } from './application/ports/TenantService.js'
 import { registry as consumerRegistry, slackPlugin, whatsappPlugin, apiPlugin, type ConsumerContext, type IncomingMessage, type Workspace } from '@supaproxy/consumers'
@@ -34,6 +37,8 @@ import { UpdateOrgUseCase } from './application/organisation/UpdateOrgUseCase.js
 import { GetOrgSettingsUseCase } from './application/organisation/GetOrgSettingsUseCase.js'
 import { UpdateOrgSettingUseCase } from './application/organisation/UpdateOrgSettingUseCase.js'
 import { TestIntegrationUseCase } from './application/organisation/TestIntegrationUseCase.js'
+import { TestProviderUseCase } from './application/organisation/TestProviderUseCase.js'
+import { ListProviderModelsUseCase } from './application/organisation/ListProviderModelsUseCase.js'
 import { ListOrgUsersUseCase } from './application/organisation/ListOrgUsersUseCase.js'
 import { ListOrgConnectionsUseCase } from './application/workspace/ListOrgConnectionsUseCase.js'
 import { GetConnectionToolsUseCase } from './application/workspace/GetConnectionToolsUseCase.js'
@@ -52,6 +57,12 @@ import { DeleteWorkspaceUseCase } from './application/workspace/DeleteWorkspaceU
 import { PublishWorkspaceUseCase } from './application/workspace/PublishWorkspaceUseCase.js'
 import { GetConnectionsUseCase } from './application/workspace/GetConnectionsUseCase.js'
 import { GetKnowledgeUseCase } from './application/workspace/GetKnowledgeUseCase.js'
+import { CreateKnowledgeSourceUseCase } from './application/workspace/CreateKnowledgeSourceUseCase.js'
+import { DeleteKnowledgeSourceUseCase } from './application/workspace/DeleteKnowledgeSourceUseCase.js'
+import { ListWorkspaceConsumersUseCase } from './application/workspace/ListWorkspaceConsumersUseCase.js'
+import { ListWorkspaceGuardrailsUseCase } from './application/workspace/ListWorkspaceGuardrailsUseCase.js'
+import { EnableGuardrailUseCase } from './application/workspace/EnableGuardrailUseCase.js'
+import { DisableGuardrailUseCase } from './application/workspace/DisableGuardrailUseCase.js'
 import { GetComplianceUseCase } from './application/workspace/GetComplianceUseCase.js'
 import { GetModelsUseCase } from './application/workspace/GetModelsUseCase.js'
 import { GetHealthUseCase } from './application/workspace/GetHealthUseCase.js'
@@ -89,8 +100,16 @@ import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
 import { ManagePoliciesUseCase } from './application/guardrail/ManagePoliciesUseCase.js'
 import { GetSecurityOverviewUseCase } from './application/guardrail/GetSecurityOverviewUseCase.js'
 import { CreatePolicyOverrideUseCase } from './application/guardrail/CreatePolicyOverrideUseCase.js'
+import { UpdateGuardrailEventStatusUseCase } from './application/guardrail/UpdateGuardrailEventStatusUseCase.js'
 import { ManageIntegrationUseCase } from './application/integration/ManageIntegrationUseCase.js'
 import { ManageEntryPointUseCase } from './application/integration/ManageEntryPointUseCase.js'
+
+// Application - OAuth
+import { BuildOAuthAuthorizeUrlUseCase } from './application/oauth/BuildOAuthAuthorizeUrlUseCase.js'
+import { ExchangeOAuthCodeUseCase } from './application/oauth/ExchangeOAuthCodeUseCase.js'
+import { RefreshOAuthTokenUseCase } from './application/oauth/RefreshOAuthTokenUseCase.js'
+import { DisconnectOAuthUseCase } from './application/oauth/DisconnectOAuthUseCase.js'
+import { GetOAuthStatusUseCase } from './application/oauth/GetOAuthStatusUseCase.js'
 
 // Presentation
 import type { Hono } from 'hono'
@@ -146,6 +165,8 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const getOrgSettingsUseCase = new GetOrgSettingsUseCase(orgRepo)
   const updateOrgSettingUseCase = new UpdateOrgSettingUseCase(orgRepo)
   const testIntegrationUseCase = new TestIntegrationUseCase(integrationTester)
+  const testProviderUseCase = new TestProviderUseCase(providerRegistry)
+  const listProviderModelsUseCase = new ListProviderModelsUseCase(providerRegistry)
   const listOrgUsersUseCase = new ListOrgUsersUseCase(orgRepo)
   const listOrgConnectionsUseCase = new ListOrgConnectionsUseCase(workspaceRepo)
   const getConnectionToolsUseCase = new GetConnectionToolsUseCase(workspaceRepo)
@@ -163,6 +184,9 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
   const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationQueryRepo, embeddingFactory)
+  const createKnowledgeSourceUseCase = new CreateKnowledgeSourceUseCase(workspaceRepo, indexKnowledge)
+  const deleteKnowledgeSourceUseCase = new DeleteKnowledgeSourceUseCase(workspaceRepo)
+  const listWorkspaceConsumersUseCase = new ListWorkspaceConsumersUseCase(workspaceRepo)
   const { guardrailPolicyRepo, integrationRepo, entryPointRepo } = infra
   const guardrailEventRepoForCompliance = infra.guardrailEventRepo
   const getComplianceUseCase = new GetComplianceUseCase(workspaceRepo, conversationQueryRepo, guardrailEventRepoForCompliance)
@@ -259,16 +283,29 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQueryUseCase, manageConversationUseCase, workspaceMatcher, receptionistRouter)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
+  // Guardrail event status
+  const updateGuardrailEventStatusUseCase = new UpdateGuardrailEventStatusUseCase(guardrailEventRepo)
+
+  // Workspace guardrails
+  const listWorkspaceGuardrailsUseCase = new ListWorkspaceGuardrailsUseCase(workspaceRepo, guardrailPolicyRepo, listAvailableGuardrails)
+  const enableGuardrailUseCase = new EnableGuardrailUseCase(workspaceRepo)
+  const disableGuardrailUseCase = new DisableGuardrailUseCase(workspaceRepo)
+
+  // Prompt use cases
+  const savePromptUseCase = new SavePromptUseCase(promptTemplateRepo)
+  const listPromptsUseCase = new ListPromptsUseCase(promptTemplateRepo)
+  const getPromptVersionsUseCase = new GetPromptVersionsUseCase(promptTemplateRepo)
+  const activatePromptUseCase = new ActivatePromptUseCase(promptTemplateRepo)
+
   // Build routes (auth routes injected from outside)
-  const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, listOrgConnectionsUseCase, getConnectionToolsUseCase, reconnectConnectionUseCase, deleteConnectionUseCase, orgRepo, requireAuth, providerRegistry })
-  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth, indexKnowledgeUseCase: indexKnowledge })
+  const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, testProviderUseCase, listProviderModelsUseCase, listOrgUsersUseCase, listOrgConnectionsUseCase, getConnectionToolsUseCase, reconnectConnectionUseCase, deleteConnectionUseCase, requireAuth })
+  const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, createKnowledgeSourceUseCase, deleteKnowledgeSourceUseCase, getComplianceUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, updateGuardrailEventStatusUseCase, listWorkspaceGuardrailsUseCase, enableGuardrailUseCase, disableGuardrailUseCase, listWorkspaceConsumersUseCase, orgRepo, workspaceRepo, tenantService, requireAuth })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
   const queryRoutes = createQueryRoutes({ executeQueryUseCase, workspaceRepo, tenantService, requireAuth })
   const queueRoutes = createQueueRoutes({ manageQueuesUseCase, queueService, requireAuth })
   const routeRoutes = createRouteRoutes({ routeMessageUseCase, requireAuth })
-  const savePromptUseCase = new SavePromptUseCase(promptTemplateRepo)
-  const promptRoutes = createPromptRoutes({ promptResolver, promptRepo: promptTemplateRepo, savePromptUseCase, requireAuth })
+  const promptRoutes = createPromptRoutes({ promptResolver, savePromptUseCase, listPromptsUseCase, getPromptVersionsUseCase, activatePromptUseCase, requireAuth })
 
   // Guardrail policies
   const managePoliciesUseCase = new ManagePoliciesUseCase(guardrailPolicyRepo)
@@ -282,9 +319,16 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const integrationRoutes = createIntegrationRoutes({ manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo, requireAuth })
 
   // OAuth routes (optional, only if providers are configured)
-  const oauthRoutes = options.oauth
-    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, credentialPort: options.oauth.credentialPort, oauthHttp: new FetchOAuthHttpClient() })
-    : null
+  let oauthRoutes = null
+  if (options.oauth) {
+    const oauthHttp = new FetchOAuthHttpClient()
+    const buildOAuthAuthorizeUrlUseCase = new BuildOAuthAuthorizeUrlUseCase(orgRepo, options.oauth.credentialPort, options.oauth.dashboardUrl)
+    const exchangeOAuthCodeUseCase = new ExchangeOAuthCodeUseCase(orgRepo, options.oauth.credentialPort, oauthHttp, options.oauth.dashboardUrl)
+    const refreshOAuthTokenUseCase = new RefreshOAuthTokenUseCase(orgRepo, options.oauth.credentialPort, oauthHttp)
+    const disconnectOAuthUseCase = new DisconnectOAuthUseCase(orgRepo)
+    const getOAuthStatusUseCase = new GetOAuthStatusUseCase(orgRepo)
+    oauthRoutes = createOAuthRoutes({ buildOAuthAuthorizeUrlUseCase, exchangeOAuthCodeUseCase, refreshOAuthTokenUseCase, disconnectOAuthUseCase, getOAuthStatusUseCase, dashboardUrl: options.oauth.dashboardUrl, requireAuth })
+  }
 
   const container = {
     // Infrastructure
@@ -294,14 +338,16 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
     // Middleware
     requireAuth,
     // Use cases
-    getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase,
+    getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, testProviderUseCase, listProviderModelsUseCase, listOrgUsersUseCase,
     createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase,
     getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase,
+    createKnowledgeSourceUseCase, deleteKnowledgeSourceUseCase, listWorkspaceConsumersUseCase,
+    listWorkspaceGuardrailsUseCase, enableGuardrailUseCase, disableGuardrailUseCase, updateGuardrailEventStatusUseCase,
     getModelsUseCase, getHealthUseCase,
     listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase,
     manageConversationUseCase, lifecycleUseCase,
     testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase,
-    executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase,
+    executeQueryUseCase, routeMessageUseCase, manageQueuesUseCase, savePromptUseCase, listPromptsUseCase, getPromptVersionsUseCase, activatePromptUseCase,
     managePoliciesUseCase, getSecurityOverviewUseCase, createPolicyOverrideUseCase,
     manageIntegrationUseCase, manageEntryPointUseCase, integrationRepo, entryPointRepo,
     // Routes

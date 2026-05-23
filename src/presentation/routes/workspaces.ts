@@ -9,16 +9,21 @@ import type { GetActivityUseCase } from '../../application/workspace/GetActivity
 import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
 import type { GetConnectionsUseCase } from '../../application/workspace/GetConnectionsUseCase.js'
 import type { GetKnowledgeUseCase } from '../../application/workspace/GetKnowledgeUseCase.js'
-import type { IndexKnowledgeForWorkspaceUseCase } from '../../application/knowledge/IndexKnowledgeForWorkspaceUseCase.js'
+import type { CreateKnowledgeSourceUseCase } from '../../application/workspace/CreateKnowledgeSourceUseCase.js'
+import type { DeleteKnowledgeSourceUseCase } from '../../application/workspace/DeleteKnowledgeSourceUseCase.js'
 import type { GetComplianceUseCase } from '../../application/workspace/GetComplianceUseCase.js'
 import type { DeleteWorkspaceUseCase } from '../../application/workspace/DeleteWorkspaceUseCase.js'
 import type { PublishWorkspaceUseCase } from '../../application/workspace/PublishWorkspaceUseCase.js'
-import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
-import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
+import type { UpdateGuardrailEventStatusUseCase } from '../../application/guardrail/UpdateGuardrailEventStatusUseCase.js'
+import type { ListWorkspaceGuardrailsUseCase } from '../../application/workspace/ListWorkspaceGuardrailsUseCase.js'
+import type { EnableGuardrailUseCase } from '../../application/workspace/EnableGuardrailUseCase.js'
+import type { DisableGuardrailUseCase } from '../../application/workspace/DisableGuardrailUseCase.js'
+import type { ListWorkspaceConsumersUseCase } from '../../application/workspace/ListWorkspaceConsumersUseCase.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { type AuthEnv } from '../middleware/auth.js'
+import { createGuardWorkspace } from '../helpers/guardWorkspace.js'
 import { createWorkspaceKnowledgeRoutes } from './workspace-knowledge.js'
 import { createWorkspaceActivityRoutes } from './workspace-activity.js'
 import { createWorkspaceGuardrailRoutes } from './workspace-guardrails.js'
@@ -37,13 +42,16 @@ interface WorkspaceRouteDeps {
   deleteConnectionUseCase: DeleteConnectionUseCase
   getConnectionsUseCase: GetConnectionsUseCase
   getKnowledgeUseCase: GetKnowledgeUseCase
-  indexKnowledgeUseCase?: IndexKnowledgeForWorkspaceUseCase
+  createKnowledgeSourceUseCase: CreateKnowledgeSourceUseCase
+  deleteKnowledgeSourceUseCase: DeleteKnowledgeSourceUseCase
   getComplianceUseCase: GetComplianceUseCase
   deleteWorkspaceUseCase: DeleteWorkspaceUseCase
   publishWorkspaceUseCase: PublishWorkspaceUseCase
-  guardrailEventRepo: GuardrailEventRepository
-  guardrailPolicyRepo: GuardrailPolicyRepository
-  listAvailableGuardrails: (orgId: string) => Promise<Array<{ id: string; name: string; description: string; stage: string; source: 'core' | 'marketplace'; configSchema: { fields: Array<{ name: string; label: string; type: string; required?: boolean; placeholder?: string; helpText?: string; options?: Array<{ value: string; label: string }>; defaultValue?: string | boolean | number }> } }>>
+  updateGuardrailEventStatusUseCase: UpdateGuardrailEventStatusUseCase
+  listWorkspaceGuardrailsUseCase: ListWorkspaceGuardrailsUseCase
+  enableGuardrailUseCase: EnableGuardrailUseCase
+  disableGuardrailUseCase: DisableGuardrailUseCase
+  listWorkspaceConsumersUseCase: ListWorkspaceConsumersUseCase
   orgRepo: OrganisationRepository
   workspaceRepo: WorkspaceRepository
   tenantService: TenantService
@@ -58,43 +66,35 @@ export function createWorkspaceRoutes(deps: WorkspaceRouteDeps) {
   workspaces.use('/api/teams', deps.requireAuth)
   workspaces.use('/api/connections/*', deps.requireAuth)
 
-  // Helper: verify workspace belongs to user's org (delegates to tenant service)
-  async function guardWorkspace(workspaceId: string, userOrgId: string) {
-    const ws = await deps.workspaceRepo.findById(workspaceId)
-    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-  }
+  const guardWorkspace = createGuardWorkspace(deps.workspaceRepo, deps.tenantService)
 
   // ── Mount sub-routes ──
 
   workspaces.route('/', createWorkspaceKnowledgeRoutes({
     getKnowledgeUseCase: deps.getKnowledgeUseCase,
-    indexKnowledgeUseCase: deps.indexKnowledgeUseCase,
-    workspaceRepo: deps.workspaceRepo,
-    tenantService: deps.tenantService,
+    createKnowledgeSourceUseCase: deps.createKnowledgeSourceUseCase,
+    deleteKnowledgeSourceUseCase: deps.deleteKnowledgeSourceUseCase,
     requireAuth: deps.requireAuth,
   }, guardWorkspace))
 
   workspaces.route('/', createWorkspaceActivityRoutes({
     getActivityUseCase: deps.getActivityUseCase,
     getComplianceUseCase: deps.getComplianceUseCase,
-    guardrailEventRepo: deps.guardrailEventRepo,
-    tenantService: deps.tenantService,
+    updateGuardrailEventStatusUseCase: deps.updateGuardrailEventStatusUseCase,
     requireAuth: deps.requireAuth,
   }, guardWorkspace))
 
   workspaces.route('/', createWorkspaceGuardrailRoutes({
-    listAvailableGuardrails: deps.listAvailableGuardrails,
-    guardrailPolicyRepo: deps.guardrailPolicyRepo,
-    workspaceRepo: deps.workspaceRepo,
-    tenantService: deps.tenantService,
+    listWorkspaceGuardrailsUseCase: deps.listWorkspaceGuardrailsUseCase,
+    enableGuardrailUseCase: deps.enableGuardrailUseCase,
+    disableGuardrailUseCase: deps.disableGuardrailUseCase,
     requireAuth: deps.requireAuth,
   }, guardWorkspace))
 
   workspaces.route('/', createWorkspaceConnectionRoutes({
     deleteConnectionUseCase: deps.deleteConnectionUseCase,
     getConnectionsUseCase: deps.getConnectionsUseCase,
-    workspaceRepo: deps.workspaceRepo,
-    tenantService: deps.tenantService,
+    listWorkspaceConsumersUseCase: deps.listWorkspaceConsumersUseCase,
     requireAuth: deps.requireAuth,
   }, guardWorkspace))
 
