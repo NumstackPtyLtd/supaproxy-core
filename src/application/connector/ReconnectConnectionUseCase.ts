@@ -56,7 +56,9 @@ export class ReconnectConnectionUseCase {
       }
     } catch (err) {
       await this.workspaceRepo.updateConnectionStatus(connectionId, STATUS_DISCONNECTED)
-      return { status: STATUS_DISCONNECTED, tools: 0, message: (err as Error).message }
+      const raw = (err as Error).message
+      const message = raw === 'fetch failed' ? 'Could not reach the server. Check that the URL is correct and the service is running.' : raw
+      return { status: STATUS_DISCONNECTED, tools: 0, message }
     }
   }
 }
