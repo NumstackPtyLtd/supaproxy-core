@@ -156,6 +156,7 @@ export interface WorkspaceRepository {
   listOrgConnections(orgId: string, options: { search?: string; limit: number; offset: number }): Promise<OrgConnectionsResult>
   findConnections(workspaceId: string): Promise<ConnectionData[]>
   findConnectionConfigs(workspaceId: string): Promise<Array<{ name: string; type: string; config: string }>>
+  findConnectionById(connectionId: string): Promise<ConnectionData | null>
   findConnectionByName(workspaceId: string, name: string): Promise<ConnectionData | null>
   createConnection(id: string, workspaceId: string, name: string, type: string, config: string): Promise<void>
   updateConnectionConfig(id: string, config: string): Promise<void>

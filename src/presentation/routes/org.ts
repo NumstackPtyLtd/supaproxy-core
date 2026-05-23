@@ -8,6 +8,8 @@ import type { TestIntegrationUseCase } from '../../application/organisation/Test
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
 import type { ListOrgConnectionsUseCase } from '../../application/workspace/ListOrgConnectionsUseCase.js'
+import type { ReconnectConnectionUseCase } from '../../application/connector/ReconnectConnectionUseCase.js'
+import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
@@ -30,6 +32,8 @@ interface OrgRouteDeps {
   testIntegrationUseCase: TestIntegrationUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
   listOrgConnectionsUseCase: ListOrgConnectionsUseCase
+  reconnectConnectionUseCase: ReconnectConnectionUseCase
+  deleteConnectionUseCase: DeleteConnectionUseCase
   workspaceRepo: WorkspaceRepository
   orgRepo: OrganisationRepository
   providerRegistry?: typeof ProviderRegistryType
@@ -143,6 +147,23 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     const connectionId = c.req.param('id')
     const tools = await deps.workspaceRepo.findToolsByConnectionId(connectionId)
     return c.json({ tools })
+  })
+
+  org.post('/api/org/connections/:id/reconnect', async (c) => {
+    const connectionId = c.req.param('id')
+    try {
+      const result = await deps.reconnectConnectionUseCase.execute(connectionId)
+      return c.json(result)
+    } catch (err) {
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      throw err
+    }
+  })
+
+  org.delete('/api/org/connections/:id', async (c) => {
+    const connectionId = c.req.param('id')
+    await deps.deleteConnectionUseCase.execute(connectionId)
+    return c.json({ status: 'ok' })
   })
 
   org.get('/api/org/users', async (c) => {

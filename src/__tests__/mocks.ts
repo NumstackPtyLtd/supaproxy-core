@@ -110,6 +110,7 @@ export function mockWorkspaceRepo(): WorkspaceRepository {
     getSummary: vi.fn().mockResolvedValue(null),
     listOrgConnections: vi.fn().mockResolvedValue({ connections: [], total: 0 }),
     findToolsByConnectionId: vi.fn().mockResolvedValue([]),
+    findConnectionById: vi.fn().mockResolvedValue(null),
     findConnections: vi.fn().mockResolvedValue([]),
     findConnectionConfigs: vi.fn().mockResolvedValue([]),
     findConnectionByName: vi.fn().mockResolvedValue(null),
