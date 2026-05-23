@@ -69,6 +69,10 @@ import { ConnectConsumerUseCase } from './application/connector/ConnectConsumerU
 // Application - Query
 import { ExecuteQueryUseCase } from './application/query/ExecuteQueryUseCase.js'
 import { ToolCallProcessor } from './application/query/ToolCallProcessor.js'
+import { FetchOAuthHttpClient } from './infrastructure/oauth/FetchOAuthHttpClient.js'
+import { StatsGenerator } from './application/conversation/StatsGenerator.js'
+import { safeJsonParse } from './shared/json.js'
+import { resolveProvider } from './application/query/ProviderResolver.js'
 
 // Application - Routing
 import { RouteMessageUseCase } from './application/routing/RouteMessageUseCase.js'
@@ -163,7 +167,12 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const getConversationDetailUseCase = new GetConversationDetailUseCase(conversationRepo)
   const manageConversationUseCase = new ManageConversationUseCase(conversationRepo)
   const closeConversationUseCase = new CloseConversationUseCase(conversationRepo, queueService)
-  const lifecycleUseCase = new LifecycleUseCase(conversationRepo, orgRepo, queueService, providerRegistry, posterRegistry)
+  const resolveProviderSafe = async (pt: string | null) => {
+    try { return await resolveProvider(orgRepo, providerRegistry, pt) }
+    catch { return null }
+  }
+  const statsGenerator = new StatsGenerator(conversationRepo, resolveProviderSafe)
+  const lifecycleUseCase = new LifecycleUseCase(conversationRepo, orgRepo, queueService, providerRegistry, posterRegistry, statsGenerator)
 
   const testMcpConnectionUseCase = new TestMcpConnectionUseCase(mcpFactory)
   const saveMcpConnectionUseCase = new SaveMcpConnectionUseCase(workspaceRepo, mcpFactory)
@@ -197,7 +206,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
           getWorkspaceForChannel: async (channelId: string): Promise<Workspace | null> => {
             const consumers = await workspaceRepo.findConsumersByType(plugin.type)
             for (const row of consumers) {
-              const cfg = typeof row.config === 'string' ? JSON.parse(row.config) : row.config
+              const cfg = typeof row.config === 'string' ? safeJsonParse<{ channels?: string[] }>(row.config, {}) : row.config
               if ((cfg.channels || []).includes(channelId)) {
                 return { id: row.workspace_id, name: '' }
               }
@@ -268,7 +277,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
 
   // OAuth routes (optional, only if providers are configured)
   const oauthRoutes = options.oauth
-    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, credentialPort: options.oauth.credentialPort })
+    ? createOAuthRoutes({ orgRepo, requireAuth, dashboardUrl: options.oauth.dashboardUrl, credentialPort: options.oauth.credentialPort, oauthHttp: new FetchOAuthHttpClient() })
     : null
 
   const container = {

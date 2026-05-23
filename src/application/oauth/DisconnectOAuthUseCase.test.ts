@@ -41,6 +41,6 @@ describe('DisconnectOAuthUseCase', () => {
   it('throws when no org exists', async () => {
     vi.mocked(orgRepo.getFirstOrgId).mockResolvedValue(null)
 
-    await expect(useCase.execute('test-plugin')).rejects.toThrow('no_org')
+    await expect(useCase.execute('test-plugin')).rejects.toThrow('No organisation configured')
   })
 })

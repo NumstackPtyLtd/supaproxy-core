@@ -51,12 +51,12 @@ describe('RefreshOAuthTokenUseCase', () => {
 
   it('throws when plugin not found', async () => {
     vi.mocked(credentialPort.resolveOAuthConfig).mockResolvedValue(null)
-    await expect(useCase.execute('test-plugin')).rejects.toThrow('plugin_not_found')
+    await expect(useCase.execute('test-plugin')).rejects.toThrow('not found')
   })
 
   it('throws when no refresh token exists', async () => {
     vi.mocked(orgRepo.findSetting).mockResolvedValue(null)
-    await expect(useCase.execute('test-plugin')).rejects.toThrow('no_refresh_token')
+    await expect(useCase.execute('test-plugin')).rejects.toThrow('No refresh token available')
   })
 
   it('throws when token exchange fails', async () => {

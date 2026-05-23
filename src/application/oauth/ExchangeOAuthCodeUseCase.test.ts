@@ -54,17 +54,17 @@ describe('ExchangeOAuthCodeUseCase', () => {
 
   it('throws when plugin not found', async () => {
     vi.mocked(credentialPort.resolveOAuthConfig).mockResolvedValue(null)
-    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('plugin_not_found')
+    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('not found')
   })
 
   it('throws when no org exists', async () => {
     vi.mocked(orgRepo.getFirstOrgId).mockResolvedValue(null)
-    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('no_org')
+    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('No organisation configured')
   })
 
   it('throws when credentials are missing', async () => {
     vi.mocked(credentialPort.resolveCredentials).mockResolvedValue(null)
-    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('no_credentials')
+    await expect(useCase.execute('code', 'test-plugin:nonce')).rejects.toThrow('No OAuth credentials configured')
   })
 
   it('throws when token exchange fails', async () => {
