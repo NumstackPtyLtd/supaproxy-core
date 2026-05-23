@@ -1,11 +1,13 @@
 import type { ConversationRepository } from '../../domain/conversation/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { QueueService } from '../ports/QueueService.js'
-import type { registry as ProviderRegistryType, ProviderPlugin } from '@supaproxy/providers'
+import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ConsumerPosterRegistry, ColdMessageTarget } from '../ports/ConsumerPoster.js'
+import { ConfigurationError } from '../../domain/shared/errors.js'
 import { DEFAULT_COLD_MESSAGE_MAX_TOKENS, QUEUE_COLD_MESSAGES, QUEUE_CONVERSATION_STATS, COLD_MESSAGE_TRANSCRIPT_LIMIT } from '../../defaults.js'
 import { buildColdMessagePrompt, DEFAULT_COLD_FALLBACK_MESSAGE } from '../../prompts.js'
-import { generateStats } from './StatsGenerator.js'
+import { resolveProvider } from '../query/ProviderResolver.js'
+import { StatsGenerator } from './StatsGenerator.js'
 import pino from 'pino'
 
 const log = pino({ name: 'lifecycle-use-case' })
@@ -50,20 +52,17 @@ export class LifecycleUseCase {
   }
 
   async generateStats(conversationId: string): Promise<void> {
-    return generateStats(conversationId, this.conversationRepo, (pt) => this.resolveOrgProvider(pt))
+    const generator = new StatsGenerator(this.conversationRepo, (pt) => this.resolveOrgProviderSafe(pt))
+    return generator.generate(conversationId)
   }
 
-  private async resolveOrgProvider(workspaceProviderType: string | null): Promise<{ provider: ProviderPlugin; apiKey: string } | null> {
-    const orgSettings = await this.orgRepo.getSettingValues(['ai_provider_type'])
-    const providerType = workspaceProviderType || orgSettings['ai_provider_type']
-    if (!providerType) return null
-
-    const keySettings = await this.orgRepo.getSettingValues([`${providerType}_api_key`, 'ai_api_key'])
-    const apiKey = keySettings[`${providerType}_api_key`] || keySettings['ai_api_key'] || null
-    if (!apiKey) return null
-
-    const provider = this.providerRegistry.get(providerType)
-    return { provider, apiKey }
+  private async resolveOrgProviderSafe(workspaceProviderType: string | null) {
+    try {
+      return await resolveProvider(this.orgRepo, this.providerRegistry, workspaceProviderType)
+    } catch (err) {
+      if (err instanceof ConfigurationError) return null
+      throw err
+    }
   }
 
   private async generateColdMessage(conversationId: string): Promise<string> {
@@ -73,14 +72,13 @@ export class LifecycleUseCase {
 
       const providerInfo = await this.conversationRepo.getWorkspaceProviderInfo(conversationId)
       if (!providerInfo) return ''
-      const resolved = await this.resolveOrgProvider(providerInfo.provider_type)
+      const resolved = await this.resolveOrgProviderSafe(providerInfo.provider_type)
       if (!resolved) return ''
       const { provider, apiKey } = resolved
-      const model = providerInfo.model
       const transcript = messages.slice(-COLD_MESSAGE_TRANSCRIPT_LIMIT).map(m => `${m.role}: ${m.content}`).join('\n\n')
       return provider.createSimpleMessage({
         apiKey,
-        model,
+        model: providerInfo.model,
         maxTokens: DEFAULT_COLD_MESSAGE_MAX_TOKENS,
         prompt: buildColdMessagePrompt(transcript),
       })

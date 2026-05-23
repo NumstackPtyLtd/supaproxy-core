@@ -68,9 +68,12 @@ import { ConnectConsumerUseCase } from './application/connector/ConnectConsumerU
 
 // Application - Query
 import { ExecuteQueryUseCase } from './application/query/ExecuteQueryUseCase.js'
+import { ToolCallProcessor } from './application/query/ToolCallProcessor.js'
 
 // Application - Routing
 import { RouteMessageUseCase } from './application/routing/RouteMessageUseCase.js'
+import { WorkspaceMatcher } from './application/routing/WorkspaceMatcher.js'
+import { ReceptionistRouter } from './application/routing/ReceptionistRouter.js'
 
 // Application - Queue
 import { ManageQueuesUseCase } from './application/queue/ManageQueuesUseCase.js'
@@ -233,9 +236,12 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
     getRecentQueryCount: (scope, window) => options.sessionStore.getRecentQueryCount(scope, window),
   }
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, guardrailEventRepo, preQueryGuard, retrieveKnowledge)
+  const toolCallProcessor = new ToolCallProcessor(guardrailEventRepo)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, toolCallProcessor, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, preQueryGuard, retrieveKnowledge)
   const { sessionStore } = options
-  const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQueryUseCase, manageConversationUseCase)
+  const workspaceMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQueryUseCase)
+  const receptionistRouter = new ReceptionistRouter(workspaceRepo, conversationRepo, sessionStore, manageConversationUseCase, workspaceMatcher)
+  const routeMessageUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQueryUseCase, manageConversationUseCase, workspaceMatcher, receptionistRouter)
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
   // Build routes (auth routes injected from outside)

@@ -21,7 +21,7 @@ export class ExchangeOAuthCodeUseCase {
   ) {}
 
   async execute(code: string, state: string): Promise<ExchangeResult> {
-    const pluginId = OAuthState.parse(state)
+    const pluginId = state.split(':')[0] || null
     if (!pluginId) throw new Error(ERROR_PLUGIN_NOT_FOUND)
 
     const config = await this.credentialPort.resolveOAuthConfig(pluginId)
@@ -65,12 +65,5 @@ export class ExchangeOAuthCodeUseCase {
       await this.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_resource_id`, resources[0].id, false)
       await this.orgRepo.upsertSetting(generateId(), orgId, `${pluginId}_resource_url`, resources[0].url || resources[0].name, false)
     }
-  }
-}
-
-class OAuthState {
-  static parse(state: string): string | null {
-    const pluginId = state.split(':')[0]
-    return pluginId || null
   }
 }

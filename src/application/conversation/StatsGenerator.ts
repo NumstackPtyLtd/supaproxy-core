@@ -10,60 +10,70 @@ import pino from 'pino'
 
 const log = pino({ name: 'stats-generator' })
 
-export async function generateStats(
-  conversationId: string,
-  conversationRepo: ConversationRepository,
-  resolveProvider: (providerType: string | null) => Promise<{ provider: ProviderPlugin; apiKey: string } | null>,
-): Promise<void> {
-  const existing = await conversationRepo.findStats(conversationId)
-  let statsId: string
-  if (existing) {
-    if (existing.stats_status === StatsStatus.COMPLETE) return
-    statsId = existing.id
-  } else {
-    statsId = generateId()
-    await conversationRepo.createStats(statsId, conversationId)
+export type ProviderResolver = (providerType: string | null) => Promise<{ provider: ProviderPlugin; apiKey: string } | null>
+
+export class StatsGenerator {
+  constructor(
+    private readonly conversationRepo: ConversationRepository,
+    private readonly resolveProvider: ProviderResolver,
+  ) {}
+
+  async generate(conversationId: string): Promise<void> {
+    const existing = await this.conversationRepo.findStats(conversationId)
+    let statsId: string
+    if (existing) {
+      if (existing.stats_status === StatsStatus.COMPLETE) return
+      statsId = existing.id
+    } else {
+      statsId = generateId()
+      await this.conversationRepo.createStats(statsId, conversationId)
+    }
+
+    try {
+      await this.runAnalysis(statsId, conversationId)
+    } catch (err) {
+      await this.conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
+      log.error({ conversationId, error: (err as Error).message }, 'Stats generation failed')
+    }
   }
 
-  try {
-    const messages = await conversationRepo.findMessages(conversationId)
+  private async runAnalysis(statsId: string, conversationId: string): Promise<void> {
+    const messages = await this.conversationRepo.findMessages(conversationId)
     if (messages.length === 0) {
-      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
+      await this.conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
 
-    const aggregate = await conversationRepo.getAggregateData(conversationId)
-    const timestamps = await conversationRepo.getTimestamps(conversationId)
-    const providerInfo = await conversationRepo.getWorkspaceProviderInfo(conversationId)
+    const aggregate = await this.conversationRepo.getAggregateData(conversationId)
+    const timestamps = await this.conversationRepo.getTimestamps(conversationId)
+    const providerInfo = await this.conversationRepo.getWorkspaceProviderInfo(conversationId)
 
     if (!providerInfo) {
-      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
+      await this.conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
 
-    const resolved = await resolveProvider(providerInfo.provider_type)
+    const resolved = await this.resolveProvider(providerInfo.provider_type)
     if (!resolved) {
-      await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
+      await this.conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
       return
     }
-    const { provider, apiKey } = resolved
-    const model = providerInfo.model
 
     const durationSec = timestamps?.first_message_at && timestamps?.closed_at
       ? Duration.fromMs(new Date(timestamps.closed_at).getTime() - new Date(timestamps.first_message_at).getTime()).seconds
       : 0
 
     const transcript = messages.map(m => `${m.role}: ${m.content}`).join('\n\n')
-    const analysisText = await provider.createSimpleMessage({
-      apiKey,
-      model,
+    const analysisText = await resolved.provider.createSimpleMessage({
+      apiKey: resolved.apiKey,
+      model: providerInfo.model,
       maxTokens: DEFAULT_STATS_ANALYSIS_MAX_TOKENS,
       prompt: buildAnalysisPrompt(transcript),
     })
 
     const parsed = parseStatsAnalysis(analysisText)
 
-    await conversationRepo.updateStatsComplete(statsId, {
+    await this.conversationRepo.updateStatsComplete(statsId, {
       sentimentScore: (parsed.sentiment_score as number) || DEFAULT_SENTIMENT_SCORE,
       resolutionStatus: (parsed.resolution_status as string) || 'unresolved',
       complianceViolations: JSON.stringify(parsed.compliance_violations || []),
@@ -81,9 +91,6 @@ export async function generateStats(
     })
 
     log.info({ conversationId, sentiment: parsed.sentiment_score, resolution: parsed.resolution_status }, 'Conversation stats generated')
-  } catch (err) {
-    await conversationRepo.updateStatsStatus(statsId, StatsStatus.FAILED)
-    log.error({ conversationId, error: (err as Error).message }, 'Stats generation failed')
   }
 }
 

@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mockOrgRepo, mockWorkspaceRepo, mockConversationRepo, mockManageConversationUseCase, stubWorkspace } from '../../__tests__/mocks.js'
 import { RouteMessageUseCase } from './RouteMessageUseCase.js'
+import { WorkspaceMatcher } from './WorkspaceMatcher.js'
+import { ReceptionistRouter } from './ReceptionistRouter.js'
 import type { SessionStore } from '../ports/SessionStore.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
@@ -52,7 +54,11 @@ describe('RouteMessageUseCase', () => {
     workspaceRepo = mockWorkspaceRepo()
     sessionStore = mockSessionStore()
     executeQuery = mockExecuteQuery()
-    useCase = new RouteMessageUseCase(workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, mockManageConversationUseCase() as ManageConversationUseCase)
+    const convRepo = mockConversationRepo()
+    const convUseCase = mockManageConversationUseCase() as ManageConversationUseCase
+    const matcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQuery)
+    const router = new ReceptionistRouter(workspaceRepo, convRepo, sessionStore, convUseCase, matcher)
+    useCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQuery, convUseCase, matcher, router)
   })
 
   it('uses existing session to route directly to workspace', async () => {
@@ -358,7 +364,10 @@ describe('RouteMessageUseCase', () => {
 
   it('records routing metadata on conversation when routing happens', async () => {
     const conversationRepo = mockConversationRepo()
-    const localUseCase = new RouteMessageUseCase(workspaceRepo, orgRepo, conversationRepo, sessionStore, executeQuery, mockManageConversationUseCase() as ManageConversationUseCase)
+    const localConvUseCase = mockManageConversationUseCase() as ManageConversationUseCase
+    const localMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQuery)
+    const localRouter = new ReceptionistRouter(workspaceRepo, conversationRepo, sessionStore, localConvUseCase, localMatcher)
+    const localUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQuery, localConvUseCase, localMatcher, localRouter)
 
     const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
     const targetWs = stubWorkspace({ id: 'ws-insurance', name: 'Insurance' })
@@ -466,9 +475,10 @@ describe('RouteMessageUseCase', () => {
   it('logs messages to #general master conversation after routing', async () => {
     const mockConvUseCase = mockManageConversationUseCase()
 
-    const localUseCase = new RouteMessageUseCase(
-      workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, mockConvUseCase as ManageConversationUseCase,
-    )
+    const localConvRepo = mockConversationRepo()
+    const localMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQuery)
+    const localRouter = new ReceptionistRouter(workspaceRepo, localConvRepo, sessionStore, mockConvUseCase as ManageConversationUseCase, localMatcher)
+    const localUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQuery, mockConvUseCase as ManageConversationUseCase, localMatcher, localRouter)
 
     // Session on target workspace with generalConversationId set
     vi.mocked(sessionStore.get).mockResolvedValue({
@@ -508,9 +518,10 @@ describe('RouteMessageUseCase', () => {
       { role: 'assistant', content: 'Connecting you to Insurance.' },
     ])
 
-    const localUseCase = new RouteMessageUseCase(
-      workspaceRepo, orgRepo, mockConversationRepo(), sessionStore, executeQuery, mockConvUseCase as ManageConversationUseCase,
-    )
+    const localConvRepo = mockConversationRepo()
+    const localMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQuery)
+    const localRouter = new ReceptionistRouter(workspaceRepo, localConvRepo, sessionStore, mockConvUseCase as ManageConversationUseCase, localMatcher)
+    const localUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQuery, mockConvUseCase as ManageConversationUseCase, localMatcher, localRouter)
 
     // Session already routed to insurance with receptionist conversation ID
     vi.mocked(sessionStore.get).mockResolvedValue({

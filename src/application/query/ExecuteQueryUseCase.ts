@@ -3,7 +3,6 @@ import type { OrganisationRepository } from '../../domain/organisation/repositor
 import type { AuditLogRepository } from '../../domain/audit/repository.js'
 import type { ProviderPlugin, registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { GuardrailPlugin, ExecutionRailRegistry, RetrievalRailRegistry } from '@supaproxy/guardrails'
-import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { McpClientFactory, McpConnection } from '../ports/McpClient.js'
 import type { ManageConversationUseCase } from '../conversation/ManageConversationUseCase.js'
 import { generateId } from '../../domain/shared/EntityId.js'
@@ -13,7 +12,8 @@ import { ERROR_CODES } from '../../prompts.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { PreQueryGuardService } from './PreQueryGuardService.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
-import { ToolCallProcessor, type ToolEntry } from './ToolCallProcessor.js'
+import type { ToolCallProcessor } from './ToolCallProcessor.js'
+import type { ToolEntry } from './ToolCallProcessor.js'
 import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, recordMessages, type QueryMeta, type QueryResult, type AgentLoopResult } from './AgentLoopHelpers.js'
 import { resolveProvider } from './ProviderResolver.js'
 import { discoverTools } from './ToolDiscovery.js'
@@ -24,7 +24,6 @@ import pino from 'pino'
 const log = pino({ name: 'execute-query' })
 
 export class ExecuteQueryUseCase {
-  private readonly toolCallProcessor: ToolCallProcessor
   constructor(
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly orgRepo: OrganisationRepository,
@@ -32,16 +31,14 @@ export class ExecuteQueryUseCase {
     private readonly providerRegistry: typeof ProviderRegistryType,
     private readonly mcpFactory: McpClientFactory,
     private readonly conversationUseCase: ManageConversationUseCase,
+    private readonly toolCallProcessor: ToolCallProcessor,
     private readonly resolveGuardrails: (workspaceId: string) => Promise<GuardrailPlugin[]> = async () => [],
     private readonly promptResolver?: PromptResolver,
     private readonly resolveExecutionRails: (workspaceId: string) => Promise<ExecutionRailRegistry | null> = async () => null,
     private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
-    private readonly guardrailEventRepo?: GuardrailEventRepository,
     private readonly preQueryGuard?: PreQueryGuardService,
     private readonly retrieveKnowledge?: RetrieveKnowledgeForWorkspaceUseCase,
-  ) {
-    this.toolCallProcessor = new ToolCallProcessor(guardrailEventRepo)
-  }
+  ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
     const startTime = Date.now()
