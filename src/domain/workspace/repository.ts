@@ -101,6 +101,33 @@ export interface WorkspaceListItemData {
   cost_mtd: number
 }
 
+export interface OrgConnectionData {
+  id: string
+  workspace_id: string
+  workspace_name: string
+  name: string
+  type: string
+  status: string
+  tool_count: number
+}
+
+export interface OrgToolData {
+  id: string
+  connection_id: string
+  connection_name: string
+  name: string
+  description: string | null
+  is_write: boolean
+  workspace_id: string
+  workspace_name: string
+}
+
+export interface OrgConnectionsResult {
+  connections: OrgConnectionData[]
+  tools: OrgToolData[]
+  total: number
+}
+
 export interface ActivityLogData {
   id: string
   consumer_type: string | null
@@ -127,6 +154,7 @@ export interface WorkspaceRepository {
   listNonArchived(orgId: string | null): Promise<WorkspaceListItemData[]>
   getSummary(id: string): Promise<WorkspaceData | null>
 
+  listOrgConnections(orgId: string, options: { search?: string; limit: number; offset: number }): Promise<OrgConnectionsResult>
   findConnections(workspaceId: string): Promise<ConnectionData[]>
   findConnectionConfigs(workspaceId: string): Promise<Array<{ name: string; type: string; config: string }>>
   findConnectionByName(workspaceId: string, name: string): Promise<ConnectionData | null>

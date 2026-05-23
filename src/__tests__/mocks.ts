@@ -108,6 +108,7 @@ export function mockWorkspaceRepo(): WorkspaceRepository {
     update: vi.fn().mockResolvedValue(undefined),
     listNonArchived: vi.fn().mockResolvedValue([]),
     getSummary: vi.fn().mockResolvedValue(null),
+    listOrgConnections: vi.fn().mockResolvedValue({ connections: [], tools: [], total: 0 }),
     findConnections: vi.fn().mockResolvedValue([]),
     findConnectionConfigs: vi.fn().mockResolvedValue([]),
     findConnectionByName: vi.fn().mockResolvedValue(null),

@@ -35,6 +35,7 @@ import { GetOrgSettingsUseCase } from './application/organisation/GetOrgSettings
 import { UpdateOrgSettingUseCase } from './application/organisation/UpdateOrgSettingUseCase.js'
 import { TestIntegrationUseCase } from './application/organisation/TestIntegrationUseCase.js'
 import { ListOrgUsersUseCase } from './application/organisation/ListOrgUsersUseCase.js'
+import { ListOrgConnectionsUseCase } from './application/workspace/ListOrgConnectionsUseCase.js'
 
 // Application - Workspace
 import { CreateWorkspaceUseCase } from './application/workspace/CreateWorkspaceUseCase.js'
@@ -144,6 +145,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const updateOrgSettingUseCase = new UpdateOrgSettingUseCase(orgRepo)
   const testIntegrationUseCase = new TestIntegrationUseCase(integrationTester)
   const listOrgUsersUseCase = new ListOrgUsersUseCase(orgRepo)
+  const listOrgConnectionsUseCase = new ListOrgConnectionsUseCase(workspaceRepo)
 
   const createWorkspaceUseCase = new CreateWorkspaceUseCase(workspaceRepo, orgRepo)
   const updateWorkspaceUseCase = new UpdateWorkspaceUseCase(workspaceRepo)
@@ -254,7 +256,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const manageQueuesUseCase = new ManageQueuesUseCase(queueService)
 
   // Build routes (auth routes injected from outside)
-  const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, orgRepo, requireAuth, providerRegistry })
+  const orgRoutes = createOrgRoutes({ getOrgUseCase, updateOrgUseCase, getOrgSettingsUseCase, updateOrgSettingUseCase, testIntegrationUseCase, listOrgUsersUseCase, listOrgConnectionsUseCase, orgRepo, requireAuth, providerRegistry })
   const workspaceRoutes = createWorkspaceRoutes({ createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase, getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, deleteWorkspaceUseCase, publishWorkspaceUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase, guardrailEventRepo: guardrailEventRepoForCompliance, guardrailPolicyRepo, listAvailableGuardrails, orgRepo, workspaceRepo, tenantService, requireAuth, indexKnowledgeUseCase: indexKnowledge })
   const conversationRoutes = createConversationRoutes({ listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase, workspaceRepo, tenantService, requireAuth })
   const connectorRoutes = createConnectorRoutes({ testMcpConnectionUseCase, saveMcpConnectionUseCase, bindConsumerChannelUseCase, connectConsumerUseCase, workspaceRepo, tenantService, requireAuth })
