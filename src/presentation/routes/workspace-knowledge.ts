@@ -19,20 +19,22 @@ interface WorkspaceKnowledgeRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createWorkspaceKnowledgeRoutes(deps: WorkspaceKnowledgeRouteDeps, guardWorkspace: (workspaceId: string, userOrgId: string) => Promise<void>) {
-  const app = new Hono<AuthEnv>()
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
-  app.get('/api/workspaces/:id/knowledge', async (c) => {
+function listKnowledge(deps: WorkspaceKnowledgeRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getKnowledgeUseCase.execute(c.req.param('id'))
+    await guard(c.req.param('id')!, user.org_id)
+    const result = await deps.getKnowledgeUseCase.execute(c.req.param('id')!)
     return c.json(result)
-  })
+  }
+}
 
-  app.post('/api/workspaces/:id/knowledge', async (c) => {
+function createKnowledgeSource(deps: WorkspaceKnowledgeRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
+    const workspaceId = c.req.param('id')!
+    await guard(workspaceId, user.org_id)
 
     const parsed = await parseBody(c, z.object({
       name: z.string().min(1).max(255),
@@ -44,10 +46,8 @@ export function createWorkspaceKnowledgeRoutes(deps: WorkspaceKnowledgeRouteDeps
     const { name, type, content } = parsed.data
     const sourceId = generateId()
 
-    // 1. Create the knowledge source record
     await deps.workspaceRepo.createKnowledgeSource(sourceId, workspaceId, type, name, JSON.stringify({ content }))
 
-    // 2. Index if embedding service is available
     let chunksIndexed = 0
     if (deps.indexKnowledgeUseCase) {
       try {
@@ -61,18 +61,24 @@ export function createWorkspaceKnowledgeRoutes(deps: WorkspaceKnowledgeRouteDeps
     }
 
     return c.json({ id: sourceId, chunksIndexed }, 201)
-  })
+  }
+}
 
-  app.delete('/api/workspaces/:id/knowledge/:sourceId', async (c) => {
+function deleteKnowledgeSource(deps: WorkspaceKnowledgeRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
-
-    const sourceId = c.req.param('sourceId')
-    await deps.workspaceRepo.deleteKnowledgeSource(sourceId)
-
+    await guard(c.req.param('id')!, user.org_id)
+    await deps.workspaceRepo.deleteKnowledgeSource(c.req.param('sourceId')!)
     return c.json({ deleted: true })
-  })
+  }
+}
+
+export function createWorkspaceKnowledgeRoutes(deps: WorkspaceKnowledgeRouteDeps, guardWorkspace: GuardFn) {
+  const app = new Hono<AuthEnv>()
+
+  app.get('/api/workspaces/:id/knowledge', listKnowledge(deps, guardWorkspace))
+  app.post('/api/workspaces/:id/knowledge', createKnowledgeSource(deps, guardWorkspace))
+  app.delete('/api/workspaces/:id/knowledge/:sourceId', deleteKnowledgeSource(deps, guardWorkspace))
 
   return app
 }

@@ -15,12 +15,8 @@ interface RouteRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createRouteRoutes(deps: RouteRouteDeps) {
-  const route = new Hono<AuthEnv>()
-
-  route.use('/api/route', deps.requireAuth)
-
-  route.post('/api/route', async (c) => {
+function routeMessage(deps: RouteRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const parsed = await parseBody(c, routeBodySchema)
     if (!parsed.success) return parsed.response
 
@@ -47,7 +43,14 @@ export function createRouteRoutes(deps: RouteRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
+
+export function createRouteRoutes(deps: RouteRouteDeps) {
+  const route = new Hono<AuthEnv>()
+
+  route.use('/api/route', deps.requireAuth)
+  route.post('/api/route', routeMessage(deps))
 
   return route
 }

@@ -21,20 +21,13 @@ interface ConversationRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createConversationRoutes(deps: ConversationRouteDeps) {
-  async function guardWorkspace(workspaceId: string, userOrgId: string) {
-    const ws = await deps.workspaceRepo.findById(workspaceId)
-    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-  }
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
-  const conversations = new Hono<AuthEnv>()
-
-  conversations.use('/api/workspaces/*/conversations*', deps.requireAuth)
-
-  conversations.get('/api/workspaces/:id/conversations', async (c) => {
+function listConversations(deps: ConversationRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const wsId = c.req.param('id')
-    await guardWorkspace(wsId, user.org_id)
+    const wsId = c.req.param('id')!
+    await guard(wsId, user.org_id)
     const limit = parseInt(c.req.query('limit') || String(DEFAULT_PAGINATION_LIMIT))
     const offset = parseInt(c.req.query('offset') || '0')
     const filters = {
@@ -46,32 +39,52 @@ export function createConversationRoutes(deps: ConversationRouteDeps) {
 
     const result = await deps.listConversationsUseCase.execute(wsId, filters, limit, offset)
     return c.json(result)
-  })
+  }
+}
 
-  conversations.get('/api/workspaces/:id/conversations/:cid', async (c) => {
+function getConversationDetail(deps: ConversationRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
+    await guard(c.req.param('id')!, user.org_id)
     try {
-      const result = await deps.getConversationDetailUseCase.execute(c.req.param('cid'))
+      const result = await deps.getConversationDetailUseCase.execute(c.req.param('cid')!)
       return c.json(result)
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  conversations.post('/api/workspaces/:id/conversations/:cid/close', async (c) => {
+function closeConversation(deps: ConversationRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
+    await guard(c.req.param('id')!, user.org_id)
     try {
-      await deps.closeConversationUseCase.execute(c.req.param('cid'))
-      log.info({ conversationId: c.req.param('cid') }, 'Conversation closed manually, analysis queued')
+      await deps.closeConversationUseCase.execute(c.req.param('cid')!)
+      log.info({ conversationId: c.req.param('cid')! }, 'Conversation closed manually, analysis queued')
       return c.json({ status: ConversationStatus.CLOSED, message: ConversationStatus.CLOSED })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
+
+export function createConversationRoutes(deps: ConversationRouteDeps) {
+  function guardWorkspace(workspaceId: string, userOrgId: string) {
+    return deps.workspaceRepo.findById(workspaceId).then(ws => {
+      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
+    })
+  }
+
+  const conversations = new Hono<AuthEnv>()
+
+  conversations.use('/api/workspaces/*/conversations*', deps.requireAuth)
+
+  conversations.get('/api/workspaces/:id/conversations', listConversations(deps, guardWorkspace))
+  conversations.get('/api/workspaces/:id/conversations/:cid', getConversationDetail(deps, guardWorkspace))
+  conversations.post('/api/workspaces/:id/conversations/:cid/close', closeConversation(deps, guardWorkspace))
 
   return conversations
 }

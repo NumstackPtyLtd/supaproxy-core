@@ -26,22 +26,18 @@ interface PromptRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createPromptRoutes(deps: PromptRouteDeps) {
-  const prompts = new Hono<AuthEnv>()
-
-  prompts.use('/api/prompts/*', deps.requireAuth)
-
-  // List all active prompts for the current org
-  prompts.get('/api/prompts', async (c) => {
+function listPrompts(deps: PromptRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const orgPrompts = await deps.promptRepo.findAllActive('org', user.org_id)
     return c.json({ prompts: orgPrompts })
-  })
+  }
+}
 
-  // Get version history for a prompt type
-  prompts.get('/api/prompts/:type/versions', async (c) => {
+function getPromptVersions(deps: PromptRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const promptType = c.req.param('type') as PromptType
+    const promptType = c.req.param('type')! as PromptType
     if (!VALID_PROMPT_TYPES.includes(promptType)) {
       return c.json({ error: 'invalid_prompt_type' }, 400)
     }
@@ -51,12 +47,13 @@ export function createPromptRoutes(deps: PromptRouteDeps) {
 
     const versions = await deps.promptRepo.findVersions(promptType, scope, scopeId)
     return c.json({ versions })
-  })
+  }
+}
 
-  // Save a new prompt version
-  prompts.put('/api/prompts/:type', async (c) => {
+function savePrompt(deps: PromptRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const promptType = c.req.param('type') as PromptType
+    const promptType = c.req.param('type')! as PromptType
     if (!VALID_PROMPT_TYPES.includes(promptType)) {
       return c.json({ error: 'invalid_prompt_type' }, 400)
     }
@@ -82,17 +79,18 @@ export function createPromptRoutes(deps: PromptRouteDeps) {
       if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
-  })
+  }
+}
 
-  // Activate a specific version
-  prompts.post('/api/prompts/:type/activate/:id', async (c) => {
-    const promptType = c.req.param('type') as PromptType
+function activatePrompt(deps: PromptRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
+    const promptType = c.req.param('type')! as PromptType
     if (!VALID_PROMPT_TYPES.includes(promptType)) {
       return c.json({ error: 'invalid_prompt_type' }, 400)
     }
 
     const user = c.get('user') as AuthUser
-    const id = c.req.param('id')
+    const id = c.req.param('id')!
     const scope = (c.req.query('scope') || 'org') as PromptScope
     const scopeId = c.req.query('scope_id') || user.org_id
 
@@ -100,7 +98,18 @@ export function createPromptRoutes(deps: PromptRouteDeps) {
     await deps.promptRepo.activate(id)
 
     return c.json({ status: 'activated' })
-  })
+  }
+}
+
+export function createPromptRoutes(deps: PromptRouteDeps) {
+  const prompts = new Hono<AuthEnv>()
+
+  prompts.use('/api/prompts/*', deps.requireAuth)
+
+  prompts.get('/api/prompts', listPrompts(deps))
+  prompts.get('/api/prompts/:type/versions', getPromptVersions(deps))
+  prompts.put('/api/prompts/:type', savePrompt(deps))
+  prompts.post('/api/prompts/:type/activate/:id', activatePrompt(deps))
 
   return prompts
 }

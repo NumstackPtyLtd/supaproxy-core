@@ -24,28 +24,22 @@ interface GuardrailPolicyRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
-  const policies = new Hono<AuthEnv>()
-
-  policies.use('/api/guardrail-policies/*', deps.requireAuth)
-  policies.use('/api/guardrail-policies', deps.requireAuth)
-  policies.use('/api/security-overview', deps.requireAuth)
-
-  // GET /api/security-overview - org-wide security pulse
-  policies.get('/api/security-overview', async (c) => {
+function getSecurityOverview(deps: GuardrailPolicyRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const days = parseInt(c.req.query('days') || '30', 10)
     const result = await deps.getSecurityOverviewUseCase.execute(user.org_id, days)
     return c.json(result)
-  })
+  }
+}
 
-  // GET /api/guardrail-policies - list guardrails with enforcement, supports filtering
-  policies.get('/api/guardrail-policies', async (c) => {
+function listPolicies(deps: GuardrailPolicyRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const search = c.req.query('search')?.toLowerCase()
-    const enforcementFilter = c.req.query('enforcement') // mandatory | recommended | off
-    const sourceFilter = c.req.query('source') // core | marketplace
-    const stageFilter = c.req.query('stage') // pre-llm | post-llm | execution | retrieval
+    const enforcementFilter = c.req.query('enforcement')
+    const sourceFilter = c.req.query('source')
+    const stageFilter = c.req.query('stage')
 
     const [allGuardrails, policyRows] = await Promise.all([
       deps.listAvailableGuardrails(user.org_id),
@@ -65,22 +59,24 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
     if (stageFilter) results = results.filter(g => g.stage === stageFilter)
 
     return c.json({ guardrails: results, total: results.length })
-  })
+  }
+}
 
-  // GET /api/guardrail-policies/compliance?plugin=pattern - workspace compliance for a specific plugin
-  policies.get('/api/guardrail-policies/compliance', async (c) => {
+function getCompliance(deps: GuardrailPolicyRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const pluginId = c.req.query('plugin')
     if (!pluginId) return c.json({ error: 'missing_plugin_param' }, 400)
     const search = c.req.query('search') || undefined
     const compliance = await deps.managePoliciesUseCase.getCompliance(user.org_id, pluginId, search)
     return c.json({ compliance })
-  })
+  }
+}
 
-  // PUT /api/guardrail-policies/:pluginId - set enforcement level
-  policies.put('/api/guardrail-policies/:pluginId', async (c) => {
+function setEnforcement(deps: GuardrailPolicyRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const pluginId = c.req.param('pluginId')
+    const pluginId = c.req.param('pluginId')!
     const body = await parseBody(c, setEnforcementSchema)
     if (!body.success) return body.response
 
@@ -91,12 +87,13 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
       if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
-  })
+  }
+}
 
-  // POST /api/guardrail-policies/:pluginId/override - workspace admin justifies disabling a recommended policy
-  policies.post('/api/guardrail-policies/:pluginId/override', async (c) => {
+function createOverride(deps: GuardrailPolicyRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const pluginId = c.req.param('pluginId')
+    const pluginId = c.req.param('pluginId')!
     const body = await parseBody(c, createOverrideSchema)
     if (!body.success) return body.response
 
@@ -115,7 +112,21 @@ export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
       if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 409)
       throw err
     }
-  })
+  }
+}
+
+export function createGuardrailPolicyRoutes(deps: GuardrailPolicyRouteDeps) {
+  const policies = new Hono<AuthEnv>()
+
+  policies.use('/api/guardrail-policies/*', deps.requireAuth)
+  policies.use('/api/guardrail-policies', deps.requireAuth)
+  policies.use('/api/security-overview', deps.requireAuth)
+
+  policies.get('/api/security-overview', getSecurityOverview(deps))
+  policies.get('/api/guardrail-policies', listPolicies(deps))
+  policies.get('/api/guardrail-policies/compliance', getCompliance(deps))
+  policies.put('/api/guardrail-policies/:pluginId', setEnforcement(deps))
+  policies.post('/api/guardrail-policies/:pluginId/override', createOverride(deps))
 
   return policies
 }

@@ -23,6 +23,7 @@ const log = pino({ name: 'routes/org' })
 const updateOrgSchema = z.object({ name: z.string().min(1).max(255) })
 const updateSettingSchema = z.object({ value: z.string().max(5000) })
 const integrationTestSchema = z.object({ type: z.string().min(1), credentials: z.record(z.string().max(500)) })
+const providerTestSchema = z.object({ type: z.string().min(1), api_key: z.string().min(1) })
 
 interface OrgRouteDeps {
   getOrgUseCase: GetOrgUseCase
@@ -40,13 +41,15 @@ interface OrgRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createOrgRoutes(deps: OrgRouteDeps) {
-  const org = new Hono<AuthEnv>()
+function parsePagination(c: import('hono').Context) {
+  const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
+  const page = parseInt(c.req.query('page') || '0', 10)
+  const search = c.req.query('search') || undefined
+  return { search, limit, page, offset: page * limit }
+}
 
-  org.use('/api/org/*', deps.requireAuth)
-  org.use('/api/org', deps.requireAuth)
-
-  org.get('/api/org', async (c) => {
+function getOrg(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     try {
       const orgData = await deps.getOrgUseCase.execute(user.org_id)
@@ -55,32 +58,40 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  org.put('/api/org', async (c) => {
+function updateOrg(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const result = await parseBody(c, updateOrgSchema)
     if (!result.success) return result.response
     await deps.updateOrgUseCase.execute(user.org_id, result.data.name)
     return c.json({ status: 'ok' })
-  })
+  }
+}
 
-  org.get('/api/org/settings', async (c) => {
+function getOrgSettings(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const settings = await deps.getOrgSettingsUseCase.execute(user.org_id)
     return c.json(settings)
-  })
+  }
+}
 
-  org.put('/api/org/settings/:key', async (c) => {
+function updateOrgSetting(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const key = c.req.param('key')
+    const key = c.req.param('key')!
     const result = await parseBody(c, updateSettingSchema)
     if (!result.success) return result.response
     await deps.updateOrgSettingUseCase.execute(user.org_id, key, result.data.value)
     return c.json({ status: 'ok' })
-  })
+  }
+}
 
-  org.post('/api/org/integrations/test', async (c) => {
+function testIntegration(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, integrationTestSchema)
     if (!result.success) return result.response
 
@@ -92,13 +103,12 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       return c.json({ error: 'integration_test_failed' }, 400)
     }
-  })
+  }
+}
 
-  org.post('/api/org/providers/test', async (c) => {
-    const parsed = await parseBody(c, z.object({
-      type: z.string().min(1),
-      api_key: z.string().min(1),
-    }))
+function testProvider(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
+    const parsed = await parseBody(c, providerTestSchema)
     if (!parsed.success) return parsed.response
 
     const provider = deps.providerRegistry?.get(parsed.data.type)
@@ -112,13 +122,12 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       log.error({ err, type: parsed.data.type }, 'Provider connection test failed')
       return c.json({ ok: false, chat: false, embedding: false, error: 'provider_test_failed' }, 400)
     }
-  })
+  }
+}
 
-  org.post('/api/org/providers/models', async (c) => {
-    const parsed = await parseBody(c, z.object({
-      type: z.string().min(1),
-      api_key: z.string().min(1),
-    }))
+function listProviderModels(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
+    const parsed = await parseBody(c, providerTestSchema)
     if (!parsed.success) return parsed.response
 
     const provider = deps.providerRegistry?.get(parsed.data.type)
@@ -132,48 +141,71 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       log.error({ err, type: parsed.data.type }, 'Provider model list failed')
       return c.json({ error: 'provider_model_list_failed' }, 400)
     }
-  })
+  }
+}
 
-  org.get('/api/org/connections', async (c) => {
+function listOrgConnections(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const search = c.req.query('search') || undefined
-    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
-    const page = parseInt(c.req.query('page') || '0', 10)
-    const result = await deps.listOrgConnectionsUseCase.execute(user.org_id, { search, limit, offset: page * limit })
+    const { search, limit, page, offset } = parsePagination(c)
+    const result = await deps.listOrgConnectionsUseCase.execute(user.org_id, { search, limit, offset })
     return c.json({ ...result, page, limit })
-  })
+  }
+}
 
-  org.get('/api/org/connections/:id/tools', async (c) => {
-    const connectionId = c.req.param('id')
-    const result = await deps.getConnectionToolsUseCase.execute(connectionId)
+function getConnectionTools(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
+    const result = await deps.getConnectionToolsUseCase.execute(c.req.param('id')!)
     return c.json(result)
-  })
+  }
+}
 
-  org.post('/api/org/connections/:id/reconnect', async (c) => {
-    const connectionId = c.req.param('id')
+function reconnectConnection(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     try {
-      const result = await deps.reconnectConnectionUseCase.execute(connectionId)
+      const result = await deps.reconnectConnectionUseCase.execute(c.req.param('id')!)
       return c.json(result)
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  org.delete('/api/org/connections/:id', async (c) => {
-    const connectionId = c.req.param('id')
-    await deps.deleteConnectionUseCase.execute(connectionId)
+function deleteOrgConnection(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
+    await deps.deleteConnectionUseCase.execute(c.req.param('id')!)
     return c.json({ status: 'ok' })
-  })
+  }
+}
 
-  org.get('/api/org/users', async (c) => {
+function listOrgUsers(deps: OrgRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const search = c.req.query('search') || undefined
-    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
-    const page = parseInt(c.req.query('page') || '0', 10)
-    const result = await deps.listOrgUsersUseCase.execute(user.org_id, { search, limit, offset: page * limit })
+    const { search, limit, offset } = parsePagination(c)
+    const result = await deps.listOrgUsersUseCase.execute(user.org_id, { search, limit, offset })
     return c.json(result)
-  })
+  }
+}
+
+export function createOrgRoutes(deps: OrgRouteDeps) {
+  const org = new Hono<AuthEnv>()
+
+  org.use('/api/org/*', deps.requireAuth)
+  org.use('/api/org', deps.requireAuth)
+
+  org.get('/api/org', getOrg(deps))
+  org.put('/api/org', updateOrg(deps))
+  org.get('/api/org/settings', getOrgSettings(deps))
+  org.put('/api/org/settings/:key', updateOrgSetting(deps))
+  org.post('/api/org/integrations/test', testIntegration(deps))
+  org.post('/api/org/providers/test', testProvider(deps))
+  org.post('/api/org/providers/models', listProviderModels(deps))
+  org.get('/api/org/connections', listOrgConnections(deps))
+  org.get('/api/org/connections/:id/tools', getConnectionTools(deps))
+  org.post('/api/org/connections/:id/reconnect', reconnectConnection(deps))
+  org.delete('/api/org/connections/:id', deleteOrgConnection(deps))
+  org.get('/api/org/users', listOrgUsers(deps))
 
   return org
 }

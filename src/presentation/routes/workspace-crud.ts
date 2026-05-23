@@ -49,16 +49,18 @@ interface WorkspaceCrudRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createWorkspaceCrudRoutes(deps: WorkspaceCrudRouteDeps, guardWorkspace: (workspaceId: string, userOrgId: string) => Promise<void>) {
-  const app = new Hono<AuthEnv>()
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
-  app.get('/api/teams', async (c) => {
+function listTeams(deps: WorkspaceCrudRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const teams = await deps.orgRepo.listTeams(user.org_id)
     return c.json({ teams })
-  })
+  }
+}
 
-  app.post('/api/workspaces', async (c) => {
+function createWorkspace(deps: WorkspaceCrudRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, createWorkspaceSchema)
     if (!result.success) return result.response
     const user = c.get('user') as AuthUser
@@ -78,73 +80,98 @@ export function createWorkspaceCrudRoutes(deps: WorkspaceCrudRouteDeps, guardWor
       if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
       throw err
     }
-  })
+  }
+}
 
-  app.get('/api/workspaces', async (c) => {
+function listWorkspaces(deps: WorkspaceCrudRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const orgScope = deps.tenantService.scopeWorkspaceList(user.org_id)
     const rows = await deps.listWorkspacesUseCase.execute(orgScope)
     return c.json({ workspaces: rows })
-  })
+  }
+}
 
-  app.get('/api/workspaces/:id/summary', async (c) => {
+function getWorkspaceSummary(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      const workspace = await deps.getWorkspaceSummaryUseCase.execute(c.req.param('id'))
+      await guard(c.req.param('id')!, user.org_id)
+      const workspace = await deps.getWorkspaceSummaryUseCase.execute(c.req.param('id')!)
       return c.json({ workspace })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  app.get('/api/workspaces/:id', async (c) => {
+function getWorkspaceDetail(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      const detail = await deps.getWorkspaceDetailUseCase.execute(c.req.param('id'))
+      await guard(c.req.param('id')!, user.org_id)
+      const detail = await deps.getWorkspaceDetailUseCase.execute(c.req.param('id')!)
       return c.json(detail)
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  app.put('/api/workspaces/:id', async (c) => {
+function updateWorkspace(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, updateWorkspaceSchema)
     if (!result.success) return result.response
     const user = c.get('user') as AuthUser
 
     try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.updateWorkspaceUseCase.execute(c.req.param('id'), result.data)
+      await guard(c.req.param('id')!, user.org_id)
+      await deps.updateWorkspaceUseCase.execute(c.req.param('id')!, result.data)
       return c.json({ status: 'ok' })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  app.get('/api/workspaces/:id/dashboard', async (c) => {
+function getDashboard(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await guardWorkspace(c.req.param('id'), user.org_id)
-    const result = await deps.getDashboardUseCase.execute(c.req.param('id'))
+    await guard(c.req.param('id')!, user.org_id)
+    const result = await deps.getDashboardUseCase.execute(c.req.param('id')!)
     return c.json(result)
-  })
+  }
+}
 
-  app.delete('/api/workspaces/:id', async (c) => {
+function deleteWorkspace(deps: WorkspaceCrudRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     try {
-      await guardWorkspace(c.req.param('id'), user.org_id)
-      await deps.deleteWorkspaceUseCase.execute(c.req.param('id'))
+      await guard(c.req.param('id')!, user.org_id)
+      await deps.deleteWorkspaceUseCase.execute(c.req.param('id')!)
       return c.json({ status: 'ok' })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       if (err instanceof ValidationError) return c.json({ error: 'validation_failed' }, 400)
       throw err
     }
-  })
+  }
+}
+
+export function createWorkspaceCrudRoutes(deps: WorkspaceCrudRouteDeps, guardWorkspace: GuardFn) {
+  const app = new Hono<AuthEnv>()
+
+  app.get('/api/teams', listTeams(deps))
+  app.post('/api/workspaces', createWorkspace(deps))
+  app.get('/api/workspaces', listWorkspaces(deps))
+  app.get('/api/workspaces/:id/summary', getWorkspaceSummary(deps, guardWorkspace))
+  app.get('/api/workspaces/:id', getWorkspaceDetail(deps, guardWorkspace))
+  app.put('/api/workspaces/:id', updateWorkspace(deps, guardWorkspace))
+  app.get('/api/workspaces/:id/dashboard', getDashboard(deps, guardWorkspace))
+  app.delete('/api/workspaces/:id', deleteWorkspace(deps, guardWorkspace))
 
   return app
 }

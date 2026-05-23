@@ -19,29 +19,23 @@ interface OAuthRouteDeps {
   oauthHttp: OAuthHttpClient
 }
 
-export function createOAuthRoutes(deps: OAuthRouteDeps) {
-  const oauth = new Hono()
-  const { orgRepo, credentialPort, dashboardUrl, oauthHttp } = deps
-  const exchangeUseCase = new ExchangeOAuthCodeUseCase(orgRepo, credentialPort, oauthHttp, dashboardUrl)
-  const refreshUseCase = new RefreshOAuthTokenUseCase(orgRepo, credentialPort, oauthHttp)
-  const disconnectUseCase = new DisconnectOAuthUseCase(orgRepo)
-
-  oauth.get('/api/oauth/:pluginId/authorize', async (c) => {
-    const pluginId = c.req.param('pluginId')
-    const config = await credentialPort.resolveOAuthConfig(pluginId)
+function authorize(deps: OAuthRouteDeps) {
+  return async (c: import('hono').Context) => {
+    const pluginId = c.req.param('pluginId')!
+    const config = await deps.credentialPort.resolveOAuthConfig(pluginId)
     if (!config) return c.json({ error: ERROR_PLUGIN_NOT_FOUND }, 404)
 
-    const orgId = await orgRepo.getFirstOrgId()
+    const orgId = await deps.orgRepo.getFirstOrgId()
     if (!orgId) return c.json({ error: ERROR_NO_ORG }, 400)
 
-    const credentials = await credentialPort.resolveCredentials(orgId, pluginId)
+    const credentials = await deps.credentialPort.resolveCredentials(orgId, pluginId)
     if (!credentials) return c.json({ error: ERROR_NO_CREDENTIALS }, 400)
 
     const state = `${pluginId}:${generateId()}`
     const params = new URLSearchParams({
       client_id: credentials.clientId,
       scope: config.scopes.join(' '),
-      redirect_uri: `${dashboardUrl}/oauth/callback`,
+      redirect_uri: `${deps.dashboardUrl}/oauth/callback`,
       state,
       response_type: OAUTH_RESPONSE_TYPE,
       prompt: OAUTH_PROMPT,
@@ -49,19 +43,21 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
     })
 
     return c.redirect(`${config.authorizeUrl}?${params.toString()}`)
-  })
+  }
+}
 
-  oauth.get('/api/oauth/callback', async (c) => {
+function callback(deps: OAuthRouteDeps, exchangeUseCase: ExchangeOAuthCodeUseCase) {
+  return async (c: import('hono').Context) => {
     const code = c.req.query('code')
     const state = c.req.query('state')
     const error = c.req.query('error')
 
     if (error) {
       log.warn({ error }, 'OAuth authorisation denied')
-      return c.redirect(`${dashboardUrl}/settings?oauth=denied`)
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=denied`)
     }
     if (!code || !state) {
-      return c.redirect(`${dashboardUrl}/settings?oauth=error&reason=missing_params`)
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=missing_params`)
     }
 
     try {
@@ -70,39 +66,58 @@ export function createOAuthRoutes(deps: OAuthRouteDeps) {
     } catch (err) {
       const pluginId = state.split(':')[0]
       log.error({ pluginId, error: (err as Error).message }, 'OAuth token exchange failed')
-      return c.redirect(`${dashboardUrl}/settings?oauth=error&reason=token_exchange`)
+      return c.redirect(`${deps.dashboardUrl}/settings?oauth=error&reason=token_exchange`)
     }
-  })
+  }
+}
 
-  oauth.get('/api/oauth/:pluginId/status', async (c) => {
-    const pluginId = c.req.param('pluginId')
-    const orgId = await orgRepo.getFirstOrgId()
+function getStatus(deps: OAuthRouteDeps) {
+  return async (c: import('hono').Context) => {
+    const pluginId = c.req.param('pluginId')!
+    const orgId = await deps.orgRepo.getFirstOrgId()
     if (!orgId) return c.json({ connected: false })
 
-    const token = await orgRepo.findSetting(orgId, `${pluginId}_access_token`)
-    const resourceUrl = await orgRepo.findSetting(orgId, `${pluginId}_resource_url`)
+    const token = await deps.orgRepo.findSetting(orgId, `${pluginId}_access_token`)
+    const resourceUrl = await deps.orgRepo.findSetting(orgId, `${pluginId}_resource_url`)
     return c.json({ connected: !!token?.value, site: resourceUrl?.value || null })
-  })
+  }
+}
 
-  oauth.post('/api/oauth/:pluginId/refresh', async (c) => {
+function refreshToken(refreshUseCase: RefreshOAuthTokenUseCase) {
+  return async (c: import('hono').Context) => {
     try {
-      const result = await refreshUseCase.execute(c.req.param('pluginId'))
+      const result = await refreshUseCase.execute(c.req.param('pluginId')!)
       return c.json(result)
     } catch (err) {
       log.error({ error: (err as Error).message }, 'Token refresh error')
       return c.json({ error: (err as Error).message }, 502)
     }
-  })
+  }
+}
 
-  oauth.delete('/api/oauth/:pluginId', async (c) => {
+function disconnect(disconnectUseCase: DisconnectOAuthUseCase) {
+  return async (c: import('hono').Context) => {
     try {
-      const result = await disconnectUseCase.execute(c.req.param('pluginId'))
+      const result = await disconnectUseCase.execute(c.req.param('pluginId')!)
       return c.json(result)
     } catch (err) {
       log.error({ error: (err as Error).message }, 'OAuth disconnect error')
       return c.json({ error: (err as Error).message }, 400)
     }
-  })
+  }
+}
+
+export function createOAuthRoutes(deps: OAuthRouteDeps) {
+  const oauth = new Hono()
+  const exchangeUseCase = new ExchangeOAuthCodeUseCase(deps.orgRepo, deps.credentialPort, deps.oauthHttp, deps.dashboardUrl)
+  const refreshUseCase = new RefreshOAuthTokenUseCase(deps.orgRepo, deps.credentialPort, deps.oauthHttp)
+  const disconnectUseCase = new DisconnectOAuthUseCase(deps.orgRepo)
+
+  oauth.get('/api/oauth/:pluginId/authorize', authorize(deps))
+  oauth.get('/api/oauth/callback', callback(deps, exchangeUseCase))
+  oauth.get('/api/oauth/:pluginId/status', getStatus(deps))
+  oauth.post('/api/oauth/:pluginId/refresh', refreshToken(refreshUseCase))
+  oauth.delete('/api/oauth/:pluginId', disconnect(disconnectUseCase))
 
   return oauth
 }

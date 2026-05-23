@@ -31,23 +31,16 @@ interface QueryRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createQueryRoutes(deps: QueryRouteDeps) {
-  async function guardWorkspace(workspaceId: string, userOrgId: string) {
-    const ws = await deps.workspaceRepo.findById(workspaceId)
-    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-  }
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
-  const query = new Hono<AuthEnv>()
-
-  query.use('/api/workspaces/*/query', deps.requireAuth)
-
-  query.post('/api/workspaces/:id/query', async (c) => {
+function executeQuery(deps: QueryRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const parsed = await parseBody(c, queryBodySchema)
     if (!parsed.success) return parsed.response
 
     const user = c.get('user') as AuthUser
-    const wsId = c.req.param('id')
-    await guardWorkspace(wsId, user.org_id)
+    const wsId = c.req.param('id')!
+    await guard(wsId, user.org_id)
 
     try {
       const ctx = parsed.data.consumer_context
@@ -74,7 +67,20 @@ export function createQueryRoutes(deps: QueryRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
+
+export function createQueryRoutes(deps: QueryRouteDeps) {
+  function guardWorkspace(workspaceId: string, userOrgId: string) {
+    return deps.workspaceRepo.findById(workspaceId).then(ws => {
+      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
+    })
+  }
+
+  const query = new Hono<AuthEnv>()
+
+  query.use('/api/workspaces/*/query', deps.requireAuth)
+  query.post('/api/workspaces/:id/query', executeQuery(deps, guardWorkspace))
 
   return query
 }

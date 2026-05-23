@@ -12,19 +12,18 @@ interface WorkspaceGuardrailRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createWorkspaceGuardrailRoutes(deps: WorkspaceGuardrailRouteDeps, guardWorkspace: (workspaceId: string, userOrgId: string) => Promise<void>) {
-  const app = new Hono<AuthEnv>()
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
 
-  app.get('/api/workspaces/:id/guardrails', async (c) => {
+function listGuardrails(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    await guardWorkspace(workspaceId, user.org_id)
+    const workspaceId = c.req.param('id')!
+    await guard(workspaceId, user.org_id)
 
     const available = await deps.listAvailableGuardrails(user.org_id)
     const enabled = await deps.workspaceRepo.findEnabledGuardrailConfigs(workspaceId)
     const enabledIds = new Set(enabled.map(e => e.guardrail_id))
 
-    // Fetch org-level policy enforcement for each guardrail
     const policies = await deps.guardrailPolicyRepo.listByOrg(user.org_id)
     const policyMap = new Map(policies.map(p => [p.plugin_id, p.enforcement]))
 
@@ -36,31 +35,43 @@ export function createWorkspaceGuardrailRoutes(deps: WorkspaceGuardrailRouteDeps
     }))
 
     return c.json({ guardrails })
-  })
+  }
+}
 
-  app.post('/api/workspaces/:id/guardrails/:guardrailId/enable', async (c) => {
+function enableGuardrail(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    const guardrailId = c.req.param('guardrailId')
-    await guardWorkspace(workspaceId, user.org_id)
+    const workspaceId = c.req.param('id')!
+    const guardrailId = c.req.param('guardrailId')!
+    await guard(workspaceId, user.org_id)
 
     const body = await c.req.json().catch(() => ({})) as { config?: string }
     const { generateId } = await import('../../domain/shared/EntityId.js')
     await deps.workspaceRepo.enableGuardrail(generateId(), workspaceId, guardrailId, body.config)
 
     return c.json({ ok: true })
-  })
+  }
+}
 
-  app.post('/api/workspaces/:id/guardrails/:guardrailId/disable', async (c) => {
+function disableGuardrail(deps: WorkspaceGuardrailRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    const workspaceId = c.req.param('id')
-    const guardrailId = c.req.param('guardrailId')
-    await guardWorkspace(workspaceId, user.org_id)
+    const workspaceId = c.req.param('id')!
+    const guardrailId = c.req.param('guardrailId')!
+    await guard(workspaceId, user.org_id)
 
     await deps.workspaceRepo.disableGuardrail(workspaceId, guardrailId)
 
     return c.json({ ok: true })
-  })
+  }
+}
+
+export function createWorkspaceGuardrailRoutes(deps: WorkspaceGuardrailRouteDeps, guardWorkspace: GuardFn) {
+  const app = new Hono<AuthEnv>()
+
+  app.get('/api/workspaces/:id/guardrails', listGuardrails(deps, guardWorkspace))
+  app.post('/api/workspaces/:id/guardrails/:guardrailId/enable', enableGuardrail(deps, guardWorkspace))
+  app.post('/api/workspaces/:id/guardrails/:guardrailId/disable', disableGuardrail(deps, guardWorkspace))
 
   return app
 }

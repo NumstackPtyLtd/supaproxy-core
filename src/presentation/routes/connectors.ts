@@ -1,6 +1,5 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import pino from 'pino'
 import type { TestMcpConnectionUseCase } from '../../application/connector/TestMcpConnectionUseCase.js'
 import type { SaveMcpConnectionUseCase } from '../../application/connector/SaveMcpConnectionUseCase.js'
 import type { BindConsumerChannelUseCase } from '../../application/connector/BindConsumerChannelUseCase.js'
@@ -11,8 +10,6 @@ import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { TenantService } from '../../application/ports/TenantService.js'
 import { NotFoundError, ConflictError, ValidationError } from '../../domain/shared/errors.js'
 import { MAX_MCP_URL_LENGTH, MAX_MCP_COMMAND_LENGTH, MAX_MCP_ARGS_COUNT, MAX_MCP_HEADER_LENGTH } from '../../defaults.js'
-
-const log = pino({ name: 'routes/connectors' })
 
 const mcpTestSchema = z.object({ transport: z.enum(['http', 'stdio']).optional(), url: z.string().url().max(MAX_MCP_URL_LENGTH).optional(), command: z.string().max(MAX_MCP_COMMAND_LENGTH).optional(), headers: z.record(z.string().max(MAX_MCP_HEADER_LENGTH)).optional() })
 const mcpSaveSchema = z.object({ workspace_id: z.string().min(1).max(255), name: z.string().min(1).max(255), transport: z.enum(['http', 'stdio']).optional(), url: z.string().url().max(MAX_MCP_URL_LENGTH).optional(), command: z.string().max(MAX_MCP_COMMAND_LENGTH).optional(), args: z.array(z.string().max(MAX_MCP_COMMAND_LENGTH)).max(MAX_MCP_ARGS_COUNT).optional(), headers: z.record(z.string().max(MAX_MCP_HEADER_LENGTH)).optional(), env: z.record(z.string().max(MAX_MCP_HEADER_LENGTH)).optional() })
@@ -29,6 +26,8 @@ interface ConnectorRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
+type GuardFn = (workspaceId: string, userOrgId: string) => Promise<void>
+
 function handleDomainError(c: import('hono').Context, err: unknown) {
   if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
   if (err instanceof ConflictError) return c.json({ error: 'conflict' }, 400)
@@ -36,21 +35,12 @@ function handleDomainError(c: import('hono').Context, err: unknown) {
   throw err
 }
 
-export function createConnectorRoutes(deps: ConnectorRouteDeps) {
-  async function guardWorkspace(workspaceId: string, userOrgId: string) {
-    const ws = await deps.workspaceRepo.findById(workspaceId)
-    deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
-  }
-
-  const connectors = new Hono<AuthEnv>()
-
-  connectors.use('/api/connectors/*', deps.requireAuth)
-
-  connectors.post('/api/connectors/consumer/channel', async (c) => {
+function bindConsumerChannel(deps: ConnectorRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, consumerChannelSchema)
     if (!result.success) return result.response
     const user = c.get('user') as AuthUser
-    await guardWorkspace(result.data.workspace_id, user.org_id)
+    await guard(result.data.workspace_id, user.org_id)
     try {
       const output = await deps.bindConsumerChannelUseCase.execute({
         type: result.data.type,
@@ -60,13 +50,15 @@ export function createConnectorRoutes(deps: ConnectorRouteDeps) {
       })
       return c.json(output)
     } catch (err) { return handleDomainError(c, err) }
-  })
+  }
+}
 
-  connectors.post('/api/connectors/consumer', async (c) => {
+function connectConsumer(deps: ConnectorRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, consumerConnectSchema)
     if (!result.success) return result.response
     const user = c.get('user') as AuthUser
-    await guardWorkspace(result.data.workspace_id, user.org_id)
+    await guard(result.data.workspace_id, user.org_id)
     try {
       const output = await deps.connectConsumerUseCase.execute({
         type: result.data.type,
@@ -80,21 +72,25 @@ export function createConnectorRoutes(deps: ConnectorRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       return c.json({ error: 'consumer_connect_failed' }, 400)
     }
-  })
+  }
+}
 
-  connectors.post('/api/connectors/mcp/test', async (c) => {
+function testMcpConnection(deps: ConnectorRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, mcpTestSchema)
     if (!result.success) return result.response
     const transport = result.data.transport || (result.data.url ? 'http' : 'stdio')
     const output = await deps.testMcpConnectionUseCase.execute(transport, result.data.url, result.data.command, result.data.headers)
     return c.json(output)
-  })
+  }
+}
 
-  connectors.post('/api/connectors/mcp', async (c) => {
+function saveMcpConnection(deps: ConnectorRouteDeps, guard: GuardFn) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const result = await parseBody(c, mcpSaveSchema)
     if (!result.success) return result.response
     const user = c.get('user') as AuthUser
-    await guardWorkspace(result.data.workspace_id, user.org_id)
+    await guard(result.data.workspace_id, user.org_id)
     try {
       const output = await deps.saveMcpConnectionUseCase.execute({
         workspaceId: result.data.workspace_id,
@@ -108,7 +104,24 @@ export function createConnectorRoutes(deps: ConnectorRouteDeps) {
       })
       return c.json(output)
     } catch (err) { return handleDomainError(c, err) }
-  })
+  }
+}
+
+export function createConnectorRoutes(deps: ConnectorRouteDeps) {
+  function guardWorkspace(workspaceId: string, userOrgId: string) {
+    return deps.workspaceRepo.findById(workspaceId).then(ws => {
+      deps.tenantService.verifyWorkspaceAccess(ws?.org_id ?? null, userOrgId)
+    })
+  }
+
+  const connectors = new Hono<AuthEnv>()
+
+  connectors.use('/api/connectors/*', deps.requireAuth)
+
+  connectors.post('/api/connectors/consumer/channel', bindConsumerChannel(deps, guardWorkspace))
+  connectors.post('/api/connectors/consumer', connectConsumer(deps, guardWorkspace))
+  connectors.post('/api/connectors/mcp/test', testMcpConnection(deps))
+  connectors.post('/api/connectors/mcp', saveMcpConnection(deps, guardWorkspace))
 
   return connectors
 }

@@ -6,7 +6,7 @@ import type { IntegrationRepository } from '../../domain/integration/repository.
 import type { EntryPointRepository } from '../../domain/integration/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
-import { NotFoundError, ValidationError } from '../../domain/shared/errors.js'
+import { NotFoundError } from '../../domain/shared/errors.js'
 
 const createEntryPointSchema = z.object({
   type: z.string().min(1).max(50),
@@ -30,44 +30,40 @@ interface IntegrationRouteDeps {
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
 }
 
-export function createIntegrationRoutes(deps: IntegrationRouteDeps) {
-  const routes = new Hono<AuthEnv>()
-
-  routes.use('/api/integrations/*', deps.requireAuth)
-  routes.use('/api/integrations', deps.requireAuth)
-  routes.use('/api/entry-points/*', deps.requireAuth)
-  routes.use('/api/entry-points', deps.requireAuth)
-
-  // GET /api/integrations - list active integrations for the org
-  routes.get('/api/integrations', async (c) => {
+function listIntegrations(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const integrations = await deps.manageIntegrationUseCase.listIntegrations(user.org_id)
     return c.json({ integrations })
-  })
+  }
+}
 
-  // POST /api/integrations/:type/activate - activate a consumer type
-  routes.post('/api/integrations/:type/activate', async (c) => {
+function activateIntegration(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await deps.manageIntegrationUseCase.activate(user.org_id, c.req.param('type'))
+    await deps.manageIntegrationUseCase.activate(user.org_id, c.req.param('type')!)
     return c.json({ status: 'ok' })
-  })
+  }
+}
 
-  // POST /api/integrations/:type/deactivate - deactivate a consumer type
-  routes.post('/api/integrations/:type/deactivate', async (c) => {
+function deactivateIntegration(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
-    await deps.manageIntegrationUseCase.deactivate(user.org_id, c.req.param('type'))
+    await deps.manageIntegrationUseCase.deactivate(user.org_id, c.req.param('type')!)
     return c.json({ status: 'ok' })
-  })
+  }
+}
 
-  // GET /api/entry-points - list all entry points for the org
-  routes.get('/api/entry-points', async (c) => {
+function listEntryPoints(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const entryPoints = await deps.entryPointRepo.findByOrg(user.org_id)
     return c.json({ entryPoints })
-  })
+  }
+}
 
-  // POST /api/entry-points - create a new entry point
-  routes.post('/api/entry-points', async (c) => {
+function createEntryPoint(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const user = c.get('user') as AuthUser
     const body = await parseBody(c, createEntryPointSchema)
     if (!body.success) return body.response
@@ -84,32 +80,51 @@ export function createIntegrationRoutes(deps: IntegrationRouteDeps) {
       if (err instanceof NotFoundError) return c.json({ error: 'integration_not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  // PUT /api/entry-points/:id - update an entry point
-  routes.put('/api/entry-points/:id', async (c) => {
+function updateEntryPoint(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     const body = await parseBody(c, updateEntryPointSchema)
     if (!body.success) return body.response
 
     try {
-      await deps.manageEntryPointUseCase.updateEntryPoint(c.req.param('id'), body.data)
+      await deps.manageEntryPointUseCase.updateEntryPoint(c.req.param('id')!, body.data)
       return c.json({ status: 'ok' })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
 
-  // DELETE /api/entry-points/:id - delete an entry point
-  routes.delete('/api/entry-points/:id', async (c) => {
+function deleteEntryPoint(deps: IntegrationRouteDeps) {
+  return async (c: import('hono').Context<AuthEnv>) => {
     try {
-      await deps.manageEntryPointUseCase.deleteEntryPoint(c.req.param('id'))
+      await deps.manageEntryPointUseCase.deleteEntryPoint(c.req.param('id')!)
       return c.json({ status: 'ok' })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
       throw err
     }
-  })
+  }
+}
+
+export function createIntegrationRoutes(deps: IntegrationRouteDeps) {
+  const routes = new Hono<AuthEnv>()
+
+  routes.use('/api/integrations/*', deps.requireAuth)
+  routes.use('/api/integrations', deps.requireAuth)
+  routes.use('/api/entry-points/*', deps.requireAuth)
+  routes.use('/api/entry-points', deps.requireAuth)
+
+  routes.get('/api/integrations', listIntegrations(deps))
+  routes.post('/api/integrations/:type/activate', activateIntegration(deps))
+  routes.post('/api/integrations/:type/deactivate', deactivateIntegration(deps))
+  routes.get('/api/entry-points', listEntryPoints(deps))
+  routes.post('/api/entry-points', createEntryPoint(deps))
+  routes.put('/api/entry-points/:id', updateEntryPoint(deps))
+  routes.delete('/api/entry-points/:id', deleteEntryPoint(deps))
 
   return routes
 }
