@@ -7,6 +7,10 @@ import type { UpdateOrgSettingUseCase } from '../../application/organisation/Upd
 import type { TestIntegrationUseCase } from '../../application/organisation/TestIntegrationUseCase.js'
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
+import type { ListOrgConnectionsUseCase } from '../../application/workspace/ListOrgConnectionsUseCase.js'
+import type { GetConnectionToolsUseCase } from '../../application/workspace/GetConnectionToolsUseCase.js'
+import type { ReconnectConnectionUseCase } from '../../application/connector/ReconnectConnectionUseCase.js'
+import type { DeleteConnectionUseCase } from '../../application/workspace/DeleteConnectionUseCase.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
@@ -27,6 +31,10 @@ interface OrgRouteDeps {
   updateOrgSettingUseCase: UpdateOrgSettingUseCase
   testIntegrationUseCase: TestIntegrationUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
+  listOrgConnectionsUseCase: ListOrgConnectionsUseCase
+  getConnectionToolsUseCase: GetConnectionToolsUseCase
+  reconnectConnectionUseCase: ReconnectConnectionUseCase
+  deleteConnectionUseCase: DeleteConnectionUseCase
   orgRepo: OrganisationRepository
   providerRegistry?: typeof ProviderRegistryType
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
@@ -124,6 +132,38 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
       log.error({ err, type: parsed.data.type }, 'Provider model list failed')
       return c.json({ error: 'provider_model_list_failed' }, 400)
     }
+  })
+
+  org.get('/api/org/connections', async (c) => {
+    const user = c.get('user') as AuthUser
+    const search = c.req.query('search') || undefined
+    const limit = c.req.query('limit') ? Math.min(Math.max(parseInt(c.req.query('limit')!, 10) || DEFAULT_PAGINATION_LIMIT, 1), MAX_PAGINATION_LIMIT) : DEFAULT_PAGINATION_LIMIT
+    const page = parseInt(c.req.query('page') || '0', 10)
+    const result = await deps.listOrgConnectionsUseCase.execute(user.org_id, { search, limit, offset: page * limit })
+    return c.json({ ...result, page, limit })
+  })
+
+  org.get('/api/org/connections/:id/tools', async (c) => {
+    const connectionId = c.req.param('id')
+    const result = await deps.getConnectionToolsUseCase.execute(connectionId)
+    return c.json(result)
+  })
+
+  org.post('/api/org/connections/:id/reconnect', async (c) => {
+    const connectionId = c.req.param('id')
+    try {
+      const result = await deps.reconnectConnectionUseCase.execute(connectionId)
+      return c.json(result)
+    } catch (err) {
+      if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
+      throw err
+    }
+  })
+
+  org.delete('/api/org/connections/:id', async (c) => {
+    const connectionId = c.req.param('id')
+    await deps.deleteConnectionUseCase.execute(connectionId)
+    return c.json({ status: 'ok' })
   })
 
   org.get('/api/org/users', async (c) => {
