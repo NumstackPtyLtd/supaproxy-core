@@ -15,12 +15,19 @@ import docs from './openapi.js'
 
 const log = pino({ name: 'supaproxy' })
 
-export function createApp(container: Container, corsOrigins?: string[]): Hono {
+export interface AppOptions {
+  corsOrigins?: string[]
+  edition?: string
+}
+
+export function createApp(container: Container, options?: AppOptions): Hono {
   const app = new Hono()
+
+  const edition = options?.edition ?? 'core'
 
   app.use('*', cors({
     origin: (origin) => {
-      const origins = corsOrigins ?? CORS_ORIGINS
+      const origins = options?.corsOrigins ?? CORS_ORIGINS
       return origins.includes(origin) ? origin : origins[0]
     },
     credentials: true,
@@ -32,7 +39,7 @@ export function createApp(container: Container, corsOrigins?: string[]): Hono {
   })
 
   // Health check
-  app.get('/health', (c) => c.json({ status: 'ok', edition: 'core' }))
+  app.get('/health', (c) => c.json({ status: 'ok', edition }))
 
   // Models
   app.get('/api/models', async (c) => {
