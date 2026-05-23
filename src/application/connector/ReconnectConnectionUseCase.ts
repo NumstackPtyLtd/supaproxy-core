@@ -20,7 +20,7 @@ export class ReconnectConnectionUseCase {
     const connections = await this.workspaceRepo.findConnectionById(connectionId)
     if (!connections) throw new NotFoundError('Connection', connectionId)
 
-    const config = JSON.parse(connections.config) as Record<string, unknown>
+    const config = (typeof connections.config === 'string' ? JSON.parse(connections.config) : connections.config) as Record<string, unknown>
     const transport = (config.transport as string) || 'http'
 
     if (transport !== 'http') {
