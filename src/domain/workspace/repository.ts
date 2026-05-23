@@ -124,7 +124,6 @@ export interface OrgToolData {
 
 export interface OrgConnectionsResult {
   connections: OrgConnectionData[]
-  tools: OrgToolData[]
   total: number
 }
 
@@ -163,6 +162,7 @@ export interface WorkspaceRepository {
   updateConnectionStatus(id: string, status: string): Promise<void>
   deleteConnection(id: string): Promise<void>
 
+  findToolsByConnectionId(connectionId: string): Promise<OrgToolData[]>
   findTools(workspaceId: string): Promise<ConnectionToolData[]>
   findToolsDetailed(workspaceId: string): Promise<ConnectionToolData[]>
   deleteToolsByConnection(connectionId: string): Promise<void>

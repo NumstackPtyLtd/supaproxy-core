@@ -8,6 +8,7 @@ import type { TestIntegrationUseCase } from '../../application/organisation/Test
 import type { registry as ProviderRegistryType } from '@supaproxy/providers'
 import type { ListOrgUsersUseCase } from '../../application/organisation/ListOrgUsersUseCase.js'
 import type { ListOrgConnectionsUseCase } from '../../application/workspace/ListOrgConnectionsUseCase.js'
+import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import { parseBody } from '../middleware/validate.js'
 import type { AuthUser, AuthEnv } from '../middleware/auth.js'
@@ -29,6 +30,7 @@ interface OrgRouteDeps {
   testIntegrationUseCase: TestIntegrationUseCase
   listOrgUsersUseCase: ListOrgUsersUseCase
   listOrgConnectionsUseCase: ListOrgConnectionsUseCase
+  workspaceRepo: WorkspaceRepository
   orgRepo: OrganisationRepository
   providerRegistry?: typeof ProviderRegistryType
   requireAuth: (c: import('hono').Context, next: import('hono').Next) => Promise<Response | void>
@@ -135,6 +137,12 @@ export function createOrgRoutes(deps: OrgRouteDeps) {
     const page = parseInt(c.req.query('page') || '0', 10)
     const result = await deps.listOrgConnectionsUseCase.execute(user.org_id, { search, limit, offset: page * limit })
     return c.json({ ...result, page, limit })
+  })
+
+  org.get('/api/org/connections/:id/tools', async (c) => {
+    const connectionId = c.req.param('id')
+    const tools = await deps.workspaceRepo.findToolsByConnectionId(connectionId)
+    return c.json({ tools })
   })
 
   org.get('/api/org/users', async (c) => {
