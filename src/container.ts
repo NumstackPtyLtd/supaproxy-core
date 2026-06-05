@@ -342,6 +342,8 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
     createWorkspaceUseCase, updateWorkspaceUseCase, getWorkspaceDetailUseCase, listWorkspacesUseCase, getWorkspaceSummaryUseCase,
     getDashboardUseCase, getActivityUseCase, deleteConnectionUseCase, getConnectionsUseCase, getKnowledgeUseCase, getComplianceUseCase,
     createKnowledgeSourceUseCase, deleteKnowledgeSourceUseCase, listWorkspaceConsumersUseCase,
+    // Knowledge pipeline (exposed for cloud overlay sync and reindex)
+    indexKnowledge, retrieveKnowledge, vectorStore,
     listWorkspaceGuardrailsUseCase, enableGuardrailUseCase, disableGuardrailUseCase, updateGuardrailEventStatusUseCase,
     getModelsUseCase, getHealthUseCase,
     listConversationsUseCase, getConversationDetailUseCase, closeConversationUseCase,
