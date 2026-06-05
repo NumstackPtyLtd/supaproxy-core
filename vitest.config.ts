@@ -24,8 +24,11 @@ export default defineConfig({
         'src/infrastructure/ai/**',
         'src/infrastructure/mcp/**',
 
-        // Presentation routes are thin controllers; their logic is tested via use case tests
+        // Presentation is thin parse/call/respond wiring; logic is tested via use case tests
         'src/presentation/routes/**',
+        'src/presentation/controllers/**',
+        'src/presentation/validators/**',
+        'src/presentation/helpers/**',
 
         // Observability uses filesystem I/O; cost estimation tested separately
         'src/observability/**',
