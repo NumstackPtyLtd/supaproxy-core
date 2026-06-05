@@ -11,6 +11,19 @@ permissions:
   pull-requests: write
 
 jobs:
+  lockfile-guard:
+    name: Lockfile hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reject local link paths in pnpm-lock.yaml
+        run: |
+          if grep -nE 'link:(/Users/|/home/|/root/|/private/)' pnpm-lock.yaml; then
+            echo "::error file=pnpm-lock.yaml::pnpm-lock.yaml contains absolute local link: paths from .pnpmfile.cjs. Regenerate with the pnpmfile disabled: mv .pnpmfile.cjs .pnpmfile.cjs.bak && pnpm install --lockfile-only && mv .pnpmfile.cjs.bak .pnpmfile.cjs"
+            exit 1
+          fi
+          echo "pnpm-lock.yaml is clean (no local link: paths)."
+
   typecheck:
     name: TypeScript
     runs-on: ubuntu-latest
