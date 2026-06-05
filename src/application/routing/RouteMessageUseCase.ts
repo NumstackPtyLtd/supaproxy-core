@@ -20,12 +20,18 @@ interface RouteMessageInput {
   userName?: string
 }
 
+export interface ScopeChange {
+  currentWorkspace: string
+  currentWorkspaceId: string
+}
+
 interface RouteMessageOutput {
   answer: string
   conversationId: string
   workspaceId: string
   routed: boolean
   routedTo?: string
+  scopeChange?: ScopeChange
 }
 
 export class RouteMessageUseCase {
@@ -88,7 +94,18 @@ export class RouteMessageUseCase {
       await this.router.logToGeneral(existingSession.generalConversationId, input.query, result.answer)
     }
 
+    const outOfScope = existingSession.routedFrom && isRedirectOffer(result.answer)
     const redirectOffered = isRedirectOffer(result.answer)
+
+    // Emit scope change event instead of auto-re-routing
+    let scopeChange: ScopeChange | undefined
+    if (outOfScope) {
+      const ws = await this.workspaceRepo.findActiveById(existingSession.workspaceId)
+      const wsName = ws?.name || existingSession.workspaceId
+      scopeChange = { currentWorkspace: wsName, currentWorkspaceId: existingSession.workspaceId }
+      log.info({ sessionKey, workspace: existingSession.workspaceId }, 'Scope change: query outside current workspace')
+    }
+
     await this.sessionStore.set(sessionKey, {
       workspaceId: existingSession.workspaceId,
       lastMessageAt: Date.now(),
@@ -99,10 +116,13 @@ export class RouteMessageUseCase {
     }, SESSION_TTL_SECONDS)
 
     return {
-      answer: result.answer,
+      answer: outOfScope
+        ? `That's outside the scope of ${scopeChange!.currentWorkspace}. Would you like me to connect you with the right department?`
+        : result.answer,
       conversationId: result.conversationId,
       workspaceId: existingSession.workspaceId,
       routed: false,
+      scopeChange,
     }
   }
 }
