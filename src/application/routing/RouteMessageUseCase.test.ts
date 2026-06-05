@@ -285,7 +285,10 @@ describe('RouteMessageUseCase', () => {
     expect(result.routed).toBe(false)
   })
 
-  it('detects redirect offer in response and sets pendingRedirect', async () => {
+  it('emits scope change when routed workspace refuses query', async () => {
+    const insuranceWs = stubWorkspace({ id: 'ws-insurance', name: 'Insurance' })
+    vi.mocked(workspaceRepo.findActiveById).mockResolvedValue(insuranceWs)
+
     vi.mocked(sessionStore.get).mockResolvedValue({
       workspaceId: 'ws-insurance',
       lastMessageAt: Date.now(),
@@ -305,8 +308,18 @@ describe('RouteMessageUseCase', () => {
       error: null,
     })
 
-    await useCase.execute(baseInput)
+    const result = await useCase.execute(baseInput)
 
+    // Should NOT auto-re-route
+    expect(sessionStore.delete).not.toHaveBeenCalled()
+    expect(executeQuery.execute).toHaveBeenCalledTimes(1)
+    // Should emit scope change with user-friendly message
+    expect(result.scopeChange).toEqual({
+      currentWorkspace: 'Insurance',
+      currentWorkspaceId: 'ws-insurance',
+    })
+    expect(result.answer).toContain('outside the scope of Insurance')
+    // pendingRedirect should be set for next message
     expect(sessionStore.set).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ pendingRedirect: true }),

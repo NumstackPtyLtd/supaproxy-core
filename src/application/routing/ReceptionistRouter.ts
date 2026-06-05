@@ -85,6 +85,13 @@ export class ReceptionistRouter {
     }
 
     const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
+
+    // Create a conversation in the target workspace so it appears immediately
+    const targetConversationId = await this.conversationUseCase.findOrCreate(
+      targetWorkspaceId, input.consumerType, sessionKey, input.userName, input.entryPoint,
+    )
+    await this.conversationUseCase.setRouting(targetConversationId, defaultWs?.name || '', targetWs.name, routeReason)
+
     await this.sessionStore.set(sessionKey, {
       workspaceId: targetWorkspaceId,
       lastMessageAt: Date.now(),
@@ -100,11 +107,20 @@ export class ReceptionistRouter {
     const cleanAnswer = cleanRoutingDirective(receptionistResult.answer)
     const answerWithIndicator = `${cleanAnswer}${formatRoutingIndicator(targetWs.name)}`
 
+    // Log routing indicator to #general so reviewers can track where the user went
+    try {
+      await this.conversationUseCase.recordMessage(
+        receptionistResult.conversationId, 'assistant', `[Routed to ${targetWs.name}]`,
+      )
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, 'Failed to log routing indicator to #general')
+    }
+
     log.info({ orgId: input.orgId, from: receptionistResult.defaultWorkspaceId, to: targetWorkspaceId, reason: routeReason }, 'Message routed')
 
     return {
       answer: answerWithIndicator,
-      conversationId: receptionistResult.conversationId,
+      conversationId: targetConversationId,
       workspaceId: targetWorkspaceId,
       routed: true,
       routedTo: targetWs.name,
