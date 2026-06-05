@@ -39,7 +39,10 @@ export function createApp(container: Container, options?: AppOptions): Hono {
   })
 
   // Health check
-  app.get('/health', (c) => c.json({ status: 'ok', edition }))
+  app.get('/health', async (c) => {
+    const result = await container.getHealthUseCase.executeAuthenticated()
+    return c.json({ ...result, edition })
+  })
 
   // Models
   app.get('/api/models', async (c) => {

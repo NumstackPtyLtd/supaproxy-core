@@ -1,26 +1,34 @@
-import { httpPlugin, stdioPlugin } from '@supaproxy/connections/plugins'
+import { httpPlugin, ssePlugin, stdioPlugin } from '@supaproxy/connections/plugins'
 import type { McpClientFactory, McpConnection, McpToolDefinition, McpToolCallResult } from '../../application/ports/McpClient.js'
 import type { McpConnection as PluginConnection } from '@supaproxy/connections'
+import pino from 'pino'
+
+const log = pino({ name: 'mcp-factory' })
 
 /**
  * Adapter that delegates to @supaproxy/connections plugins.
  *
- * The server does not implement MCP protocol details. It delegates
- * to the connection plugins which own the transport, protocol version,
- * timeouts, and header handling.
+ * For HTTP connections, tries Streamable HTTP first and falls back
+ * to SSE transport automatically.
  */
 export class McpClientFactoryImpl implements McpClientFactory {
 
   async connectHttp(url: string, extraHeaders?: Record<string, string>, clientName?: string): Promise<McpConnection> {
-    const config: Record<string, string> = {
-      url,
-      name: clientName || 'supaproxy',
-    }
-    if (extraHeaders) {
-      config.headers = JSON.stringify(extraHeaders)
-    }
+    const config = this.buildHttpConfig(url, clientName, extraHeaders)
 
-    const conn = await httpPlugin.connect(config)
+    try {
+      const conn = await httpPlugin.connect(config)
+      return this.adaptConnection(conn)
+    } catch (httpErr) {
+      log.info({ url, error: (httpErr as Error).message }, 'Streamable HTTP failed, trying SSE')
+      const conn = await ssePlugin.connect(config)
+      return this.adaptConnection(conn)
+    }
+  }
+
+  async connectSse(url: string, extraHeaders?: Record<string, string>, clientName?: string): Promise<McpConnection> {
+    const config = this.buildHttpConfig(url, clientName, extraHeaders)
+    const conn = await ssePlugin.connect(config)
     return this.adaptConnection(conn)
   }
 
@@ -44,7 +52,23 @@ export class McpClientFactoryImpl implements McpClientFactory {
       config.headers = JSON.stringify(extraHeaders)
     }
 
-    const result = await httpPlugin.test(config)
+    const httpResult = await httpPlugin.test(config)
+    if (httpResult.ok) return this.formatTestResult(httpResult)
+
+    log.info({ url, error: httpResult.error }, 'Streamable HTTP test failed, trying SSE')
+    const sseResult = await ssePlugin.test(config)
+    return this.formatTestResult(sseResult)
+  }
+
+  private buildHttpConfig(url: string, clientName?: string, extraHeaders?: Record<string, string>): Record<string, string> {
+    const config: Record<string, string> = { url, name: clientName || 'supaproxy' }
+    if (extraHeaders) {
+      config.headers = JSON.stringify(extraHeaders)
+    }
+    return config
+  }
+
+  private formatTestResult(result: { ok: boolean; tools?: number; server?: string; toolNames?: string[]; error?: string }) {
     return {
       ok: result.ok,
       tools: result.tools || 0,

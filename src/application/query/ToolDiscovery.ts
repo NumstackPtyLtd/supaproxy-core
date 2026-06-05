@@ -31,8 +31,10 @@ export async function discoverTools(
     const cfg: McpServerConfig = typeof server.config === 'string' ? safeJsonParse<McpServerConfig>(server.config, {}) : server.config
 
     try {
-      if (cfg.transport === 'http' && cfg.url) {
-        const conn = await mcpFactory.connectHttp(cfg.url, cfg.headers, `supaproxy-${workspaceId}`)
+      if ((cfg.transport === 'http' || cfg.transport === 'sse') && cfg.url) {
+        const conn = cfg.transport === 'sse'
+          ? await mcpFactory.connectSse(cfg.url, cfg.headers, `supaproxy-${workspaceId}`)
+          : await mcpFactory.connectHttp(cfg.url, cfg.headers, `supaproxy-${workspaceId}`)
         mcpConnections.push(conn)
         for (const tool of conn.tools) {
           tools.push({
@@ -43,7 +45,7 @@ export async function discoverTools(
             callFn: (args) => conn.callTool(tool.name, args),
           })
         }
-        log.info({ server: server.name, tools: conn.tools.length }, 'MCP connected (HTTP)')
+        log.info({ server: server.name, tools: conn.tools.length }, `MCP connected (${cfg.transport?.toUpperCase()})`)
       } else if (cfg.transport === 'stdio' && cfg.command) {
         const conn = await mcpFactory.connectStdio(cfg.command, cfg.args || [], cfg.env, `supaproxy-${workspaceId}`)
         mcpConnections.push(conn)

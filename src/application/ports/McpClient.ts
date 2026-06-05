@@ -17,6 +17,7 @@ export interface McpConnection {
 
 export interface McpClientFactory {
   connectHttp(url: string, headers?: Record<string, string>, clientName?: string): Promise<McpConnection>
+  connectSse(url: string, headers?: Record<string, string>, clientName?: string): Promise<McpConnection>
   connectStdio(command: string, args: string[], env?: Record<string, string>, clientName?: string): Promise<McpConnection>
   testHttp(url: string, headers?: Record<string, string>): Promise<{ ok: boolean; tools: number; server: string; toolNames: string[]; error?: string }>
 }

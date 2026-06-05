@@ -258,6 +258,7 @@ export function mockMcpFactory(): McpClientFactory {
   }
   return {
     connectHttp: vi.fn().mockResolvedValue(mockConnection),
+    connectSse: vi.fn().mockResolvedValue(mockConnection),
     connectStdio: vi.fn().mockResolvedValue(mockConnection),
     testHttp: vi.fn().mockResolvedValue({ ok: true, tools: 1, server: 'test', toolNames: ['test-tool'] }),
   }

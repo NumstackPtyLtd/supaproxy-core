@@ -32,6 +32,10 @@ export function routeMessage(deps: RouteRouteDeps) {
         workspace_id: result.workspaceId,
         routed: result.routed,
         routed_to: result.routedTo || null,
+        scope_change: result.scopeChange ? {
+          current_workspace: result.scopeChange.currentWorkspace,
+          current_workspace_id: result.scopeChange.currentWorkspaceId,
+        } : undefined,
       })
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'not_found' }, 404)
