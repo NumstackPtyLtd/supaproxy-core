@@ -16,6 +16,7 @@ import type { ToolCallProcessor } from './ToolCallProcessor.js'
 import type { ToolEntry } from './ToolCallProcessor.js'
 import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, recordMessages, type QueryMeta, type QueryResult, type AgentLoopResult } from './AgentLoopHelpers.js'
 import { resolveProvider } from './ProviderResolver.js'
+import { resolveModel } from './ModelResolver.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
 import { buildSystemPrompt } from './SystemPromptBuilder.js'
@@ -100,7 +101,8 @@ export class ExecuteQueryUseCase {
 
     try {
       if (tools.length === 0) log.info({ workspace: workspaceId }, 'No tools discovered, running as direct LLM conversation')
-      if (!workspace.model) throw new ConfigurationError(ERROR_CODES.NO_WORKSPACE_MODEL)
+      const model = resolveModel(provider, workspace.model)
+      if (!model) throw new ConfigurationError(ERROR_CODES.NO_WORKSPACE_MODEL)
 
       const systemPrompt = await buildSystemPrompt(
         { workspace, systemPromptOverride: meta.systemPromptOverride, workspaceId, queryToForward },
@@ -109,7 +111,7 @@ export class ExecuteQueryUseCase {
       )
 
       const result = await runAgentLoop(queryToForward, provider, {
-        model: workspace.model,
+        model,
         systemPrompt: systemPrompt.text,
         maxToolRounds: workspace.max_tool_rounds || DEFAULT_MAX_TOOL_ROUNDS,
         tools, history, apiKey, workspaceId, conversationId, executionRails, retrievalRails,

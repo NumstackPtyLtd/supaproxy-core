@@ -79,7 +79,7 @@ describe('RouteMessageUseCase', () => {
     expect(sessionStore.set).toHaveBeenCalled()
   })
 
-  it('routes via receptionist when no session exists and LLM returns routing directive', async () => {
+  it('routes via receptionist and the target workspace answers immediately', async () => {
     const defaultWs = stubWorkspace({ id: 'ws-general', name: '#general', is_default: true })
     const targetWs = stubWorkspace({ id: 'ws-insurance', name: 'Insurance' })
 
@@ -90,26 +90,41 @@ describe('RouteMessageUseCase', () => {
     ])
     vi.mocked(workspaceRepo.findActiveById).mockResolvedValue(targetWs)
 
-    // Receptionist decides to route
-    vi.mocked(executeQuery.execute).mockResolvedValue({
-      answer: "I'll connect you with our insurance team.\n<!-- ROUTE:ws-insurance:User asked about car accident -->",
-      conversationId: 'conv-1',
-      sessionId: 'session-1',
-      toolsCalled: [],
-      connectionsHit: [],
-      tokensInput: 10,
-      tokensOutput: 20,
-      costUsd: 0.001,
-      durationMs: 100,
-      error: null,
-    })
+    // No existing session, then the session the router just created on route.
+    vi.mocked(sessionStore.get)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({
+        workspaceId: 'ws-insurance',
+        lastMessageAt: Date.now(),
+        routedFrom: '#general',
+        routedFromConversationId: 'conv-general',
+        generalConversationId: 'conv-general',
+      })
+
+    // First execute: receptionist routes. Second execute: target workspace answers.
+    vi.mocked(executeQuery.execute)
+      .mockResolvedValueOnce({
+        answer: "I'll connect you with our insurance team.\n<!-- ROUTE:ws-insurance:User asked about car accident -->",
+        conversationId: 'conv-general', sessionId: 'session-1', toolsCalled: [], connectionsHit: [],
+        tokensInput: 10, tokensOutput: 20, costUsd: 0.001, durationMs: 100, error: null,
+      })
+      .mockResolvedValueOnce({
+        answer: 'To file an accident claim, you can do it online or call our claims line.',
+        conversationId: 'conv-insurance', sessionId: 'session-1', toolsCalled: [], connectionsHit: [],
+        tokensInput: 10, tokensOutput: 20, costUsd: 0.001, durationMs: 100, error: null,
+      })
 
     const result = await useCase.execute(baseInput)
 
     expect(result.routed).toBe(true)
     expect(result.routedTo).toBe('Insurance')
-    expect(result.answer).toContain('[Connected to Insurance]')
+    // The routed workspace answers immediately, not a "connecting you" filler.
+    expect(result.answer).toBe('To file an accident claim, you can do it online or call our claims line.')
     expect(result.answer).not.toContain('<!-- ROUTE')
+    // The original query is executed in the target workspace, carrying reception scope.
+    expect(executeQuery.execute).toHaveBeenLastCalledWith('ws-insurance', baseInput.query, expect.objectContaining({
+      routedFrom: '#general',
+    }))
     expect(sessionStore.set).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ workspaceId: 'ws-insurance' }),
