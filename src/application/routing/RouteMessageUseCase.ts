@@ -52,7 +52,49 @@ export class RouteMessageUseCase {
       return this.handleExistingSession(input, sessionKey, existingSession)
     }
 
-    return this.router.route(input, sessionKey)
+    const routed = await this.router.route(input, sessionKey)
+    if (!routed.routed) {
+      return { answer: routed.answer, conversationId: routed.conversationId, workspaceId: routed.workspaceId, routed: false }
+    }
+
+    // Routed: answer the query immediately in the target workspace, carrying
+    // the receptionist (#general) history so it has the scope from reception.
+    const session = await this.sessionStore.get(sessionKey)
+    const result = await this.executeInWorkspace(routed.workspaceId, input, sessionKey, session)
+    return {
+      answer: result.answer,
+      conversationId: result.conversationId,
+      workspaceId: routed.workspaceId,
+      routed: true,
+      routedTo: routed.routedTo,
+    }
+  }
+
+  // Execute the query in a workspace, carrying any routed-from history, and
+  // mirror the exchange to the #general master conversation.
+  private async executeInWorkspace(
+    workspaceId: string,
+    input: RouteMessageInput,
+    sessionKey: string,
+    session: RoutingSession | null,
+  ): Promise<{ answer: string; conversationId: string }> {
+    const priorHistory = session?.routedFromConversationId
+      ? await this.conversationUseCase.getHistory(session.routedFromConversationId)
+      : undefined
+    const result = await this.executeQueryUseCase.execute(workspaceId, input.query, {
+      consumerType: input.consumerType,
+      channel: input.entryPoint,
+      userId: input.userId,
+      userName: input.userName,
+      sessionId: sessionKey,
+      routedFrom: session?.routedFrom || undefined,
+      routedFromConversationId: session?.routedFromConversationId || undefined,
+      priorHistory,
+    })
+    if (session?.generalConversationId) {
+      await this.router.logToGeneral(session.generalConversationId, input.query, result.answer)
+    }
+    return { answer: result.answer, conversationId: result.conversationId }
   }
 
   private async handleExistingSession(
@@ -75,24 +117,7 @@ export class RouteMessageUseCase {
       }
     }
 
-    const priorHistory = existingSession.routedFromConversationId
-      ? await this.conversationUseCase.getHistory(existingSession.routedFromConversationId)
-      : undefined
-
-    const result = await this.executeQueryUseCase.execute(existingSession.workspaceId, input.query, {
-      consumerType: input.consumerType,
-      channel: input.entryPoint,
-      userId: input.userId,
-      userName: input.userName,
-      sessionId: sessionKey,
-      routedFrom: existingSession.routedFrom || undefined,
-      routedFromConversationId: existingSession.routedFromConversationId || undefined,
-      priorHistory,
-    })
-
-    if (existingSession.generalConversationId) {
-      await this.router.logToGeneral(existingSession.generalConversationId, input.query, result.answer)
-    }
+    const result = await this.executeInWorkspace(existingSession.workspaceId, input, sessionKey, existingSession)
 
     const outOfScope = existingSession.routedFrom && isRedirectOffer(result.answer)
     const redirectOffered = isRedirectOffer(result.answer)
