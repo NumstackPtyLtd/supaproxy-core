@@ -8,10 +8,9 @@ export class BuildOAuthAuthorizeUrlUseCase {
   constructor(
     private readonly orgRepo: OrganisationRepository,
     private readonly credentialPort: OAuthCredentialPort,
-    private readonly dashboardUrl: string,
   ) {}
 
-  async execute(pluginId: string): Promise<string> {
+  async execute(pluginId: string, redirectUri: string): Promise<string> {
     const config = await this.credentialPort.resolveOAuthConfig(pluginId)
     if (!config) throw new NotFoundError('OAuthConfig', pluginId)
 
@@ -25,7 +24,7 @@ export class BuildOAuthAuthorizeUrlUseCase {
     const params = new URLSearchParams({
       client_id: credentials.clientId,
       scope: config.scopes.join(' '),
-      redirect_uri: `${this.dashboardUrl}/oauth/callback`,
+      redirect_uri: redirectUri,
       state,
       response_type: OAUTH_RESPONSE_TYPE,
       prompt: OAUTH_PROMPT,

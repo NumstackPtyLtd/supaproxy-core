@@ -8,6 +8,18 @@ import pino from 'pino'
 
 const log = pino({ name: 'oauth' })
 
+/**
+ * The OAuth callback must hit the API server (where the code exchange runs),
+ * not the dashboard. Derive it from the incoming request so it matches the
+ * value registered in the provider's app and works across environments.
+ */
+function callbackUrl(c: import('hono').Context): string {
+  const url = new URL(c.req.url)
+  const proto = c.req.header('x-forwarded-proto') || url.protocol.replace(':', '')
+  const host = c.req.header('x-forwarded-host') || url.host
+  return `${proto}://${host}/api/oauth/callback`
+}
+
 export interface OAuthRouteDeps {
   buildOAuthAuthorizeUrlUseCase: BuildOAuthAuthorizeUrlUseCase
   exchangeOAuthCodeUseCase: ExchangeOAuthCodeUseCase
@@ -21,7 +33,7 @@ export interface OAuthRouteDeps {
 export function authorize(deps: OAuthRouteDeps) {
   return async (c: import('hono').Context) => {
     try {
-      const url = await deps.buildOAuthAuthorizeUrlUseCase.execute(c.req.param('pluginId')!)
+      const url = await deps.buildOAuthAuthorizeUrlUseCase.execute(c.req.param('pluginId')!, callbackUrl(c))
       return c.redirect(url)
     } catch (err) {
       if (err instanceof NotFoundError) return c.json({ error: 'plugin_not_found' }, 404)
@@ -46,7 +58,7 @@ export function callback(deps: OAuthRouteDeps) {
     }
 
     try {
-      const result = await deps.exchangeOAuthCodeUseCase.execute(code, state)
+      const result = await deps.exchangeOAuthCodeUseCase.execute(code, state, callbackUrl(c))
       return c.redirect(result.redirectUrl)
     } catch (err) {
       const pluginId = state.split(':')[0]
