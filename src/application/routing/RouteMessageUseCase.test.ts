@@ -245,12 +245,29 @@ describe('RouteMessageUseCase', () => {
         durationMs: 100,
         error: null,
       })
+      // Third call: the routed Insurance workspace answers immediately
+      .mockResolvedValueOnce({
+        answer: 'What would you like to know about your insurance policy?',
+        conversationId: 'conv-insurance',
+        sessionId: 'session-3',
+        toolsCalled: [],
+        connectionsHit: [],
+        tokensInput: 10,
+        tokensOutput: 20,
+        costUsd: 0.001,
+        durationMs: 100,
+        error: null,
+      })
 
     const result = await useCase.execute({ ...baseInput, query: 'Yes please' })
 
     // Session should have been deleted before re-routing
     expect(sessionStore.delete).toHaveBeenCalled()
     expect(result.routed).toBe(true)
+    expect(result.routedTo).toBe('Insurance')
+    // The redirect answers immediately in the target, not a "connecting you" message
+    expect(result.answer).toBe('What would you like to know about your insurance policy?')
+    expect(executeQuery.execute).toHaveBeenLastCalledWith('ws-insurance', 'Yes please', expect.anything())
   })
 
   it('continues in current workspace when pendingRedirect is true but user declines', async () => {
