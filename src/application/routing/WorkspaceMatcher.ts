@@ -2,6 +2,7 @@ import type { WorkspaceRepository, WorkspaceRoutingSummary } from '../../domain/
 import type { OrganisationRepository } from '../../domain/organisation/repository.js'
 import type { ExecuteQueryUseCase } from '../query/ExecuteQueryUseCase.js'
 import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
+import { resolveGrounding, buildReceptionistGroundingClause } from '../query/KnowledgeGrounding.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 import { CONSUMER_TYPE_SYSTEM } from '../../defaults.js'
 import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt } from '../../prompts.js'
@@ -82,8 +83,12 @@ export class WorkspaceMatcher {
       }
     }
 
-    // Build receptionist prompt and run through #general with no tools
-    const systemPrompt = this.promptBuilder.build(org.name, workspaces)
+    // Build receptionist prompt and run through #general with no tools. The
+    // front desk has no knowledge base, so it carries the resolved grounding
+    // level directly to keep it from inventing product specifics.
+    const groundingSettings = await this.orgRepo.getSettingValues(['knowledge_grounding'])
+    const grounding = resolveGrounding(defaultWs.knowledge_grounding, groundingSettings['knowledge_grounding'])
+    const systemPrompt = this.promptBuilder.build(org.name, workspaces, buildReceptionistGroundingClause(grounding))
 
     const result = await this.executeQueryUseCase.execute(defaultWs.id, input.query, {
       consumerType: input.consumerType,

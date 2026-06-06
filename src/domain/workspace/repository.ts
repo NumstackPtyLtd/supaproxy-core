@@ -18,6 +18,8 @@ export interface WorkspaceData {
   created_at: string
   updated_at: string
   team?: string | null
+  /** Per-workspace knowledge grounding override (strict|grounded|open); null uses the org default. */
+  knowledge_grounding?: string | null
 }
 
 export interface WorkspaceRoutingSummary {

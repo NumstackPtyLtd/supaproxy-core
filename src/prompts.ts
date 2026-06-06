@@ -38,7 +38,7 @@ export function buildScopeEnforcementClause(outOfScopeMessage?: string): string 
 
 // ── Receptionist routing ──
 
-export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id: string; name: string; system_prompt: string | null; tool_names: string[] }>): string {
+export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id: string; name: string; system_prompt: string | null; tool_names: string[] }>, groundingLine = ''): string {
   const departmentLines = workspaces.map(ws => {
     const toolList = ws.tool_names.length > 0
       ? ` Tools: ${ws.tool_names.join(', ')}.`
@@ -48,6 +48,8 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
       : ''
     return `- ${ws.name}:${description}${toolList}`
   })
+
+  const groundingSection = groundingLine ? ['', groundingLine] : []
 
   return [
     `You are the receptionist for ${orgName}.`,
@@ -62,6 +64,7 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
     '4. NEVER answer substantive questions yourself. You are a router, not an assistant.',
     '5. If the request is outside all departments, say: "I do not have a department that handles that. I can help with [list department names]." Do NOT attempt to help with the request yourself.',
     '6. Be warm, brief, and direct.',
+    ...groundingSection,
     '',
     'When you decide to route, respond with your routing message and include the following on its own line at the end:',
     '<!-- ROUTE:workspace_id:reason -->',
@@ -156,5 +159,5 @@ export function formatKnowledgeContext(chunks: VectorSearchResult[]): string {
     return `[${i + 1}] (${source}) ${c.text}`
   })
 
-  return `\n\n<knowledge_context>\nThe following information was retrieved from the workspace knowledge base. Use it to inform your response where relevant.\n\n${lines.join('\n\n')}\n</knowledge_context>`
+  return `\n\n<knowledge_context>\nThe following information was retrieved from the workspace knowledge base.\n\n${lines.join('\n\n')}\n</knowledge_context>`
 }

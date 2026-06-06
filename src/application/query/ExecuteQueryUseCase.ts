@@ -17,6 +17,7 @@ import type { ToolEntry } from './ToolCallProcessor.js'
 import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, recordMessages, type QueryMeta, type QueryResult, type AgentLoopResult } from './AgentLoopHelpers.js'
 import { resolveProvider } from './ProviderResolver.js'
 import { resolveModel } from './ModelResolver.js'
+import { resolveGrounding } from './KnowledgeGrounding.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
 import { buildSystemPrompt } from './SystemPromptBuilder.js'
@@ -104,8 +105,10 @@ export class ExecuteQueryUseCase {
       const model = resolveModel(provider, workspace.model)
       if (!model) throw new ConfigurationError(ERROR_CODES.NO_WORKSPACE_MODEL)
 
+      const groundingSettings = await this.orgRepo.getSettingValues(['knowledge_grounding'])
+      const grounding = resolveGrounding(workspace.knowledge_grounding, groundingSettings['knowledge_grounding'])
       const systemPrompt = await buildSystemPrompt(
-        { workspace, systemPromptOverride: meta.systemPromptOverride, workspaceId, queryToForward },
+        { workspace, systemPromptOverride: meta.systemPromptOverride, workspaceId, queryToForward, grounding },
         this.promptResolver,
         this.retrieveKnowledge,
       )

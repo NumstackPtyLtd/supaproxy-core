@@ -1,5 +1,6 @@
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, formatKnowledgeContext } from '../../prompts.js'
+import { buildGroundingClause, type KnowledgeGrounding } from './KnowledgeGrounding.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import pino from 'pino'
@@ -11,6 +12,7 @@ export interface SystemPromptInput {
   systemPromptOverride?: string
   workspaceId: string
   queryToForward: string
+  grounding: KnowledgeGrounding
 }
 
 export interface SystemPromptResult {
@@ -34,10 +36,14 @@ export async function buildSystemPrompt(
     systemPrompt = `${basePrompt}\n\n${scopeClause}`
   }
 
-  // Retrieve relevant knowledge and append to system prompt
+  // Retrieve relevant knowledge, set the grounding rule, and append context.
   if (retrieveKnowledge) {
     try {
       const retrieval = await retrieveKnowledge.execute(input.workspaceId, input.queryToForward)
+      if (!input.systemPromptOverride) {
+        const groundingClause = buildGroundingClause(input.grounding, retrieval.chunks.length)
+        if (groundingClause) systemPrompt += `\n\n${groundingClause}`
+      }
       if (retrieval.chunks.length > 0) {
         systemPrompt += formatKnowledgeContext(retrieval.chunks)
         knowledgeChunksUsed = retrieval.chunks.length
