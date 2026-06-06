@@ -10,12 +10,14 @@
  * - open:     the knowledge base informs the answer; the model may augment
  *             freely with general knowledge.
  */
-export type KnowledgeGrounding = 'strict' | 'grounded' | 'open'
+export const KNOWLEDGE_GROUNDING_LEVELS = ['strict', 'grounded', 'open'] as const
+
+export type KnowledgeGrounding = (typeof KNOWLEDGE_GROUNDING_LEVELS)[number]
 
 export const DEFAULT_KNOWLEDGE_GROUNDING: KnowledgeGrounding = 'grounded'
 
 export function normaliseGrounding(value: string | null | undefined): KnowledgeGrounding | null {
-  return value === 'strict' || value === 'grounded' || value === 'open' ? value : null
+  return KNOWLEDGE_GROUNDING_LEVELS.includes(value as KnowledgeGrounding) ? (value as KnowledgeGrounding) : null
 }
 
 /** Workspace override wins over the org default, which wins over the system default. */
