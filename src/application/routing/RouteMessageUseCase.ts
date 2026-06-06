@@ -52,13 +52,17 @@ export class RouteMessageUseCase {
       return this.handleExistingSession(input, sessionKey, existingSession)
     }
 
+    return this.routeAndAnswer(input, sessionKey)
+  }
+
+  // Run the receptionist and, when it routes, answer the query immediately in
+  // the target workspace (carrying the #general history as scope from
+  // reception) rather than returning a "connecting you" message.
+  private async routeAndAnswer(input: RouteMessageInput, sessionKey: string): Promise<RouteMessageOutput> {
     const routed = await this.router.route(input, sessionKey)
     if (!routed.routed) {
       return { answer: routed.answer, conversationId: routed.conversationId, workspaceId: routed.workspaceId, routed: false }
     }
-
-    // Routed: answer the query immediately in the target workspace, carrying
-    // the receptionist (#general) history so it has the scope from reception.
     const session = await this.sessionStore.get(sessionKey)
     const result = await this.executeInWorkspace(routed.workspaceId, input, sessionKey, session)
     return {
@@ -104,7 +108,7 @@ export class RouteMessageUseCase {
   ): Promise<RouteMessageOutput> {
     const defaultWs = await this.workspaceRepo.findDefaultByOrg(input.orgId)
     if (defaultWs && existingSession.workspaceId === defaultWs.id && !existingSession.routedFrom) {
-      return this.router.route(input, sessionKey)
+      return this.routeAndAnswer(input, sessionKey)
     }
 
     if (existingSession.pendingRedirect) {
@@ -113,7 +117,7 @@ export class RouteMessageUseCase {
       log.info({ sessionKey, wantsRedirect }, 'Redirect intent result')
       if (wantsRedirect) {
         await this.sessionStore.delete(sessionKey)
-        return this.router.route(input, sessionKey)
+        return this.routeAndAnswer(input, sessionKey)
       }
     }
 
