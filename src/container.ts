@@ -322,7 +322,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   let oauthRoutes = null
   if (options.oauth) {
     const oauthHttp = new FetchOAuthHttpClient()
-    const buildOAuthAuthorizeUrlUseCase = new BuildOAuthAuthorizeUrlUseCase(orgRepo, options.oauth.credentialPort, options.oauth.dashboardUrl)
+    const buildOAuthAuthorizeUrlUseCase = new BuildOAuthAuthorizeUrlUseCase(orgRepo, options.oauth.credentialPort)
     const exchangeOAuthCodeUseCase = new ExchangeOAuthCodeUseCase(orgRepo, options.oauth.credentialPort, oauthHttp, options.oauth.dashboardUrl)
     const refreshOAuthTokenUseCase = new RefreshOAuthTokenUseCase(orgRepo, options.oauth.credentialPort, oauthHttp)
     const disconnectOAuthUseCase = new DisconnectOAuthUseCase(orgRepo)

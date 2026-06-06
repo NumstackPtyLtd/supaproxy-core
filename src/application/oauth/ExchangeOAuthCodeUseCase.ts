@@ -20,7 +20,7 @@ export class ExchangeOAuthCodeUseCase {
     private readonly dashboardUrl: string,
   ) {}
 
-  async execute(code: string, state: string): Promise<ExchangeResult> {
+  async execute(code: string, state: string, redirectUri: string): Promise<ExchangeResult> {
     const pluginId = state.split(':')[0] || null
     if (!pluginId) throw new NotFoundError('Plugin', state)
 
@@ -39,7 +39,7 @@ export class ExchangeOAuthCodeUseCase {
       clientSecret: credentials.clientSecret,
       grantType: 'authorization_code',
       code,
-      redirectUri: `${this.dashboardUrl}/oauth/callback`,
+      redirectUri,
     })
 
     await this.storeTokens(orgId, pluginId, tokens)
