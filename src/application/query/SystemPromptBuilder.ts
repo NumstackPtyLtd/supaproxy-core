@@ -18,6 +18,8 @@ export interface SystemPromptInput {
 export interface SystemPromptResult {
   text: string
   knowledgeChunksUsed: number
+  /** The retrieved knowledge text, for post-LLM grounding checks. */
+  knowledgeContext: string
 }
 
 export async function buildSystemPrompt(
@@ -28,6 +30,7 @@ export async function buildSystemPrompt(
   const basePrompt = input.systemPromptOverride || input.workspace.system_prompt || DEFAULT_SYSTEM_PROMPT
   let systemPrompt = basePrompt
   let knowledgeChunksUsed = 0
+  let knowledgeContext = ''
 
   if (!input.systemPromptOverride && !input.workspace.is_default) {
     const scopeClause = promptResolver
@@ -47,11 +50,12 @@ export async function buildSystemPrompt(
       if (retrieval.chunks.length > 0) {
         systemPrompt += formatKnowledgeContext(retrieval.chunks)
         knowledgeChunksUsed = retrieval.chunks.length
+        knowledgeContext = retrieval.chunks.map(c => c.text).join('\n\n')
       }
     } catch (err) {
       log.warn({ err, workspaceId: input.workspaceId }, 'Knowledge retrieval failed, continuing without context')
     }
   }
 
-  return { text: systemPrompt, knowledgeChunksUsed }
+  return { text: systemPrompt, knowledgeChunksUsed, knowledgeContext }
 }
