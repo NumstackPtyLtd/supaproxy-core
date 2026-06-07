@@ -281,9 +281,9 @@ describe('ExecuteQueryUseCase', () => {
     expect(userMessages[userMessages.length - 1].content).toBe('sanitised query')
   })
 
-  it('appends scope enforcement clause for non-default workspaces', async () => {
+  it('appends scope enforcement clause for non-default workspaces under open grounding', async () => {
     vi.mocked(workspaceRepo.findActiveById).mockResolvedValue(
-      stubWorkspace({ id: 'ws-test', is_default: false, system_prompt: 'You help with insurance.' }),
+      stubWorkspace({ id: 'ws-test', is_default: false, system_prompt: 'You help with insurance.', knowledge_grounding: 'open' }),
     )
     vi.mocked(workspaceRepo.findConnectionConfigs).mockResolvedValue([])
 
@@ -293,6 +293,19 @@ describe('ExecuteQueryUseCase', () => {
     const createMessageCall = vi.mocked(provider.createMessage).mock.calls[0][0]
     expect(createMessageCall.system).toContain('SCOPE RULE')
     expect(createMessageCall.system).toContain('You help with insurance.')
+  })
+
+  it('does not append scope enforcement under strict (grounding governs instead)', async () => {
+    vi.mocked(workspaceRepo.findActiveById).mockResolvedValue(
+      stubWorkspace({ id: 'ws-test', is_default: false, system_prompt: 'You help with insurance.', knowledge_grounding: 'strict' }),
+    )
+    vi.mocked(workspaceRepo.findConnectionConfigs).mockResolvedValue([])
+
+    const useCase = buildUseCase()
+    await useCase.execute('ws-test', 'hello', baseMeta)
+
+    const createMessageCall = vi.mocked(provider.createMessage).mock.calls[0][0]
+    expect(createMessageCall.system).not.toContain('SCOPE RULE')
   })
 
   it('does not append scope enforcement for default workspaces', async () => {

@@ -74,17 +74,18 @@ export class RouteMessageUseCase {
     }
   }
 
-  // Execute the query in a workspace, carrying any routed-from history, and
-  // mirror the exchange to the #general master conversation.
+  // Execute the query in a workspace and mirror the exchange to the #general
+  // master conversation. The target answers the forwarded query in its own
+  // conversation context; the receptionist's #general history is deliberately
+  // NOT carried in, otherwise the target inherits the receptionist's routing
+  // framing (out-of-scope replies, "connect you", ROUTE directives) and parrots
+  // it instead of answering.
   private async executeInWorkspace(
     workspaceId: string,
     input: RouteMessageInput,
     sessionKey: string,
     session: RoutingSession | null,
   ): Promise<{ answer: string; conversationId: string }> {
-    const priorHistory = session?.routedFromConversationId
-      ? await this.conversationUseCase.getHistory(session.routedFromConversationId)
-      : undefined
     const result = await this.executeQueryUseCase.execute(workspaceId, input.query, {
       consumerType: input.consumerType,
       channel: input.entryPoint,
@@ -93,7 +94,6 @@ export class RouteMessageUseCase {
       sessionId: sessionKey,
       routedFrom: session?.routedFrom || undefined,
       routedFromConversationId: session?.routedFromConversationId || undefined,
-      priorHistory,
     })
     if (session?.generalConversationId) {
       await this.router.logToGeneral(session.generalConversationId, input.query, result.answer)

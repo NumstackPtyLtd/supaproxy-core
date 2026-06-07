@@ -29,7 +29,12 @@ export async function buildSystemPrompt(
   let systemPrompt = basePrompt
   let knowledgeChunksUsed = 0
 
-  if (!input.systemPromptOverride && !input.workspace.is_default) {
+  // Scope enforcement is only used at the open level. Under strict/grounded,
+  // the grounding rule governs what a workspace can answer (it declines and
+  // captures a gap rather than emitting an out-of-scope redirect), so adding
+  // scope enforcement would loop a routed-to workspace back into "outside my
+  // scope, connect you elsewhere".
+  if (!input.systemPromptOverride && !input.workspace.is_default && input.grounding === 'open') {
     const scopeClause = promptResolver
       ? await promptResolver.resolve('scope_enforcement', input.workspace.org_id || '', input.workspaceId)
       : buildScopeEnforcementClause()

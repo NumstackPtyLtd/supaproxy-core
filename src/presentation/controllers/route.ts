@@ -21,7 +21,7 @@ export function routeMessage(deps: RouteRouteDeps) {
         orgId: user.org_id,
         query: parsed.data.query,
         consumerType: 'dashboard',
-        entryPoint: 'test',
+        entryPoint: parsed.data.sessionId || 'test',
         userId: user.id,
         userName: user.name,
       })

@@ -556,7 +556,7 @@ describe('RouteMessageUseCase', () => {
     expect(mockConvUseCase.recordMessage).toHaveBeenCalledWith('conv-general-master', 'assistant', 'Here is your claim status.')
   })
 
-  it('passes prior history from receptionist to target workspace', async () => {
+  it('does NOT carry the receptionist conversation into the target workspace', async () => {
     const mockConvUseCase = mockManageConversationUseCase()
     vi.mocked(mockConvUseCase.getHistory).mockResolvedValue([
       { role: 'user', content: 'I need insurance help' },
@@ -582,13 +582,12 @@ describe('RouteMessageUseCase', () => {
 
     await localUseCase.execute({ ...baseInput, query: 'My policy number is 12345' })
 
-    // Should pass prior history to the target workspace
-    expect(executeQuery.execute).toHaveBeenCalledWith('ws-insurance', 'My policy number is 12345', expect.objectContaining({
-      priorHistory: [
-        { role: 'user', content: 'I need insurance help' },
-        { role: 'assistant', content: 'Connecting you to Insurance.' },
-      ],
-    }))
+    // The target answers the forwarded query in its own context. The
+    // receptionist's framing must not leak in as prior history.
+    const call = vi.mocked(executeQuery.execute).mock.calls.find(c => c[0] === 'ws-insurance')
+    expect(call).toBeTruthy()
+    expect(call![1]).toBe('My policy number is 12345')
+    expect((call![2] as { priorHistory?: unknown }).priorHistory).toBeUndefined()
   })
 
   it('passes stable sessionKey so conversation accumulates all messages', async () => {
