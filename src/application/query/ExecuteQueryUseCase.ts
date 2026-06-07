@@ -17,10 +17,16 @@ import type { ToolEntry } from './ToolCallProcessor.js'
 import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, recordMessages, type QueryMeta, type QueryResult, type AgentLoopResult } from './AgentLoopHelpers.js'
 import { resolveProvider } from './ProviderResolver.js'
 import { resolveModel } from './ModelResolver.js'
+import { resolveGrounding } from './KnowledgeGrounding.js'
+import { extractKnowledgeGap } from './KnowledgeGapDirective.js'
+import { containsFabricatedToolCall, FABRICATED_TOOLS_MESSAGE } from './FabricatedToolGuard.js'
+import type { KnowledgeGap } from '../../domain/shared/jsonMappers.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
 import { buildSystemPrompt } from './SystemPromptBuilder.js'
 import pino from 'pino'
+
+export type KnowledgeGapRecorder = (input: { workspaceId: string; conversationId: string; userName?: string; gap: KnowledgeGap }) => Promise<void>
 
 const log = pino({ name: 'execute-query' })
 
@@ -39,6 +45,7 @@ export class ExecuteQueryUseCase {
     private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
     private readonly preQueryGuard?: PreQueryGuardService,
     private readonly retrieveKnowledge?: RetrieveKnowledgeForWorkspaceUseCase,
+    private readonly recordKnowledgeGap?: KnowledgeGapRecorder,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -104,8 +111,10 @@ export class ExecuteQueryUseCase {
       const model = resolveModel(provider, workspace.model)
       if (!model) throw new ConfigurationError(ERROR_CODES.NO_WORKSPACE_MODEL)
 
+      const groundingSettings = await this.orgRepo.getSettingValues(['knowledge_grounding'])
+      const grounding = resolveGrounding(workspace.knowledge_grounding, groundingSettings['knowledge_grounding'])
       const systemPrompt = await buildSystemPrompt(
-        { workspace, systemPromptOverride: meta.systemPromptOverride, workspaceId, queryToForward },
+        { workspace, systemPromptOverride: meta.systemPromptOverride, workspaceId, queryToForward, grounding },
         this.promptResolver,
         this.retrieveKnowledge,
       )
@@ -116,6 +125,20 @@ export class ExecuteQueryUseCase {
         maxToolRounds: workspace.max_tool_rounds || DEFAULT_MAX_TOOL_ROUNDS,
         tools, history, apiKey, workspaceId, conversationId, executionRails, retrievalRails,
       }, this.toolCallProcessor)
+
+      const { gap, cleanedAnswer } = extractKnowledgeGap(result.answer)
+      if (gap) {
+        result.answer = cleanedAnswer
+        await this.captureKnowledgeGap(workspaceId, conversationId, meta.userName, gap)
+      }
+
+      // Refuse fabricated tool flows: a model with no real tools may role-play
+      // tool calls and invent results (customer data, KYC, OTP). Never surface that.
+      if (containsFabricatedToolCall(result.answer)) {
+        log.warn({ workspace: workspaceId }, 'Model fabricated tool calls/results; refusing the answer')
+        result.answer = FABRICATED_TOOLS_MESSAGE
+        result.error = result.error || 'fabricated_tools'
+      }
 
       result.durationMs = Date.now() - startTime
 
@@ -130,6 +153,15 @@ export class ExecuteQueryUseCase {
       for (const conn of mcpConnections) {
         try { await conn.close() } catch (err) { log.warn({ error: (err as Error).message }, 'Failed to close MCP connection') }
       }
+    }
+  }
+
+  private async captureKnowledgeGap(workspaceId: string, conversationId: string, userName: string | undefined, gap: KnowledgeGap): Promise<void> {
+    if (!this.recordKnowledgeGap) return
+    try {
+      await this.recordKnowledgeGap({ workspaceId, conversationId, userName, gap })
+    } catch (err) {
+      log.warn({ error: (err as Error).message, workspaceId }, 'Failed to record knowledge gap')
     }
   }
 

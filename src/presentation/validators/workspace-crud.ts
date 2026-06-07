@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MAX_WORKSPACE_NAME_LENGTH, MAX_TIMEOUT_MINUTES, MAX_SYSTEM_PROMPT_LENGTH } from '../../defaults.js'
+import { KNOWLEDGE_GROUNDING_LEVELS } from '../../application/query/KnowledgeGrounding.js'
 
 export const createWorkspaceSchema = z.object({
   name: z.string().min(1).max(MAX_WORKSPACE_NAME_LENGTH),
@@ -19,4 +20,5 @@ export const updateWorkspaceSchema = z.object({
   system_prompt: z.string().max(MAX_SYSTEM_PROMPT_LENGTH).optional(),
   cold_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
   close_timeout_minutes: z.number().int().min(1).max(MAX_TIMEOUT_MINUTES).nullable().optional(),
+  knowledge_grounding: z.enum(KNOWLEDGE_GROUNDING_LEVELS).nullable().optional(),
 })

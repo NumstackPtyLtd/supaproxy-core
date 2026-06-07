@@ -18,6 +18,8 @@ export interface WorkspaceData {
   created_at: string
   updated_at: string
   team?: string | null
+  /** Per-workspace knowledge grounding override (strict|grounded|open); null uses the org default. */
+  knowledge_grounding?: string | null
 }
 
 export interface WorkspaceRoutingSummary {
@@ -149,7 +151,7 @@ export interface WorkspaceRepository {
   findActiveById(id: string): Promise<WorkspaceData | null>
   existsById(id: string): Promise<boolean>
   create(workspace: { id: string; orgId: string | null; teamId: string | null; name: string; model: string; systemPrompt: string; createdBy?: string | null }): Promise<void>
-  update(id: string, fields: { name?: string; model?: string; provider_type?: string | null; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null }): Promise<void>
+  update(id: string, fields: { name?: string; model?: string; provider_type?: string | null; system_prompt?: string; cold_timeout_minutes?: number | null; close_timeout_minutes?: number | null; knowledge_grounding?: string | null }): Promise<void>
   listNonArchived(orgId: string | null): Promise<WorkspaceListItemData[]>
   getSummary(id: string): Promise<WorkspaceData | null>
 

@@ -8,6 +8,7 @@ interface UpdateWorkspaceInput {
   system_prompt?: string
   cold_timeout_minutes?: number | null
   close_timeout_minutes?: number | null
+  knowledge_grounding?: string | null
 }
 
 export class UpdateWorkspaceUseCase {

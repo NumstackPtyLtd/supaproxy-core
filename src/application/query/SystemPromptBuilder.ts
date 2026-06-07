@@ -1,5 +1,6 @@
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, formatKnowledgeContext } from '../../prompts.js'
+import { buildGroundingClause, buildGapCaptureClause, type KnowledgeGrounding } from './KnowledgeGrounding.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import pino from 'pino'
@@ -11,6 +12,7 @@ export interface SystemPromptInput {
   systemPromptOverride?: string
   workspaceId: string
   queryToForward: string
+  grounding: KnowledgeGrounding
 }
 
 export interface SystemPromptResult {
@@ -27,17 +29,28 @@ export async function buildSystemPrompt(
   let systemPrompt = basePrompt
   let knowledgeChunksUsed = 0
 
-  if (!input.systemPromptOverride && !input.workspace.is_default) {
+  // Scope enforcement is only used at the open level. Under strict/grounded,
+  // the grounding rule governs what a workspace can answer (it declines and
+  // captures a gap rather than emitting an out-of-scope redirect), so adding
+  // scope enforcement would loop a routed-to workspace back into "outside my
+  // scope, connect you elsewhere".
+  if (!input.systemPromptOverride && !input.workspace.is_default && input.grounding === 'open') {
     const scopeClause = promptResolver
       ? await promptResolver.resolve('scope_enforcement', input.workspace.org_id || '', input.workspaceId)
       : buildScopeEnforcementClause()
     systemPrompt = `${basePrompt}\n\n${scopeClause}`
   }
 
-  // Retrieve relevant knowledge and append to system prompt
+  // Retrieve relevant knowledge, set the grounding rule, and append context.
   if (retrieveKnowledge) {
     try {
       const retrieval = await retrieveKnowledge.execute(input.workspaceId, input.queryToForward)
+      if (!input.systemPromptOverride) {
+        const groundingClause = buildGroundingClause(input.grounding, retrieval.chunks.length)
+        if (groundingClause) systemPrompt += `\n\n${groundingClause}`
+        const gapClause = buildGapCaptureClause(input.grounding)
+        if (gapClause) systemPrompt += `\n\n${gapClause}`
+      }
       if (retrieval.chunks.length > 0) {
         systemPrompt += formatKnowledgeContext(retrieval.chunks)
         knowledgeChunksUsed = retrieval.chunks.length

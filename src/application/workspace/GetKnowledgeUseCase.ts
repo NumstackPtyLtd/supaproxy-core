@@ -1,5 +1,6 @@
 import type { WorkspaceRepository } from '../../domain/workspace/repository.js'
 import type { ConversationQueryRepository } from '../../domain/conversation/queryRepository.js'
+import type { KnowledgeGapRepository } from '../../domain/knowledge/repository.js'
 import type { EmbeddingServiceFactory } from '../ports/EmbeddingServiceFactory.js'
 import { parseKnowledgeGaps } from '../../domain/shared/jsonMappers.js'
 import { DEFAULT_KNOWLEDGE_GAPS_LIMIT } from '../../defaults.js'
@@ -9,19 +10,23 @@ export class GetKnowledgeUseCase {
     private readonly workspaceRepo: WorkspaceRepository,
     private readonly conversationQueryRepo: ConversationQueryRepository,
     private readonly embeddingFactory?: EmbeddingServiceFactory,
+    private readonly knowledgeGapRepo?: KnowledgeGapRepository,
   ) {}
 
   async execute(workspaceId: string) {
-    const [knowledge, gapRows] = await Promise.all([
+    const [knowledge, gapRows, liveGaps] = await Promise.all([
       this.workspaceRepo.findKnowledge(workspaceId),
       this.conversationQueryRepo.getKnowledgeGapsByWorkspace(workspaceId, DEFAULT_KNOWLEDGE_GAPS_LIMIT),
+      this.knowledgeGapRepo ? this.knowledgeGapRepo.listByWorkspace(workspaceId, DEFAULT_KNOWLEDGE_GAPS_LIMIT) : Promise.resolve([]),
     ])
 
-    const gaps = gapRows.flatMap(r =>
+    // Live gaps captured at query time come first, then close-time analysis gaps.
+    const analysisGaps = gapRows.flatMap(r =>
       parseKnowledgeGaps(r.knowledge_gaps).map(g => ({
         ...g, conversation_id: r.conversation_id, user_name: r.user_name, timestamp: r.last_activity_at,
       }))
     )
+    const gaps = [...liveGaps, ...analysisGaps]
 
     // Check if embedding is available for this workspace's org
     let embeddingAvailable = false

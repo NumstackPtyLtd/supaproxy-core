@@ -1,4 +1,6 @@
 import type { DatabaseAdapter } from './application/ports/DatabaseAdapter.js'
+import { generateId } from './domain/shared/EntityId.js'
+import type { KnowledgeGapRecorder } from './application/query/ExecuteQueryUseCase.js'
 
 // Infrastructure (non-MySQL)
 import { registry as providerRegistry } from '@supaproxy/providers'
@@ -144,7 +146,20 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const { authRoutes, requireAuth } = options
 
   // Infrastructure singletons (from injected database adapter)
-  const { orgRepo, workspaceRepo, conversationRepo, conversationQueryRepo, auditRepo, modelRepo } = infra
+  const { orgRepo, workspaceRepo, conversationRepo, conversationQueryRepo, auditRepo, modelRepo, knowledgeGapRepo } = infra
+
+  const recordKnowledgeGap: KnowledgeGapRecorder = async ({ workspaceId, conversationId, userName, gap }) => {
+    await knowledgeGapRepo.create({
+      id: generateId(),
+      workspaceId,
+      conversationId,
+      topic: gap.topic,
+      missingInformation: gap.missing_information,
+      sourcesChecked: gap.sources_checked,
+      gapDetail: gap.gap_detail,
+      userName: userName ?? null,
+    })
+  }
   // Provider registry passed to use cases. They resolve the provider
   // dynamically from org settings at query time.
   const mcpFactory = new McpClientFactoryImpl()
@@ -183,7 +198,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   const deleteWorkspaceUseCase = new DeleteWorkspaceUseCase(workspaceRepo)
   const publishWorkspaceUseCase = new PublishWorkspaceUseCase(workspaceRepo)
   const getConnectionsUseCase = new GetConnectionsUseCase(workspaceRepo)
-  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationQueryRepo, embeddingFactory)
+  const getKnowledgeUseCase = new GetKnowledgeUseCase(workspaceRepo, conversationQueryRepo, embeddingFactory, knowledgeGapRepo)
   const createKnowledgeSourceUseCase = new CreateKnowledgeSourceUseCase(workspaceRepo, indexKnowledge)
   const deleteKnowledgeSourceUseCase = new DeleteKnowledgeSourceUseCase(workspaceRepo)
   const listWorkspaceConsumersUseCase = new ListWorkspaceConsumersUseCase(workspaceRepo)
@@ -276,7 +291,7 @@ export function createContainer(infra: DatabaseAdapter, options: ContainerOption
   }
   const preQueryGuard = new PreQueryGuardService(preQueryGuardDeps)
   const toolCallProcessor = new ToolCallProcessor(guardrailEventRepo)
-  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, toolCallProcessor, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, preQueryGuard, retrieveKnowledge)
+  const executeQueryUseCase = new ExecuteQueryUseCase(workspaceRepo, orgRepo, auditRepo, providerRegistry, mcpFactory, manageConversationUseCase, toolCallProcessor, resolveGuardrails, promptResolver, resolveExecutionRails, resolveRetrievalRails, preQueryGuard, retrieveKnowledge, recordKnowledgeGap)
   const { sessionStore } = options
   const workspaceMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQueryUseCase)
   const receptionistRouter = new ReceptionistRouter(workspaceRepo, conversationRepo, sessionStore, manageConversationUseCase, workspaceMatcher)

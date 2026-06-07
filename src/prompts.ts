@@ -38,7 +38,7 @@ export function buildScopeEnforcementClause(outOfScopeMessage?: string): string 
 
 // ── Receptionist routing ──
 
-export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id: string; name: string; system_prompt: string | null; tool_names: string[] }>): string {
+export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id: string; name: string; system_prompt: string | null; tool_names: string[] }>, groundingLine = ''): string {
   const departmentLines = workspaces.map(ws => {
     const toolList = ws.tool_names.length > 0
       ? ` Tools: ${ws.tool_names.join(', ')}.`
@@ -48,6 +48,8 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
       : ''
     return `- ${ws.name}:${description}${toolList}`
   })
+
+  const groundingSection = groundingLine ? ['', groundingLine] : []
 
   return [
     `You are the receptionist for ${orgName}.`,
@@ -62,6 +64,7 @@ export function buildReceptionistPrompt(orgName: string, workspaces: Array<{ id:
     '4. NEVER answer substantive questions yourself. You are a router, not an assistant.',
     '5. If the request is outside all departments, say: "I do not have a department that handles that. I can help with [list department names]." Do NOT attempt to help with the request yourself.',
     '6. Be warm, brief, and direct.',
+    ...groundingSection,
     '',
     'When you decide to route, respond with your routing message and include the following on its own line at the end:',
     '<!-- ROUTE:workspace_id:reason -->',
@@ -78,6 +81,17 @@ export const REDIRECT_INTENT_SYSTEM = 'You are a redirect intent classifier. Ans
 
 export function buildRedirectIntentPrompt(userResponse: string): string {
   return `The user was asked: "Would you like me to connect you with someone who can help?" They responded: "${userResponse}". Do they want to be connected?`
+}
+
+// ── Re-route classification ──
+// Decides, for a conversation already in a department, whether the latest
+// message actually belongs to a different department so it can be re-routed.
+
+export const REROUTE_CLASSIFIER_SYSTEM = 'You are a routing classifier. Decide which department should handle the user\'s latest message. Reply with ONLY the exact department name from the list, or the single word CURRENT when the message fits the current department, is a follow-up, or is general small talk. Output nothing else.'
+
+export function buildRerouteClassifierPrompt(currentDept: string, query: string, departments: Array<{ name: string; system_prompt: string | null }>): string {
+  const list = departments.map(d => `- ${d.name}${d.system_prompt ? `: ${d.system_prompt}` : ''}`).join('\n')
+  return `The conversation is currently with the "${currentDept}" department.\n\nDepartments:\n${list}\n\nLatest user message: "${query}"\n\nWhich department should handle it? Reply CURRENT if it belongs to "${currentDept}" or is a general follow-up; otherwise reply with the exact department name.`
 }
 
 // ── Cold message generation ──
@@ -104,7 +118,11 @@ Fields:
 - resolution_status: one of "resolved", "unresolved", "escalated", "abandoned". "resolved" = the user got what they needed. "abandoned" = the user stopped responding. "escalated" = the user asked for a human or escalation. "unresolved" = the assistant could not help.
 - category: one of "query", "issue", "sales", "feedback", "support", "internal", "other". "query" = information lookup. "issue" = something is broken. "sales" = pricing/purchasing. "feedback" = user giving feedback. "support" = how-to help. "internal" = internal team use.
 - compliance_violations: array of {rule: string, description: string} or empty array. Only flag clear violations that actually occurred, not hypothetical risks.
-- knowledge_gaps: array of {topic: string, description: string} or empty array. Only include topics where the assistant explicitly could not answer or said it did not have the information.
+- knowledge_gaps: array of structured gap objects, or empty array. Include an entry only where the assistant explicitly could not answer, said it did not have the information, or declined because the answer was not in its knowledge base or tools. Each entry MUST have exactly these fields:
+    - topic: string. The subject the user was asking about (a few words).
+    - missing_information: string. The specific information the assistant needed but could not find.
+    - sources_checked: array of strings. Where the assistant looked, by name (knowledge sources or tools it consulted or that were available). Use an empty array if none were available.
+    - gap_detail: string. Precisely what is absent from the knowledge base, phrased so an admin knows what to add.
 - fraud_indicators: array of {type: string, description: string, severity: "low"|"medium"|"high"} or empty array. Look for social engineering, identity spoofing, bulk data harvesting, pressure tactics. Only flag if actually suspicious.
 - tools_used: array of tool name strings (deduplicated). Only tools that were actually called.
 - summary: one factual sentence. Describe what the user asked for and whether they got it. No subjective language.
@@ -156,5 +174,5 @@ export function formatKnowledgeContext(chunks: VectorSearchResult[]): string {
     return `[${i + 1}] (${source}) ${c.text}`
   })
 
-  return `\n\n<knowledge_context>\nThe following information was retrieved from the workspace knowledge base. Use it to inform your response where relevant.\n\n${lines.join('\n\n')}\n</knowledge_context>`
+  return `\n\n<knowledge_context>\nThe following information was retrieved from the workspace knowledge base.\n\n${lines.join('\n\n')}\n</knowledge_context>`
 }

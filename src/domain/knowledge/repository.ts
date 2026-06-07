@@ -21,3 +21,33 @@ export interface KnowledgeChunkRepository {
   deleteByWorkspace(workspaceId: string): Promise<void>;
   countBySource(sourceId: string): Promise<number>;
 }
+
+/** A knowledge gap captured live, the moment the assistant could not answer. */
+export interface KnowledgeGapRecord {
+  id: string;
+  workspaceId: string;
+  conversationId: string | null;
+  topic: string;
+  missingInformation: string;
+  sourcesChecked: string[];
+  gapDetail: string;
+  userName: string | null;
+}
+
+/** A gap in the shape the gaps API and dashboard consume. */
+export interface AggregatedKnowledgeGap {
+  topic: string;
+  missing_information: string;
+  sources_checked: string[];
+  gap_detail: string;
+  conversation_id: string | null;
+  user_name: string | null;
+  timestamp: string;
+}
+
+export interface KnowledgeGapRepository {
+  /** Persist a gap captured during a query. */
+  create(record: KnowledgeGapRecord): Promise<void>;
+  /** Most recent live gaps for a workspace. */
+  listByWorkspace(workspaceId: string, limit: number): Promise<AggregatedKnowledgeGap[]>;
+}

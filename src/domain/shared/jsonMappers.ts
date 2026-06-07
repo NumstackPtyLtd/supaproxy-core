@@ -6,8 +6,14 @@ export interface ComplianceViolation {
 }
 
 export interface KnowledgeGap {
+  /** What the user was asking about. */
   topic: string
-  [key: string]: unknown
+  /** The specific information the assistant needed but could not find. */
+  missing_information: string
+  /** Where the assistant looked, by name (knowledge sources or tools). */
+  sources_checked: string[]
+  /** What is absent from the knowledge base, phrased for an admin. */
+  gap_detail: string
 }
 
 export function parseComplianceViolations(raw: string | null): ComplianceViolation[] {
@@ -16,10 +22,26 @@ export function parseComplianceViolations(raw: string | null): ComplianceViolati
   return raw as ComplianceViolation[]
 }
 
+/**
+ * Coerces a parsed gap of unknown shape into the structured payload so every
+ * model and every stored record exposes the same fields. Falls back to the
+ * legacy `description` field for `missing_information`.
+ */
+export function normaliseKnowledgeGap(raw: unknown): KnowledgeGap {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+  return {
+    topic: str(r.topic) || 'Unspecified topic',
+    missing_information: str(r.missing_information) || str(r.description),
+    sources_checked: Array.isArray(r.sources_checked) ? r.sources_checked.filter((s): s is string => typeof s === 'string') : [],
+    gap_detail: str(r.gap_detail),
+  }
+}
+
 export function parseKnowledgeGaps(raw: string | null): KnowledgeGap[] {
   if (!raw) return []
-  if (typeof raw === 'string') return safeJsonParse<KnowledgeGap[]>(raw, [])
-  return raw as KnowledgeGap[]
+  const list = typeof raw === 'string' ? safeJsonParse<unknown[]>(raw, []) : (raw as unknown[])
+  return Array.isArray(list) ? list.map(normaliseKnowledgeGap) : []
 }
 
 export interface StatsAnalysis {
