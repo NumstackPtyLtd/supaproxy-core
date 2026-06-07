@@ -20,7 +20,6 @@ import { resolveModel } from './ModelResolver.js'
 import { resolveGrounding } from './KnowledgeGrounding.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
-import { screenOutput } from './OutputScreener.js'
 import { buildSystemPrompt } from './SystemPromptBuilder.js'
 import pino from 'pino'
 
@@ -79,9 +78,7 @@ export class ExecuteQueryUseCase {
     }
 
     const guardrails = await this.resolveGuardrails(workspaceId)
-    const preGuardrails = guardrails.filter(g => g.stage === 'pre-llm')
-    const postGuardrails = guardrails.filter(g => g.stage === 'post-llm')
-    const screening = await screenInput(preGuardrails, query, { workspaceId, userId: meta.userId, consumerType: meta.consumerType })
+    const screening = await screenInput(guardrails, query, { workspaceId, userId: meta.userId, consumerType: meta.consumerType })
 
     if (screening.blocked) {
       const auditLogId = generateId()
@@ -122,22 +119,6 @@ export class ExecuteQueryUseCase {
         maxToolRounds: workspace.max_tool_rounds || DEFAULT_MAX_TOOL_ROUNDS,
         tools, history, apiKey, workspaceId, conversationId, executionRails, retrievalRails,
       }, this.toolCallProcessor)
-
-      if (postGuardrails.length > 0) {
-        const outcome = await screenOutput(
-          postGuardrails,
-          result.answer,
-          { workspaceId, userId: meta.userId, consumerType: meta.consumerType },
-          { grounding, knowledgeContext: systemPrompt.knowledgeContext },
-        )
-        result.answer = outcome.answer
-        if (outcome.blocked) {
-          log.info({ workspace: workspaceId, annotations: outcome.annotations }, 'Answer blocked by grounding policy')
-          result.error = result.error || 'output_blocked'
-        } else if (outcome.annotations) {
-          log.info({ workspace: workspaceId, annotations: outcome.annotations }, 'Answer flagged by grounding policy')
-        }
-      }
 
       result.durationMs = Date.now() - startTime
 

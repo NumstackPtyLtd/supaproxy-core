@@ -20,11 +20,10 @@ export async function runGuardrailChain(
   guardrails: GuardrailPlugin[],
   query: string,
   context: GuardrailContext,
-  initialMetadata: Record<string, unknown> = {},
 ): Promise<ChainResult> {
   let currentQuery = query
   const allAnnotations: string[] = []
-  let metadata: Record<string, unknown> = { ...initialMetadata }
+  let metadata: Record<string, unknown> = {}
 
   for (const guardrail of guardrails) {
     const output: GuardrailOutput = await guardrail.process({
