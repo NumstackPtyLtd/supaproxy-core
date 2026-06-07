@@ -47,6 +47,17 @@ export function buildGroundingClause(grounding: KnowledgeGrounding, chunkCount: 
 }
 
 /**
+ * Instruction telling the model to log a knowledge gap the moment it cannot
+ * answer from the knowledge base, so the gap is captured live (not only by the
+ * close-time analysis). The marker carries the structured payload and is
+ * stripped before the user sees the reply. Inert under open.
+ */
+export function buildGapCaptureClause(grounding: KnowledgeGrounding): string {
+  if (grounding === 'open') return ''
+  return '<knowledge_gap_capture>\nWhen you cannot answer because the information is not in the knowledge base or a tool result, after your reply add this line exactly once, on its own line:\n<!-- KNOWLEDGE_GAP: {"topic": "<what the user asked about>", "missing_information": "<what you needed but could not find>", "sources_checked": ["<knowledge sources or tools you consulted>"], "gap_detail": "<what is absent, so an admin knows what to add>"} -->\nThe marker is internal and is removed before the user sees your reply. Add it only when information was genuinely missing, never when you answered fully.\n</knowledge_gap_capture>'
+}
+
+/**
  * Grounding instruction for the receptionist front desk, which routes rather
  * than answers and has no knowledge base of its own. Under strict or grounded
  * it must never invent product specifics; under open it behaves as before.

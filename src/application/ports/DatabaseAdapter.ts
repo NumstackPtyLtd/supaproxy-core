@@ -29,7 +29,7 @@ import type { AuditLogRepository } from '../../domain/audit/repository.js'
 import type { GuardrailEventRepository } from '../../domain/guardrail/repository.js'
 import type { GuardrailPolicyRepository } from '../../domain/guardrail/policyRepository.js'
 import type { IntegrationRepository, EntryPointRepository } from '../../domain/integration/repository.js'
-import type { KnowledgeChunkRepository } from '../../domain/knowledge/repository.js'
+import type { KnowledgeChunkRepository, KnowledgeGapRepository } from '../../domain/knowledge/repository.js'
 import type { PromptTemplateRepository } from '../../domain/prompt/repository.js'
 import type { ModelRepository } from './ModelRepository.js'
 
@@ -69,6 +69,9 @@ export interface DatabaseAdapter {
 
   /** Knowledge chunk storage for RAG pipelines */
   knowledgeChunkRepo: KnowledgeChunkRepository
+
+  /** Knowledge gaps captured live when the assistant cannot answer */
+  knowledgeGapRepo: KnowledgeGapRepository
 
   /** Monthly cost for a workspace (sum of audit_logs.cost_usd for current month) */
   getMonthlySpend(workspaceId: string): Promise<number>

@@ -1,6 +1,6 @@
 import { DEFAULT_SYSTEM_PROMPT } from '../../defaults.js'
 import { buildScopeEnforcementClause, formatKnowledgeContext } from '../../prompts.js'
-import { buildGroundingClause, type KnowledgeGrounding } from './KnowledgeGrounding.js'
+import { buildGroundingClause, buildGapCaptureClause, type KnowledgeGrounding } from './KnowledgeGrounding.js'
 import type { PromptResolver } from '../prompt/PromptResolver.js'
 import type { RetrieveKnowledgeForWorkspaceUseCase } from '../knowledge/RetrieveKnowledgeForWorkspaceUseCase.js'
 import pino from 'pino'
@@ -43,6 +43,8 @@ export async function buildSystemPrompt(
       if (!input.systemPromptOverride) {
         const groundingClause = buildGroundingClause(input.grounding, retrieval.chunks.length)
         if (groundingClause) systemPrompt += `\n\n${groundingClause}`
+        const gapClause = buildGapCaptureClause(input.grounding)
+        if (gapClause) systemPrompt += `\n\n${gapClause}`
       }
       if (retrieval.chunks.length > 0) {
         systemPrompt += formatKnowledgeContext(retrieval.chunks)

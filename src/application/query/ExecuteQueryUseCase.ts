@@ -18,10 +18,14 @@ import { runAgentLoop, buildEmptyResult, buildQueryResult, buildAuditLogData, re
 import { resolveProvider } from './ProviderResolver.js'
 import { resolveModel } from './ModelResolver.js'
 import { resolveGrounding } from './KnowledgeGrounding.js'
+import { extractKnowledgeGap } from './KnowledgeGapDirective.js'
+import type { KnowledgeGap } from '../../domain/shared/jsonMappers.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
 import { buildSystemPrompt } from './SystemPromptBuilder.js'
 import pino from 'pino'
+
+export type KnowledgeGapRecorder = (input: { workspaceId: string; conversationId: string; userName?: string; gap: KnowledgeGap }) => Promise<void>
 
 const log = pino({ name: 'execute-query' })
 
@@ -40,6 +44,7 @@ export class ExecuteQueryUseCase {
     private readonly resolveRetrievalRails: (workspaceId: string) => Promise<RetrievalRailRegistry | null> = async () => null,
     private readonly preQueryGuard?: PreQueryGuardService,
     private readonly retrieveKnowledge?: RetrieveKnowledgeForWorkspaceUseCase,
+    private readonly recordKnowledgeGap?: KnowledgeGapRecorder,
   ) {}
 
   async execute(workspaceId: string, query: string, meta: QueryMeta): Promise<QueryResult> {
@@ -120,6 +125,12 @@ export class ExecuteQueryUseCase {
         tools, history, apiKey, workspaceId, conversationId, executionRails, retrievalRails,
       }, this.toolCallProcessor)
 
+      const { gap, cleanedAnswer } = extractKnowledgeGap(result.answer)
+      if (gap) {
+        result.answer = cleanedAnswer
+        await this.captureKnowledgeGap(workspaceId, conversationId, meta.userName, gap)
+      }
+
       result.durationMs = Date.now() - startTime
 
       const auditLogId = generateId()
@@ -133,6 +144,15 @@ export class ExecuteQueryUseCase {
       for (const conn of mcpConnections) {
         try { await conn.close() } catch (err) { log.warn({ error: (err as Error).message }, 'Failed to close MCP connection') }
       }
+    }
+  }
+
+  private async captureKnowledgeGap(workspaceId: string, conversationId: string, userName: string | undefined, gap: KnowledgeGap): Promise<void> {
+    if (!this.recordKnowledgeGap) return
+    try {
+      await this.recordKnowledgeGap({ workspaceId, conversationId, userName, gap })
+    } catch (err) {
+      log.warn({ error: (err as Error).message, workspaceId }, 'Failed to record knowledge gap')
     }
   }
 
