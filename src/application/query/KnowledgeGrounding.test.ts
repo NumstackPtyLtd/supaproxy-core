@@ -28,7 +28,7 @@ describe('resolveGrounding', () => {
 
   it('falls back to the system default when neither is set', () => {
     expect(resolveGrounding(null, null)).toBe(DEFAULT_KNOWLEDGE_GROUNDING)
-    expect(DEFAULT_KNOWLEDGE_GROUNDING).toBe('grounded')
+    expect(DEFAULT_KNOWLEDGE_GROUNDING).toBe('strict')
   })
 })
 

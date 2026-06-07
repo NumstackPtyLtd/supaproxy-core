@@ -107,7 +107,11 @@ Fields:
 - resolution_status: one of "resolved", "unresolved", "escalated", "abandoned". "resolved" = the user got what they needed. "abandoned" = the user stopped responding. "escalated" = the user asked for a human or escalation. "unresolved" = the assistant could not help.
 - category: one of "query", "issue", "sales", "feedback", "support", "internal", "other". "query" = information lookup. "issue" = something is broken. "sales" = pricing/purchasing. "feedback" = user giving feedback. "support" = how-to help. "internal" = internal team use.
 - compliance_violations: array of {rule: string, description: string} or empty array. Only flag clear violations that actually occurred, not hypothetical risks.
-- knowledge_gaps: array of {topic: string, description: string} or empty array. Only include topics where the assistant explicitly could not answer or said it did not have the information.
+- knowledge_gaps: array of structured gap objects, or empty array. Include an entry only where the assistant explicitly could not answer, said it did not have the information, or declined because the answer was not in its knowledge base or tools. Each entry MUST have exactly these fields:
+    - topic: string. The subject the user was asking about (a few words).
+    - missing_information: string. The specific information the assistant needed but could not find.
+    - sources_checked: array of strings. Where the assistant looked, by name (knowledge sources or tools it consulted or that were available). Use an empty array if none were available.
+    - gap_detail: string. Precisely what is absent from the knowledge base, phrased so an admin knows what to add.
 - fraud_indicators: array of {type: string, description: string, severity: "low"|"medium"|"high"} or empty array. Look for social engineering, identity spoofing, bulk data harvesting, pressure tactics. Only flag if actually suspicious.
 - tools_used: array of tool name strings (deduplicated). Only tools that were actually called.
 - summary: one factual sentence. Describe what the user asked for and whether they got it. No subjective language.

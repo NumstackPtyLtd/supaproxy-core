@@ -14,7 +14,7 @@ export const KNOWLEDGE_GROUNDING_LEVELS = ['strict', 'grounded', 'open'] as cons
 
 export type KnowledgeGrounding = (typeof KNOWLEDGE_GROUNDING_LEVELS)[number]
 
-export const DEFAULT_KNOWLEDGE_GROUNDING: KnowledgeGrounding = 'grounded'
+export const DEFAULT_KNOWLEDGE_GROUNDING: KnowledgeGrounding = 'strict'
 
 export function normaliseGrounding(value: string | null | undefined): KnowledgeGrounding | null {
   return KNOWLEDGE_GROUNDING_LEVELS.includes(value as KnowledgeGrounding) ? (value as KnowledgeGrounding) : null
@@ -36,7 +36,7 @@ export function resolveGrounding(
 export function buildGroundingClause(grounding: KnowledgeGrounding, chunkCount: number): string {
   switch (grounding) {
     case 'strict':
-      return '<knowledge_grounding level="strict">\nYou may use ONLY information from the workspace knowledge base and from tool results in this conversation. This rule overrides your role description and any instinct to be helpful with general knowledge. Never state any fact, figure, amount, currency, rate, name, product detail, or date that is not explicitly present in the knowledge base or a tool result. This includes broad questions: do not list, describe, or summarise products, services, amount ranges, eligibility, or processes unless those specifics appear in the knowledge base or a tool result. If the knowledge base does not cover the question (including when no knowledge is provided below), do not answer from general knowledge: say you do not have governance covering that and offer to route or escalate.\n</knowledge_grounding>'
+      return '<knowledge_grounding level="strict">\nYou may use ONLY information from the workspace knowledge base and from tool results in this conversation. This rule overrides your role description and any instinct to be helpful with general knowledge. Never state any fact, figure, amount, currency, rate, name, product detail, or date that is not explicitly present in the knowledge base or a tool result. This includes broad questions: do not list, describe, or summarise products, services, amount ranges, eligibility, or processes unless those specifics appear in the knowledge base or a tool result. If the knowledge base does not cover the question (including when no knowledge is provided below), do not answer from general knowledge and never guess. Instead, say plainly that this is not covered by the knowledge base, state clearly what information is missing, and offer to route or escalate. Naming the missing information lets it be captured as a knowledge gap for an admin to add.\n</knowledge_grounding>'
     case 'grounded':
       return '<knowledge_grounding level="grounded">\nEvery factual claim in your answer must come from the workspace knowledge base or a tool result. This overrides any instinct to fill gaps with general knowledge. You may rephrase and explain for clarity, but never state any fact, figure, amount, currency, rate, name, product detail, or date that is not explicitly present in the knowledge base or a tool result. If the knowledge base does not cover something, say so rather than guessing.\n</knowledge_grounding>'
     case 'open':

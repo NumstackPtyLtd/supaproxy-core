@@ -76,8 +76,14 @@ export interface ComplianceViolation {
 }
 
 export interface KnowledgeGap {
+  /** What the user was asking about. */
   topic: string;
-  description: string;
+  /** The specific information the assistant needed but could not find. */
+  missing_information: string;
+  /** Where the assistant looked, by name (knowledge sources or tools). */
+  sources_checked: string[];
+  /** What is absent from the knowledge base, phrased for an admin. */
+  gap_detail: string;
 }
 
 export interface FraudIndicator {
