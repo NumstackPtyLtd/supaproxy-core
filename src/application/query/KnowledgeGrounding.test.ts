@@ -58,6 +58,14 @@ describe('buildGroundingClause', () => {
     expect(buildGroundingClause('strict', 0)).not.toBe('')
     expect(buildGroundingClause('grounded', 0)).not.toBe('')
   })
+
+  it('strict and grounded forbid fabricating tool calls and results', () => {
+    for (const level of ['strict', 'grounded'] as const) {
+      const clause = buildGroundingClause(level, 0)
+      expect(clause).toMatch(/tool result.*actual output/i)
+      expect(clause).toMatch(/never invent[^.]*tool|role-play tool/i)
+    }
+  })
 })
 
 describe('buildReceptionistGroundingClause', () => {

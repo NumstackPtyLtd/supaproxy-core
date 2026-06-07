@@ -19,6 +19,7 @@ import { resolveProvider } from './ProviderResolver.js'
 import { resolveModel } from './ModelResolver.js'
 import { resolveGrounding } from './KnowledgeGrounding.js'
 import { extractKnowledgeGap } from './KnowledgeGapDirective.js'
+import { containsFabricatedToolCall, FABRICATED_TOOLS_MESSAGE } from './FabricatedToolGuard.js'
 import type { KnowledgeGap } from '../../domain/shared/jsonMappers.js'
 import { discoverTools } from './ToolDiscovery.js'
 import { screenInput } from './InputScreener.js'
@@ -129,6 +130,14 @@ export class ExecuteQueryUseCase {
       if (gap) {
         result.answer = cleanedAnswer
         await this.captureKnowledgeGap(workspaceId, conversationId, meta.userName, gap)
+      }
+
+      // Refuse fabricated tool flows: a model with no real tools may role-play
+      // tool calls and invent results (customer data, KYC, OTP). Never surface that.
+      if (containsFabricatedToolCall(result.answer)) {
+        log.warn({ workspace: workspaceId }, 'Model fabricated tool calls/results; refusing the answer')
+        result.answer = FABRICATED_TOOLS_MESSAGE
+        result.error = result.error || 'fabricated_tools'
       }
 
       result.durationMs = Date.now() - startTime
