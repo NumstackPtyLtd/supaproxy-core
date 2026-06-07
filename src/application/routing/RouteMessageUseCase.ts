@@ -121,6 +121,28 @@ export class RouteMessageUseCase {
       }
     }
 
+    // The topic may have moved to another department; re-route if so, so the
+    // right workspace answers instead of the current one declining.
+    const reroute = await this.matcher.checkReroute(input.orgId, input.query, existingSession.workspaceId)
+    if (reroute && reroute.workspaceId !== existingSession.workspaceId) {
+      log.info({ sessionKey, from: existingSession.workspaceId, to: reroute.workspaceId }, 'Re-routing: message belongs to another department')
+      const rerouted = await this.executeInWorkspace(reroute.workspaceId, input, sessionKey, existingSession)
+      await this.sessionStore.set(sessionKey, {
+        workspaceId: reroute.workspaceId,
+        lastMessageAt: Date.now(),
+        routedFrom: existingSession.routedFrom,
+        routedFromConversationId: existingSession.routedFromConversationId,
+        generalConversationId: existingSession.generalConversationId,
+      }, SESSION_TTL_SECONDS)
+      return {
+        answer: rerouted.answer,
+        conversationId: rerouted.conversationId,
+        workspaceId: reroute.workspaceId,
+        routed: true,
+        routedTo: reroute.name,
+      }
+    }
+
     const result = await this.executeInWorkspace(existingSession.workspaceId, input, sessionKey, existingSession)
 
     const outOfScope = existingSession.routedFrom && isRedirectOffer(result.answer)

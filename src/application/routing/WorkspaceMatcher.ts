@@ -5,7 +5,7 @@ import { ReceptionistPromptBuilder } from './ReceptionistPromptBuilder.js'
 import { resolveGrounding, buildReceptionistGroundingClause } from '../query/KnowledgeGrounding.js'
 import { NotFoundError } from '../../domain/shared/errors.js'
 import { CONSUMER_TYPE_SYSTEM } from '../../defaults.js'
-import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt } from '../../prompts.js'
+import { REDIRECT_INTENT_SYSTEM, buildRedirectIntentPrompt, REROUTE_CLASSIFIER_SYSTEM, buildRerouteClassifierPrompt } from '../../prompts.js'
 import pino from 'pino'
 
 const log = pino({ name: 'workspace-matcher' })
@@ -49,6 +49,38 @@ export class WorkspaceMatcher {
     } catch (err) {
       log.warn({ error: (err as Error).message }, 'Redirect intent check failed, defaulting to no')
       return false
+    }
+  }
+
+  /**
+   * For a conversation already in a department, decide whether the latest
+   * message belongs to a different department. Returns that department to
+   * re-route to, or null to stay. Conservative: only re-routes on a clear
+   * match to a different department.
+   */
+  async checkReroute(orgId: string, query: string, currentWorkspaceId: string): Promise<{ workspaceId: string; name: string } | null> {
+    try {
+      const defaultWs = await this.workspaceRepo.findDefaultByOrg(orgId)
+      if (!defaultWs) return null
+
+      const workspaces = await this.workspaceRepo.listRoutingSummaries(orgId)
+      const current = workspaces.find(w => w.id === currentWorkspaceId)
+      if (!current || workspaces.length < 2) return null
+
+      const prompt = buildRerouteClassifierPrompt(current.name, query, workspaces)
+      const result = await this.executeQueryUseCase.execute(defaultWs.id, prompt, {
+        consumerType: CONSUMER_TYPE_SYSTEM,
+        systemPromptOverride: REROUTE_CLASSIFIER_SYSTEM,
+        skipTools: true,
+      })
+
+      const reply = result.answer.trim().toLowerCase()
+      if (!reply || reply.includes('current')) return null
+      const target = workspaces.find(w => w.id !== currentWorkspaceId && reply.includes(w.name.toLowerCase()))
+      return target ? { workspaceId: target.id, name: target.name } : null
+    } catch (err) {
+      log.warn({ error: (err as Error).message }, 'Re-route check failed, staying in current workspace')
+      return null
     }
   }
 

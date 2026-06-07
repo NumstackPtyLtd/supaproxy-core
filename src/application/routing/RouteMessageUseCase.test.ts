@@ -654,4 +654,40 @@ describe('RouteMessageUseCase', () => {
     expect(result.workspaceId).toBe('ws-general')
     expect(result.answer).not.toContain('<!-- ROUTE')
   })
+
+  function stickySessionUseCase(reroute: { workspaceId: string; name: string } | null) {
+    const localMatcher = new WorkspaceMatcher(workspaceRepo, orgRepo, executeQuery)
+    vi.spyOn(localMatcher, 'checkReroute').mockResolvedValue(reroute)
+    const convRepo = mockConversationRepo()
+    const convUseCase = mockManageConversationUseCase() as ManageConversationUseCase
+    const localRouter = new ReceptionistRouter(workspaceRepo, convRepo, sessionStore, convUseCase, localMatcher)
+    const localUseCase = new RouteMessageUseCase(workspaceRepo, sessionStore, executeQuery, convUseCase, localMatcher, localRouter)
+    vi.mocked(sessionStore.get).mockResolvedValue({
+      workspaceId: 'ws-insurance', lastMessageAt: Date.now(), routedFrom: '#general',
+      routedFromConversationId: 'c', generalConversationId: 'c',
+    })
+    vi.mocked(workspaceRepo.findDefaultByOrg).mockResolvedValue(stubWorkspace({ id: 'ws-general', name: '#general', is_default: true }))
+    return { localUseCase, localMatcher }
+  }
+
+  it('re-routes a sticky session to another department when the message belongs there', async () => {
+    const { localUseCase, localMatcher } = stickySessionUseCase({ workspaceId: 'ws-lending', name: 'Lending' })
+
+    const out = await localUseCase.execute({ ...baseInput, query: 'Tell me about loans' })
+
+    expect(localMatcher.checkReroute).toHaveBeenCalledWith('org-1', 'Tell me about loans', 'ws-insurance')
+    expect(out.routed).toBe(true)
+    expect(out.routedTo).toBe('Lending')
+    expect(out.workspaceId).toBe('ws-lending')
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-lending', 'Tell me about loans', expect.anything())
+  })
+
+  it('stays in the current workspace when the message belongs there', async () => {
+    const { localUseCase } = stickySessionUseCase(null)
+
+    const out = await localUseCase.execute({ ...baseInput, query: 'what is my deductible' })
+
+    expect(out.workspaceId).toBe('ws-insurance')
+    expect(executeQuery.execute).toHaveBeenCalledWith('ws-insurance', 'what is my deductible', expect.anything())
+  })
 })

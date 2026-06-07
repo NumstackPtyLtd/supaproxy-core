@@ -83,6 +83,17 @@ export function buildRedirectIntentPrompt(userResponse: string): string {
   return `The user was asked: "Would you like me to connect you with someone who can help?" They responded: "${userResponse}". Do they want to be connected?`
 }
 
+// ── Re-route classification ──
+// Decides, for a conversation already in a department, whether the latest
+// message actually belongs to a different department so it can be re-routed.
+
+export const REROUTE_CLASSIFIER_SYSTEM = 'You are a routing classifier. Decide which department should handle the user\'s latest message. Reply with ONLY the exact department name from the list, or the single word CURRENT when the message fits the current department, is a follow-up, or is general small talk. Output nothing else.'
+
+export function buildRerouteClassifierPrompt(currentDept: string, query: string, departments: Array<{ name: string; system_prompt: string | null }>): string {
+  const list = departments.map(d => `- ${d.name}${d.system_prompt ? `: ${d.system_prompt}` : ''}`).join('\n')
+  return `The conversation is currently with the "${currentDept}" department.\n\nDepartments:\n${list}\n\nLatest user message: "${query}"\n\nWhich department should handle it? Reply CURRENT if it belongs to "${currentDept}" or is a general follow-up; otherwise reply with the exact department name.`
+}
+
 // ── Cold message generation ──
 
 export function buildColdMessagePrompt(transcript: string): string {
